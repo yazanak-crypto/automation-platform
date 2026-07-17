@@ -1,0 +1,53 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: platform
+      POSTGRES_PASSWORD: platform
+      POSTGRES_DB: platform
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U platform"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Execution engine (Decision 005). Internal-only in production —
+  # never expose this port publicly.
+  activepieces:
+    image: ghcr.io/activepieces/activepieces:latest
+    ports:
+      - "8080:80"
+    environment:
+      AP_QUEUE_MODE: REDIS
+      AP_REDIS_HOST: redis
+      AP_REDIS_PORT: "6379"
+      AP_POSTGRES_HOST: postgres
+      AP_POSTGRES_PORT: "5432"
+      AP_POSTGRES_USERNAME: platform
+      AP_POSTGRES_PASSWORD: platform
+      AP_POSTGRES_DATABASE: activepieces
+      AP_FRONTEND_URL: http://localhost:8080
+      AP_ENCRYPTION_KEY: dev-only-0123456789abcdef01234567
+      AP_JWT_SECRET: dev-only-jwt-secret
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  pgdata:
