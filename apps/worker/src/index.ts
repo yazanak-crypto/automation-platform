@@ -1,5 +1,6 @@
 import { Queue, Worker } from "bullmq";
 import IORedis from "ioredis";
+import { startBrainWorkers } from "./brainJobs";
 
 // Worker skeleton: queue wiring + heartbeat only. Job processors land with
 // their M1 steps (activation provisioning, run finalization, metering).
@@ -22,12 +23,15 @@ const worker = new Worker(
   { connection },
 );
 
+const brainWorkers = startBrainWorkers(connection);
+
 worker.on("ready", () => console.log("[worker] ready — connected to Redis"));
 worker.on("failed", (job, err) =>
   console.error(`[worker] job ${job?.id} failed:`, err.message),
 );
 
 async function shutdown() {
+  await Promise.all(brainWorkers.map((w) => w.close()));
   await worker.close();
   await systemQueue.close();
   connection.disconnect();

@@ -11,11 +11,16 @@
   "dependencies": {
     "@clerk/nextjs": "^6.9.9",
     "@platform/ai": "workspace:*",
+    "@platform/brain": "workspace:^",
+    "@platform/core": "workspace:^",
     "@platform/db": "workspace:*",
+    "@platform/schemas": "workspace:^",
+    "bullmq": "^5.34.10",
     "drizzle-orm": "^0.38.3",
     "next": "^15.1.6",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "zod": "^3.24"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.0.0",

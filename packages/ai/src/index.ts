@@ -3,6 +3,7 @@ import { aiCalls, db } from "@platform/db";
 import { estimateCostMicrocents, MODELS, type ModelTier } from "./pricing";
 
 export * from "./pricing";
+export * from "./embed";
 
 export interface GatewayCall {
   workspaceId: string;
@@ -15,6 +16,8 @@ export interface GatewayCall {
   maxTokens?: number;
   /** Business Brain context injected by the assembler (Decision 008). Logged verbatim. */
   contextPack?: Record<string, unknown>;
+  /** Brain version the context pack was assembled from (Decision 011 refinement). */
+  brainVersion?: number;
 }
 
 export interface GatewayResult {
@@ -64,6 +67,7 @@ export async function callAi(call: GatewayCall): Promise<GatewayResult> {
       promptRef: call.promptRef,
       promptVersion: call.promptVersion,
       contextPack: call.contextPack,
+      brainVersion: call.brainVersion,
       tokensIn,
       tokensOut,
       estimatedCostMicrocents: cost,
@@ -82,6 +86,7 @@ export async function callAi(call: GatewayCall): Promise<GatewayResult> {
         promptRef: call.promptRef,
         promptVersion: call.promptVersion,
         contextPack: call.contextPack,
+        brainVersion: call.brainVersion,
         tokensIn: 0,
         tokensOut: 0,
         estimatedCostMicrocents: 0,
