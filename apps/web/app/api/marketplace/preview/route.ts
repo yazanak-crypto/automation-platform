@@ -1,4 +1,4 @@
-import { callAi } from "@platform/ai";
+import { aiConfigured, callAi } from "@platform/ai";
 import { getContextPack } from "@platform/brain";
 import {
   buildLeadConciergePrompt,
@@ -7,7 +7,7 @@ import {
   LEAD_CONCIERGE_PROMPT_VERSION,
   LEAD_CONCIERGE_SYSTEM,
 } from "@platform/catalog";
-import { takeLimit } from "@platform/core";
+import { getCreditStatus, takeLimit } from "@platform/core";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireWorkspace, unauthorized } from "@/lib/workspace";
@@ -35,6 +35,19 @@ export async function POST(req: Request) {
   const config = def.configSchema.safeParse(parsed.data.config);
   if (!config.success) {
     return NextResponse.json({ error: "Invalid configuration" }, { status: 400 });
+  }
+  if (!aiConfigured()) {
+    return NextResponse.json(
+      { error: "The AI engine isn't configured yet — previews need an AI provider key." },
+      { status: 503 },
+    );
+  }
+  const credits = await getCreditStatus(ctx.workspace.id);
+  if (credits.exhausted) {
+    return NextResponse.json(
+      { error: "You're out of AI credits this month — upgrade on the Billing page." },
+      { status: 402 },
+    );
   }
   if (!(await takeLimit(`preview:${ctx.workspace.id}`, 20, 3600))) {
     return NextResponse.json({ error: "Preview limit reached — try again later." }, { status: 429 });

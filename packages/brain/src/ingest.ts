@@ -1,4 +1,4 @@
-import { callAi } from "@platform/ai";
+import { aiConfigured, callAi } from "@platform/ai";
 import { businessProfiles, db, knowledgeItems } from "@platform/db";
 import { draftProfileOutputSchema, type DraftProfileOutput } from "@platform/schemas";
 import { eq } from "drizzle-orm";
@@ -35,6 +35,17 @@ function parseModelJson(text: string): DraftProfileOutput | null {
  */
 export async function runIngest(workspaceId: string, url: string): Promise<IngestResult> {
   await ensureProfile(workspaceId);
+
+  // AI optional: without a provider we skip drafting entirely — the user
+  // fills the brain manually (same soft path as an unreadable site).
+  if (!aiConfigured()) {
+    await db()
+      .update(businessProfiles)
+      .set({ identity: { url }, onboardingStatus: "draft_ready", updatedAt: new Date() })
+      .where(eq(businessProfiles.workspaceId, workspaceId));
+    return { outcome: "nothing_found", pagesRead: 0, faqsSuggested: 0, productsSuggested: 0 };
+  }
+
   const pages = await scrapeSite(url);
   const usable = pages.filter((p) => p.text.length > 100);
 

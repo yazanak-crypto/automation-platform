@@ -54,7 +54,7 @@ async function checkRedis() {
 }
 
 async function checkAnthropic() {
-  if (!process.env.ANTHROPIC_API_KEY) return add("Anthropic", "FAIL", "ANTHROPIC_API_KEY missing in .env");
+  if (!process.env.ANTHROPIC_API_KEY) return add("Anthropic", "SKIP", "unset — platform boots; AI drafting disabled until a key is added");
   try {
     const { default: Anthropic } = await import("@anthropic-ai/sdk");
     const client = new Anthropic();
@@ -107,6 +107,7 @@ function checkOptional() {
   add("Sentry", process.env.SENTRY_DSN ? "PASS" : "SKIP", process.env.SENTRY_DSN ? "DSN set" : "unset — errors go to console only");
   add("Voyage (embeddings)", process.env.VOYAGE_API_KEY ? "PASS" : "SKIP", process.env.VOYAGE_API_KEY ? "set" : "unset — knowledge retrieval uses recency fallback");
   add("Founder emails", process.env.FOUNDER_EMAILS ? "PASS" : "SKIP", process.env.FOUNDER_EMAILS ?? "unset — /internal will be inaccessible");
+  add("Stripe", process.env.STRIPE_SECRET_KEY ? "PASS" : "SKIP", process.env.STRIPE_SECRET_KEY ? "configured" : "unset — trial credits enforced, upgrades disabled");
 }
 
 const ICONS = { PASS: "✅", FAIL: "❌", SKIP: "⏭️ " };

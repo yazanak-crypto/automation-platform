@@ -3,6 +3,7 @@ import { getBrain } from "@platform/brain";
 import { requireWorkspace } from "@/lib/workspace";
 import ActiveAutomations from "./ActiveAutomations";
 import StatStrip from "./StatStrip";
+import SystemBanners from "./SystemBanners";
 import AttentionQueue from "./AttentionQueue";
 
 export const dynamic = "force-dynamic";
@@ -41,6 +42,7 @@ export default async function DashboardPage() {
         </Link>
       )}
 
+      {ctx && <SystemBanners workspaceId={ctx.workspace.id} />}
       <StatStrip />
       <AttentionQueue />
       <ActiveAutomations />

@@ -7,6 +7,7 @@ const isPublicRoute = createRouteMatcher([
   // Public widget surface — origin-allowlist + rate limits guard these (plan §3/§6).
   "/api/webchat(.*)",
   "/widget.js",
+  "/api/webhooks/stripe",
 ]);
 
 export default clerkMiddleware(async (auth, req) => {

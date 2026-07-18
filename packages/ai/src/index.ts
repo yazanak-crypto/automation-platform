@@ -29,10 +29,35 @@ export interface GatewayResult {
   latencyMs: number;
 }
 
-let _client: Anthropic | undefined;
-function client() {
-  _client ??= new Anthropic();
-  return _client;
+/** Thrown when no AI provider is configured — callers degrade gracefully. */
+export class AiNotConfiguredError extends Error {
+  constructor() {
+    super("No AI provider configured (set ANTHROPIC_API_KEY)");
+  }
+}
+
+/**
+ * BYOK seam: the single place an API key is chosen for a workspace. Today it
+ * returns the platform key from env; customer-owned keys later plug in here
+ * (workspace → stored key) without touching any caller.
+ */
+export function resolveAiKey(_workspaceId?: string): string | null {
+  return process.env.ANTHROPIC_API_KEY ?? null;
+}
+
+/** Whether AI features are available at all (platform key or, later, BYOK). */
+export function aiConfigured(): boolean {
+  return !!process.env.ANTHROPIC_API_KEY;
+}
+
+const _clients = new Map<string, Anthropic>();
+function clientFor(apiKey: string): Anthropic {
+  let c = _clients.get(apiKey);
+  if (!c) {
+    c = new Anthropic({ apiKey });
+    _clients.set(apiKey, c);
+  }
+  return c;
 }
 
 /**
@@ -42,10 +67,12 @@ function client() {
  * may talk to an LLM provider (Decisions 003/005/011).
  */
 export async function callAi(call: GatewayCall): Promise<GatewayResult> {
+  const apiKey = resolveAiKey(call.workspaceId);
+  if (!apiKey) throw new AiNotConfiguredError();
   const { model } = MODELS[call.tier];
   const started = Date.now();
   try {
-    const res = await client().messages.create({
+    const res = await clientFor(apiKey).messages.create({
       model,
       max_tokens: call.maxTokens ?? 1024,
       system: call.system,

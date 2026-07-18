@@ -401,6 +401,24 @@ export const runEvents = pgTable(
   (t) => [index("run_events_run_idx").on(t.runId, t.seq)],
 );
 
+// ── Billing (Step 9): Stripe subscription state; credits computed from ai_calls ─
+
+export const subscriptions = pgTable("subscriptions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  workspaceId: uuid("workspace_id")
+    .notNull()
+    .unique()
+    .references(() => workspaces.id),
+  stripeCustomerId: text("stripe_customer_id").notNull(),
+  stripeSubscriptionId: text("stripe_subscription_id"),
+  plan: text("plan").notNull().default("trial"),
+  status: text("status").notNull().default("incomplete"),
+  currentPeriodStart: timestamp("current_period_start", { withTimezone: true }),
+  currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 // Every AI call in the platform is recorded here, from call #1.
 // No code path may reach an LLM provider without writing this row.
 export const aiCalls = pgTable("ai_calls", {

@@ -1,5 +1,5 @@
 import * as Sentry from "@sentry/node";
-import { callAi } from "@platform/ai";
+import { aiConfigured, callAi } from "@platform/ai";
 import { getContextPack } from "@platform/brain";
 import {
   deliverOutbound,
@@ -34,6 +34,7 @@ import {
 } from "@platform/catalog";
 import {
   decideAction,
+  getCreditStatus,
   resolvePolicy,
   shouldSendHoldingLine,
   takeLimit,
@@ -136,6 +137,26 @@ async function processDraftLocked(job: WebchatDraftJob) {
   // newest job answers with full context instead of racing this one.
   if ((await latestInboundId(job.conversationId)) !== job.messageId) {
     return { outcome: "skipped", reason: "superseded by newer message" };
+  }
+
+  // AI provider optional (founder directive): no key -> no drafting, no crash.
+  // The message waits for the owner like any manual conversation.
+  if (!aiConfigured()) {
+    return { outcome: "skipped", reason: "ai not configured" };
+  }
+
+  // Step 9: credit enforcement — exhausted credits block AI work gracefully;
+  // the conversation surfaces to the owner instead of being dropped.
+  const credits = await getCreditStatus(job.workspaceId);
+  if (credits.exhausted) {
+    await db()
+      .update(conversations)
+      .set({
+        status: "waiting_approval",
+        attentionReason: "AI credits for this month are used up — upgrade your plan or reply yourself",
+      })
+      .where(eq(conversations.id, job.conversationId));
+    return { outcome: "credits_exhausted" };
   }
 
   // Audit-2 P0-2: interim per-workspace AI-draft cap across ALL channels
