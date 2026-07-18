@@ -25,6 +25,7 @@ export default function ConversationDetail({ params }: { params: Promise<{ id: s
   const [edit, setEdit] = useState<string | null>(null);
   const [reply, setReply] = useState("");
   const [showWhy, setShowWhy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/conversations/${id}`);
@@ -43,25 +44,35 @@ export default function ConversationDetail({ params }: { params: Promise<{ id: s
   const lastRun = data.runs[0];
 
   async function act(action: "approve" | "dismiss") {
-    await fetch(`/api/conversations/${id}/draft`, {
+    setActionError(null);
+    const res = await fetch(`/api/conversations/${id}/draft`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         action,
         ...(action === "approve" && edit !== null ? { editedBody: edit } : {}),
       }),
-    });
+    }).catch(() => null);
+    if (!res?.ok) {
+      setActionError("That didn’t go through — please try again.");
+      return;
+    }
     setEdit(null);
     await load();
   }
 
   async function sendManual() {
     if (!reply.trim()) return;
-    await fetch(`/api/conversations/${id}/messages`, {
+    setActionError(null);
+    const res = await fetch(`/api/conversations/${id}/messages`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ body: reply.trim() }),
-    });
+    }).catch(() => null);
+    if (!res?.ok) {
+      setActionError("Your reply didn’t send — please try again.");
+      return;
+    }
     setReply("");
     await load();
   }
@@ -109,6 +120,8 @@ export default function ConversationDetail({ params }: { params: Promise<{ id: s
           </div>
         ))}
       </div>
+
+      {actionError && <p className="mt-4 text-sm text-red-400">{actionError}</p>}
 
       {pending && (
         <div className="mt-6 rounded-xl border border-amber-900 bg-amber-950/20 p-4">

@@ -19,6 +19,23 @@ import { bumpBrainVersion } from "./version";
 // All functions are workspace-scoped by signature: callers (API routes) resolve
 // the workspace from the authenticated session and can only pass their own id.
 
+
+// Audit P1-12: concurrent brain edits race on the unique (workspace, version)
+// index — correct, but must not surface as a 500. One retry wins the race.
+function isVersionConflict(err: unknown) {
+  const e = err as { code?: string; cause?: { code?: string } };
+  return e?.code === "23505" || e?.cause?.code === "23505";
+}
+
+async function withVersionRetry<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (err) {
+    if (!isVersionConflict(err)) throw err;
+    return fn();
+  }
+}
+
 export async function ensureProfile(workspaceId: string) {
   const existing = await db()
     .select()
@@ -72,7 +89,7 @@ export async function patchProfile(
   actor: string,
 ) {
   const before = await ensureProfile(workspaceId);
-  return db().transaction(async (tx) => {
+  return withVersionRetry(() => db().transaction(async (tx) => {
     const merged = {
       identity: patch.identity
         ? { ...(before.identity ?? {}), ...patch.identity }
@@ -96,7 +113,7 @@ export async function patchProfile(
       actor,
     });
     return { profile: updated[0]!, brainVersion: version };
-  });
+  }));
 }
 
 function pickProfileFields(p: {
@@ -121,7 +138,7 @@ export async function createBoundary(
   actor: string,
 ) {
   await ensureProfile(workspaceId);
-  return db().transaction(async (tx) => {
+  return withVersionRetry(() => db().transaction(async (tx) => {
     const rows = await tx
       .insert(boundaries)
       .values({ workspaceId, ...input })
@@ -134,7 +151,7 @@ export async function createBoundary(
       actor,
     });
     return rows[0]!;
-  });
+  }));
 }
 
 export async function patchBoundary(
@@ -143,7 +160,7 @@ export async function patchBoundary(
   patch: z.infer<typeof boundaryPatchSchema>,
   actor: string,
 ) {
-  return db().transaction(async (tx) => {
+  return withVersionRetry(() => db().transaction(async (tx) => {
     const before = await tx
       .select()
       .from(boundaries)
@@ -163,11 +180,11 @@ export async function patchBoundary(
       actor,
     });
     return rows[0]!;
-  });
+  }));
 }
 
 export async function deleteBoundary(workspaceId: string, id: string, actor: string) {
-  return db().transaction(async (tx) => {
+  return withVersionRetry(() => db().transaction(async (tx) => {
     const rows = await tx
       .delete(boundaries)
       .where(and(eq(boundaries.id, id), eq(boundaries.workspaceId, workspaceId)))
@@ -181,7 +198,7 @@ export async function deleteBoundary(workspaceId: string, id: string, actor: str
       actor,
     });
     return true;
-  });
+  }));
 }
 
 // ── Knowledge ───────────────────────────────────────────────────────────────
@@ -192,7 +209,7 @@ export async function createKnowledge(
   actor: string,
 ) {
   await ensureProfile(workspaceId);
-  return db().transaction(async (tx) => {
+  return withVersionRetry(() => db().transaction(async (tx) => {
     const rows = await tx
       .insert(knowledgeItems)
       .values({
@@ -210,7 +227,7 @@ export async function createKnowledge(
       actor,
     });
     return rows[0]!;
-  });
+  }));
 }
 
 /**
@@ -223,7 +240,7 @@ export async function patchKnowledge(
   patch: z.infer<typeof knowledgePatchSchema>,
   actor: string,
 ) {
-  return db().transaction(async (tx) => {
+  return withVersionRetry(() => db().transaction(async (tx) => {
     const before = await tx
       .select()
       .from(knowledgeItems)
@@ -259,11 +276,11 @@ export async function patchKnowledge(
       actor,
     });
     return { item: rows[0]!, needsEmbedding: contentChanged };
-  });
+  }));
 }
 
 export async function deleteKnowledge(workspaceId: string, id: string, actor: string) {
-  return db().transaction(async (tx) => {
+  return withVersionRetry(() => db().transaction(async (tx) => {
     const rows = await tx
       .delete(knowledgeItems)
       .where(and(eq(knowledgeItems.id, id), eq(knowledgeItems.workspaceId, workspaceId)))
@@ -277,7 +294,7 @@ export async function deleteKnowledge(workspaceId: string, id: string, actor: st
       actor,
     });
     return true;
-  });
+  }));
 }
 
 export async function getChangeLog(workspaceId: string, limit = 100) {

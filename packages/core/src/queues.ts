@@ -46,6 +46,19 @@ export const brainIngestQueue = () => queue(QUEUE_NAMES.brainIngest);
 export const brainEmbedQueue = () => queue(QUEUE_NAMES.brainEmbed);
 export const webchatDraftQueue = () => queue(QUEUE_NAMES.webchatDraft);
 
+/** Widget setup diagnostics (audit P1-9): remember the last origin we refused
+ *  per widget key so the channels page can tell the owner what to allowlist. */
+export async function recordBlockedOrigin(widgetKey: string, origin: string | null) {
+  if (!origin) return;
+  await redis()
+    .set(`wc:blocked:${widgetKey}`, origin.slice(0, 200), "EX", 86400)
+    .catch(() => {});
+}
+
+export async function getBlockedOrigin(widgetKey: string): Promise<string | null> {
+  return redis().get(`wc:blocked:${widgetKey}`).catch(() => null);
+}
+
 /** Fixed-window rate limit. Returns true if the action is allowed. */
 export async function takeLimit(key: string, max: number, windowSec: number): Promise<boolean> {
   const r = redis();

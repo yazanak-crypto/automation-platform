@@ -1,0 +1,14 @@
+{
+  "name": "@platform/e2e",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "e2e": "playwright test",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.1",
+    "@types/node": "^22",
+    "typescript": "^5.7.3"
+  }
+}

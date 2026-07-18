@@ -1,3 +1,4 @@
+import { redis } from "@platform/core";
 import { aiCalls, db, workspaces } from "@platform/db";
 import { desc, eq, sql } from "drizzle-orm";
 
@@ -26,12 +27,16 @@ async function load() {
       .where(eq(aiCalls.success, false))
       .orderBy(desc(aiCalls.createdAt))
       .limit(20);
-    return { ws, usage, recentErrors, dbError: undefined };
+    const heartbeat = await redis().get("worker:heartbeat").catch(() => null);
+    const workerAlive = heartbeat ? Date.now() - new Date(heartbeat).getTime() < 150_000 : false;
+    return { ws, usage, recentErrors, heartbeat, workerAlive, dbError: undefined };
   } catch (err) {
     return {
       ws: [],
       usage: [],
       recentErrors: [],
+      heartbeat: null,
+      workerAlive: false,
       dbError: err instanceof Error ? err.message : String(err),
     };
   }
@@ -42,11 +47,22 @@ function usd(microcents: number) {
 }
 
 export default async function InternalPage() {
-  const { ws, usage, recentErrors, dbError } = await load();
+  const { ws, usage, recentErrors, heartbeat, workerAlive, dbError } = await load();
   const usageByWs = new Map(usage.map((u) => [u.workspaceId, u]));
 
   return (
     <div className="space-y-10">
+      <p
+        className={`rounded-lg border p-3 text-sm ${
+          workerAlive
+            ? "border-emerald-900 bg-emerald-950/30 text-emerald-300"
+            : "border-red-900 bg-red-950/40 text-red-300"
+        }`}
+      >
+        Worker: {workerAlive ? "alive" : "NOT BEATING"}
+        {heartbeat && ` · last heartbeat ${heartbeat}`}
+      </p>
+
       {dbError && (
         <p className="rounded-lg border border-red-900 bg-red-950/40 p-4 text-sm text-red-300">
           Database unavailable: {dbError}

@@ -1,3 +1,4 @@
+import { getBlockedOrigin } from "@platform/core";
 import { channels, db } from "@platform/db";
 import { channelCreateSchema } from "@platform/schemas";
 import { desc, eq } from "drizzle-orm";
@@ -12,7 +13,13 @@ export async function GET() {
     .from(channels)
     .where(eq(channels.workspaceId, ctx.workspace.id))
     .orderBy(desc(channels.createdAt));
-  return NextResponse.json(rows);
+  const withDiag = await Promise.all(
+    rows.map(async (r) => ({
+      ...r,
+      lastBlockedOrigin: r.type === "web_chat" ? await getBlockedOrigin(r.widgetKey) : null,
+    })),
+  );
+  return NextResponse.json(withDiag);
 }
 
 export async function POST(req: Request) {

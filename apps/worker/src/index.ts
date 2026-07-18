@@ -1,6 +1,17 @@
 import { Queue, Worker } from "bullmq";
 import IORedis from "ioredis";
+import * as Sentry from "@sentry/node";
 import { closeIdleConversations } from "@platform/channels";
+import { redis } from "@platform/core";
+
+// Audit P1-10: error capture + heartbeat, both gated on env (no-op without).
+if (process.env.SENTRY_DSN) {
+  Sentry.init({ dsn: process.env.SENTRY_DSN, tracesSampleRate: 0.1 });
+}
+process.on("unhandledRejection", (err) => {
+  console.error("[worker] unhandled rejection:", err);
+  Sentry.captureException(err);
+});
 import { startBrainWorkers } from "./brainJobs";
 import { startWebchatWorker } from "./webchatDraft";
 
@@ -29,6 +40,14 @@ const brainWorkers = [...startBrainWorkers(connection), startWebchatWorker(conne
 
 // Audit P0-5: hourly sweep closes conversations idle >7 days (enables
 // "returning visitor" continuity and keeps the inbox honest).
+// Audit P1-10: heartbeat — /internal shows red if this stops beating.
+const heartbeat = setInterval(() => {
+  redis()
+    .set("worker:heartbeat", new Date().toISOString(), "EX", 180)
+    .catch((err) => console.error("[heartbeat] failed:", err.message));
+}, 60_000);
+redis().set("worker:heartbeat", new Date().toISOString(), "EX", 180).catch(() => {});
+
 const idleSweep = setInterval(
   () =>
     closeIdleConversations().then(
@@ -44,6 +63,7 @@ worker.on("failed", (job, err) =>
 );
 
 async function shutdown() {
+  clearInterval(heartbeat);
   clearInterval(idleSweep);
   await Promise.all(brainWorkers.map((w) => w.close()));
   await worker.close();

@@ -60,3 +60,26 @@ jobs:
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  e2e-smoke:
+    runs-on: ubuntu-latest
+    # Needs Clerk keys to boot the app; enable by setting repo variable E2E_ENABLED=1.
+    if: ${{ vars.E2E_ENABLED == '1' }}
+    needs: checks
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @platform/e2e exec playwright install chromium --with-deps
+      - run: pnpm e2e
+        env:
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.E2E_CLERK_PUBLISHABLE_KEY }}
+          CLERK_SECRET_KEY: ${{ secrets.E2E_CLERK_SECRET_KEY }}
+          DATABASE_URL: ${{ secrets.E2E_DATABASE_URL }}
+          REDIS_URL: ${{ secrets.E2E_REDIS_URL }}

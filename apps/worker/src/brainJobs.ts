@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/node";
 import { embed } from "@platform/ai";
 import { runIngest } from "@platform/brain";
 import {
@@ -48,9 +49,10 @@ export function startBrainWorkers(connection: ConnectionOptions) {
   );
 
   for (const w of [ingestWorker, embedWorker]) {
-    w.on("failed", (job, err) =>
-      console.error(`[${w.name}] job ${job?.id} failed:`, err.message),
-    );
+    w.on("failed", (job, err) => {
+      console.error(`[${w.name}] job ${job?.id} failed:`, err.message);
+      Sentry.captureException(err);
+    });
   }
   return [ingestWorker, embedWorker];
 }

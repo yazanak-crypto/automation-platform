@@ -84,9 +84,21 @@
   }
 
   // ── API ───────────────────────────────────────────────────────────────────
+  let warnedBlocked = false;
+  function warnIfBlocked(status: number) {
+    if (status === 403 && !warnedBlocked) {
+      warnedBlocked = true;
+      console.warn(
+        `Platform chat: this site (${location.origin}) isn't on the allowed list for this widget key. ` +
+          "Add it under Channels → Website chat → Allowed sites in your Platform dashboard.",
+      );
+    }
+  }
+
   async function poll() {
     try {
       const res = await fetch(`${base}/api/webchat/${widgetKey}/conversations/${visitorId}`);
+      warnIfBlocked(res.status);
       if (!res.ok) return;
       const data = (await res.json()) as { messages: Msg[] };
       if (JSON.stringify(data.messages) !== JSON.stringify(msgs)) {
@@ -109,11 +121,12 @@
     input.value = "";
     render();
     try {
-      await fetch(`${base}/api/webchat/${widgetKey}/messages`, {
+      const res = await fetch(`${base}/api/webchat/${widgetKey}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ visitorId, body, clientMessageId }),
       });
+      warnIfBlocked(res.status);
       void poll();
     } catch {
       /* message will re-sync on next poll */

@@ -168,11 +168,18 @@ export default function OnboardingPage() {
 
   const identity = brain?.profile.identity ?? {};
   const suggested = brain?.knowledge.filter((k) => k.status === "suggested") ?? [];
+  const sparseDraft = !identity.industry && !identity.description && suggested.length === 0;
 
   return (
     <main className="mx-auto max-w-2xl space-y-8 p-8">
       <div>
         <h1 className="text-2xl font-semibold">Here&apos;s what we learned about your business</h1>
+        {sparseDraft && (
+          <p className="mt-2 rounded-lg border border-neutral-800 bg-neutral-900/60 p-3 text-sm text-neutral-400">
+            We couldn&apos;t read much from your site — no problem. Fill in what matters below;
+            two sentences about what you do is plenty to start.
+          </p>
+        )}
         <p className="mt-1 text-sm text-neutral-400">
           Everything below is a draft — review and adjust before confirming. Fields marked{" "}
           <span className="rounded bg-indigo-950 px-1.5 py-0.5 text-xs text-indigo-300">AI</span> were

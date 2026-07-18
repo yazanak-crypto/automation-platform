@@ -76,6 +76,11 @@ export default function ActiveAutomations() {
                   {a.status}
                 </span>
               </p>
+              {a.status === "paused" && (
+                <p className="mt-0.5 text-xs text-neutral-500">
+                  Paused — new messages wait in Conversations for your own reply. Nothing is lost.
+                </p>
+              )}
               <p className="mt-0.5 text-xs text-neutral-500">
                 {a.channelIds.length} channel{a.channelIds.length === 1 ? "" : "s"} · since{" "}
                 {new Date(a.activatedAt).toLocaleDateString()}

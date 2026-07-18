@@ -3,3 +3,4 @@ packages:
   - "packages/*"
   - "widget"
   - "automations"
+  - "e2e"

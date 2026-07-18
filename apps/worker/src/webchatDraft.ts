@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/node";
 import { callAi } from "@platform/ai";
 import { getContextPack } from "@platform/brain";
 import {
@@ -274,8 +275,9 @@ export function startWebchatWorker(connection: ConnectionOptions) {
     async (job) => processDraft(job.data),
     { connection, concurrency: 3 },
   );
-  w.on("failed", (job, err) =>
-    console.error(`[webchat.draft] job ${job?.id} failed:`, err.message),
-  );
+  w.on("failed", (job, err) => {
+    console.error(`[webchat.draft] job ${job?.id} failed:`, err.message);
+    Sentry.captureException(err);
+  });
   return w;
 }

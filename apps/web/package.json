@@ -17,6 +17,7 @@
     "@platform/core": "workspace:^",
     "@platform/db": "workspace:*",
     "@platform/schemas": "workspace:^",
+    "@sentry/nextjs": "^8.47.0",
     "bullmq": "^5.34.10",
     "drizzle-orm": "^0.38.3",
     "next": "^15.1.6",

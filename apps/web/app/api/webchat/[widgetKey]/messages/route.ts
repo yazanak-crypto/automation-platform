@@ -6,7 +6,7 @@ import {
   originAllowed,
   upsertVisitorContact,
 } from "@platform/channels";
-import { takeLimit, webchatDraftQueue } from "@platform/core";
+import { recordBlockedOrigin, takeLimit, webchatDraftQueue } from "@platform/core";
 import { webchatInboundSchema } from "@platform/schemas";
 import { type NextRequest } from "next/server";
 import { corsJson, forbidden, preflight } from "@/lib/cors";
@@ -15,7 +15,10 @@ async function guard(req: NextRequest, widgetKey: string) {
   const channel = await getActiveChannelByWidgetKey(widgetKey);
   if (!channel) return null;
   const origin = req.headers.get("origin");
-  if (!originAllowed(origin, channel.config.allowedOrigins)) return null;
+  if (!originAllowed(origin, channel.config.allowedOrigins)) {
+    await recordBlockedOrigin(widgetKey, origin);
+    return null;
+  }
   return { channel, origin: origin! };
 }
 

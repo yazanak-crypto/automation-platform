@@ -9,6 +9,7 @@ interface Channel {
   widgetKey: string;
   status: string;
   config: { allowedOrigins?: string[]; connectedAt?: string };
+  lastBlockedOrigin?: string | null;
 }
 
 const inputCls =
@@ -141,6 +142,19 @@ function WebchatCard({
           </button>
         </div>
       </div>
+
+      {channel.lastBlockedOrigin && (
+        <div className="rounded-lg border border-amber-900/60 bg-amber-950/20 p-3 text-sm">
+          <p className="text-amber-300">
+            A widget tried to connect from <code>{channel.lastBlockedOrigin}</code> but that site
+            isn&apos;t on your allowed list.
+          </p>
+          <p className="mt-1 text-xs text-neutral-400">
+            If that&apos;s your site, add it below and save. If you don&apos;t recognize it, you can
+            ignore this.
+          </p>
+        </div>
+      )}
 
       <div>
         <label className="mb-1 block text-sm text-neutral-400">

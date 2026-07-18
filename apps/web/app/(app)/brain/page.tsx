@@ -34,28 +34,56 @@ const inputCls =
 const labelCls = "mb-1 block text-sm text-neutral-400";
 const btnCls = "rounded-lg bg-white px-4 py-2 text-sm font-medium text-black disabled:opacity-50";
 
+// Audit P1-8: no user action may fail silently. api() reports every failure
+// to the page banner (and still throws so callers stop).
+let notifyError: (msg: string) => void = () => {};
+
 async function api(path: string, method: string, body?: unknown) {
-  const res = await fetch(path, {
-    method,
-    headers: { "Content-Type": "application/json" },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-  if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.error ?? "Request failed");
+  let res: Response;
+  try {
+    res = await fetch(path, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  } catch {
+    notifyError("Network problem — check your connection and try again.");
+    throw new Error("network");
+  }
+  if (!res.ok) {
+    const detail = (await res.json().catch(() => ({} as { error?: unknown })))?.error;
+    const msg = typeof detail === "string" ? detail : "That didn't save — please try again.";
+    notifyError(msg);
+    throw new Error(msg);
+  }
   return res.json();
 }
+
+/** Wrap event handlers so the throw from api() never becomes an unhandled rejection. */
+const safely = (fn: () => Promise<unknown>) => () => void fn().catch(() => {});
 
 export default function BrainPage() {
   const [brain, setBrain] = useState<Brain | null>(null);
   const [tab, setTab] = useState<"profile" | "boundaries" | "knowledge">("profile");
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ msg: string; kind: "ok" | "error" } | null>(null);
 
-  const load = useCallback(async () => setBrain(await api("/api/brain", "GET")), []);
+  const load = useCallback(
+    async () => setBrain(await api("/api/brain", "GET").catch(() => null)),
+    [],
+  );
   useEffect(() => { void load(); }, [load]);
 
   function flash(msg: string) {
-    setNotice(msg);
+    setNotice({ msg, kind: "ok" });
     setTimeout(() => setNotice(null), 2500);
   }
+  useEffect(() => {
+    notifyError = (msg) => {
+      setNotice({ msg, kind: "error" });
+      setTimeout(() => setNotice(null), 4000);
+    };
+    return () => { notifyError = () => {}; };
+  }, []);
 
   if (!brain) {
     return <main className="p-8 text-neutral-500">Loading your Business Brain…</main>;
@@ -88,7 +116,11 @@ export default function BrainPage() {
         ))}
       </nav>
 
-      {notice && <p className="mb-4 text-sm text-emerald-400">{notice}</p>}
+      {notice && (
+        <p className={`mb-4 text-sm ${notice.kind === "ok" ? "text-emerald-400" : "text-red-400"}`}>
+          {notice.msg}
+        </p>
+      )}
 
       {tab === "profile" && <ProfileTab brain={brain} setBrain={setBrain} onSaved={() => flash("Profile saved — active on the next AI run.")} />}
       {tab === "boundaries" && <BoundariesTab brain={brain} reload={load} onSaved={flash} />}
@@ -162,7 +194,7 @@ function ProfileTab({
         ))}
       </section>
 
-      <button className={btnCls} disabled={saving} onClick={save}>{saving ? "Saving…" : "Save profile"}</button>
+      <button className={btnCls} disabled={saving} onClick={safely(save)}>{saving ? "Saving…" : "Save profile"}</button>
     </div>
   );
 }
@@ -192,7 +224,7 @@ function BoundariesTab({ brain, reload, onSaved }: { brain: Brain; reload: () =>
           <option value="handoff">hand off</option>
           <option value="other">other</option>
         </select>
-        <button className={btnCls} onClick={add}>Add</button>
+        <button className={btnCls} onClick={safely(add)}>Add</button>
       </div>
       <ul className="space-y-2">
         {brain.boundaries.map((b) => (
@@ -203,11 +235,11 @@ function BoundariesTab({ brain, reload, onSaved }: { brain: Brain; reload: () =>
             </div>
             <div className="flex gap-2">
               <button className="rounded bg-neutral-800 px-2 py-1 text-xs"
-                onClick={async () => { await api(`/api/brain/boundaries/${b.id}`, "PATCH", { active: !b.active }); await reload(); }}>
+                onClick={safely(async () => { await api(`/api/brain/boundaries/${b.id}`, "PATCH", { active: !b.active }); await reload(); })}>
                 {b.active ? "Disable" : "Enable"}
               </button>
               <button className="rounded bg-red-950/60 px-2 py-1 text-xs text-red-300"
-                onClick={async () => { await api(`/api/brain/boundaries/${b.id}`, "DELETE"); await reload(); onSaved("Boundary removed."); }}>
+                onClick={safely(async () => { await api(`/api/brain/boundaries/${b.id}`, "DELETE"); await reload(); onSaved("Boundary removed."); })}>
                 Delete
               </button>
             </div>
@@ -256,7 +288,7 @@ function KnowledgeTab({
         <div className="space-y-2">
           <input className={inputCls} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Question — e.g. Do you ship internationally?" />
           <textarea className={inputCls} rows={2} value={a} onChange={(e) => setA(e.target.value)} placeholder="Answer" />
-          <button className={btnCls} onClick={addFaq}>Add FAQ</button>
+          <button className={btnCls} onClick={safely(addFaq)}>Add FAQ</button>
         </div>
       </div>
 
@@ -286,11 +318,11 @@ function KnowledgeTab({
               <div className="flex shrink-0 gap-2">
                 {k.status === "suggested" ? (
                   <>
-                    <button onClick={() => setStatus(k.id, "confirmed")} className="rounded bg-emerald-900/60 px-2 py-1 text-xs text-emerald-300">Confirm</button>
-                    <button onClick={() => setStatus(k.id, "rejected")} className="rounded bg-neutral-800 px-2 py-1 text-xs text-neutral-400">Dismiss</button>
+                    <button onClick={safely(() => setStatus(k.id, "confirmed"))} className="rounded bg-emerald-900/60 px-2 py-1 text-xs text-emerald-300">Confirm</button>
+                    <button onClick={safely(() => setStatus(k.id, "rejected"))} className="rounded bg-neutral-800 px-2 py-1 text-xs text-neutral-400">Dismiss</button>
                   </>
                 ) : (
-                  <button onClick={async () => { await api(`/api/brain/knowledge/${k.id}`, "DELETE"); await reload(); }} className="rounded bg-red-950/60 px-2 py-1 text-xs text-red-300">Delete</button>
+                  <button onClick={safely(async () => { await api(`/api/brain/knowledge/${k.id}`, "DELETE"); await reload(); })} className="rounded bg-red-950/60 px-2 py-1 text-xs text-red-300">Delete</button>
                 )}
               </div>
             </div>
