@@ -12,6 +12,7 @@
   "dependencies": {
     "@platform/ai": "workspace:^",
     "@platform/brain": "workspace:^",
+    "@platform/catalog": "workspace:^",
     "@platform/channels": "workspace:^",
     "@platform/core": "workspace:^",
     "@platform/db": "workspace:*",

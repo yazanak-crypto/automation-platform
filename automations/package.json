@@ -1,0 +1,25 @@
+{
+  "name": "@platform/catalog",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "index.ts",
+  "types": "index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "seed": "tsx seed.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@platform/db": "workspace:*",
+    "drizzle-orm": "^0.38.3",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8",
+    "@platform/core": "workspace:*"
+  }
+}

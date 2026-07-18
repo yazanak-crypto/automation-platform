@@ -247,6 +247,83 @@ export const messages = pgTable(
   ],
 );
 
+// ── Catalog & activations (Decision 009, M1 step 6) ─────────────────────────
+// Automations are global catalog objects (not workspace-scoped); the catalog
+// is code (automations/ package) seeded into these tables so the marketplace
+// treats 1 automation exactly like 500.
+
+export const automations = pgTable("automations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  slug: text("slug").notNull().unique(),
+  name: text("name").notNull(),
+  category: text("category").notNull(),
+  tagline: text("tagline").notNull(),
+  description: text("description").notNull(),
+  currentVersionId: uuid("current_version_id"),
+  tier: text("tier", { enum: ["starter", "pro"] }).notNull().default("starter"),
+  status: text("status", { enum: ["live", "draft", "archived"] }).notNull().default("draft"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const automationVersions = pgTable(
+  "automation_versions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    automationId: uuid("automation_id")
+      .notNull()
+      .references(() => automations.id),
+    version: integer("version").notNull(),
+    // "How it works" steps, config field descriptors (schema→UI), sample
+    // preview messages — everything the marketplace renders from data.
+    definition: jsonb("definition").$type<{
+      howItWorks: string[];
+      requiredCapabilities: string[];
+      contextNeeds: string[];
+      configFields: {
+        key: string;
+        label: string;
+        type: "text" | "textarea";
+        placeholder?: string;
+        help?: string;
+      }[];
+      sampleMessages: string[];
+      metricsContract: { key: string; label: string }[];
+      setupMinutes: number;
+    }>().notNull(),
+    changelog: text("changelog"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("automation_versions_unique_idx").on(t.automationId, t.version)],
+);
+
+export const activations = pgTable(
+  "activations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id),
+    automationVersionId: uuid("automation_version_id")
+      .notNull()
+      .references(() => automationVersions.id),
+    automationSlug: text("automation_slug").notNull(),
+    config: jsonb("config").$type<Record<string, unknown>>().notNull().default({}),
+    channelIds: jsonb("channel_ids").$type<string[]>().notNull().default([]),
+    // Draft-approval is the only mode in M1 (AC-2.10); the enum exists so the
+    // trust-graduation upgrade is a data change, not a migration.
+    mode: text("mode", { enum: ["draft_approval", "autopilot"] })
+      .notNull()
+      .default("draft_approval"),
+    status: text("status", { enum: ["active", "paused", "deactivated"] })
+      .notNull()
+      .default("active"),
+    engineRef: text("engine_ref"),
+    activatedAt: timestamp("activated_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("activations_workspace_idx").on(t.workspaceId, t.status)],
+);
+
 // ── Runs ledger, skeletal (Decision 009 source of truth; full catalog later) ─
 
 export const runs = pgTable(
@@ -257,6 +334,7 @@ export const runs = pgTable(
       .notNull()
       .references(() => workspaces.id),
     kind: text("kind").notNull(), // e.g. "webchat.draft"
+    activationId: uuid("activation_id"),
     conversationId: uuid("conversation_id"),
     triggerMessageId: uuid("trigger_message_id"),
     status: text("status", {

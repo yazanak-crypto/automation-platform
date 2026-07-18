@@ -7,6 +7,7 @@ import { eq, sql } from "drizzle-orm";
 export async function createRun(args: {
   workspaceId: string;
   kind: string;
+  activationId?: string;
   conversationId?: string;
   triggerMessageId?: string;
 }) {

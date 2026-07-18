@@ -32,6 +32,7 @@ export const manualReplySchema = z.object({ body: z.string().min(1).max(4000) })
 /** Strict shape of the webchat draft prompt output. */
 export const webchatDraftOutputSchema = z.object({
   classification: z.enum(["question", "lead", "spam", "abusive", "other"]),
+  hot: z.boolean().default(false),
   reply: z.string().max(4000),
   reasoning: z.string().max(1000),
   usedFacts: z.array(z.string().max(300)).max(20).default([]),
