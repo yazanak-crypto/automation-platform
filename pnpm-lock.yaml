@@ -20,6 +20,9 @@ importers:
       '@clerk/nextjs':
         specifier: ^6.9.9
         version: 6.39.6(next@15.5.20(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.61.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@nangohq/frontend':
+        specifier: ^0.48.0
+        version: 0.48.4
       '@platform/ai':
         specifier: workspace:*
         version: link:../../packages/ai
@@ -1345,6 +1348,9 @@ packages:
     resolution: {integrity: sha512-CmCXPQrkbwExx3j946/PtHWHbYJiCRBRDl4BlkRQcJB/YOwQxJRTpoo7aTsortjgoJ1x7opzTSxn7C+ASSLVjQ==}
     cpu: [x64]
     os: [win32]
+
+  '@nangohq/frontend@0.48.4':
+    resolution: {integrity: sha512-AoDcSWcANmmnomttkB29iznjOiPyET1CLOlKnEe8OGM7Nj6ajYAODuYBR2A21NRQhlSn6Ks37iZqdRZf2jM57w==}
 
   '@next/env@15.5.20':
     resolution: {integrity: sha512-dXh51Wvddf8daEyBXryZZEe1FdVxEWx9lgaTseLZUtC1XP/W8Wri+Z+VPOElHlByk23CyqHdc2oVByX7wsTWsw==}
@@ -4083,6 +4089,8 @@ snapshots:
 
   '@msgpackr-extract/msgpackr-extract-win32-x64@3.0.4':
     optional: true
+
+  '@nangohq/frontend@0.48.4': {}
 
   '@next/env@15.5.20': {}
 

@@ -57,7 +57,7 @@ export default function ActivateWizard({
       const res = await fetch("/api/channels");
       if (res.ok) {
         const rows: Channel[] = await res.json();
-        const webchat = rows.filter((c) => c.type === "web_chat" && c.status === "active");
+        const webchat = rows.filter((c) => c.status === "active");
         setChannels(webchat);
         if (webchat.length === 1) setSelected([webchat[0]!.id]);
       }
@@ -155,7 +155,11 @@ export default function ActivateWizard({
                     <div>
                       <p className="text-sm font-medium">{c.displayName}</p>
                       <p className="text-xs text-neutral-500">
-                        {c.config.connectedAt ? "Widget connected ✓" : "Widget not seen yet"}
+                        {c.type === "email"
+                          ? "Inbox checked every couple of minutes"
+                          : c.config.connectedAt
+                            ? "Widget connected ✓"
+                            : "Widget not seen yet"}
                       </p>
                     </div>
                   </label>

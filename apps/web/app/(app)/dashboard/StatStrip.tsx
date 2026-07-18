@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 interface Summary {
   autoHandled: number;
+  leadsDetected: number;
   escalated: number;
   awaitingApproval: number;
   avgConfidence: number | null;
@@ -30,6 +31,7 @@ export default function StatStrip() {
 
   const cells = [
     { label: "Handled automatically", value: s.autoHandled, accent: s.autoHandled > 0 },
+    { label: "Leads detected", value: s.leadsDetected, accent: s.leadsDetected > 0 },
     { label: "Escalated to you", value: s.escalated, accent: false },
     { label: "Awaiting approval", value: s.awaitingApproval, accent: false },
     { label: "Time saved (est., 30d)", value: timeSaved, accent: s.timeSavedMinutes > 0 },
@@ -39,7 +41,7 @@ export default function StatStrip() {
   ];
 
   return (
-    <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-5">
+    <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
       {cells.map((c) => (
         <div key={c.label} className="rounded-xl border border-neutral-800 p-4">
           <p className={`text-xl font-semibold ${c.accent ? "text-emerald-300" : ""}`}>{c.value}</p>

@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@clerk/nextjs": "^6.9.9",
+    "@nangohq/frontend": "^0.48.0",
     "@platform/ai": "workspace:*",
     "@platform/brain": "workspace:^",
     "@platform/catalog": "workspace:^",

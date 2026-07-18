@@ -14,6 +14,7 @@ export async function GET() {
       autoHandled: sql<number>`count(*) FILTER (WHERE ${runs.action} = 'auto_sent')::int`,
       escalated: sql<number>`count(*) FILTER (WHERE ${runs.action} = 'escalated')::int`,
       approved: sql<number>`count(*) FILTER (WHERE ${runs.outcomeMetrics} ->> 'resolution' IN ('approved','approved_edited'))::int`,
+      leadsDetected: sql<number>`count(*) FILTER (WHERE ${runs.category} = 'lead_inquiry')::int`,
       avgConfidence: sql<number | null>`round(avg(${runs.confidence}) FILTER (WHERE ${runs.confidence} IS NOT NULL)::numeric, 2)`,
     })
     .from(runs)
@@ -26,7 +27,7 @@ export async function GET() {
       and(eq(messages.workspaceId, ctx.workspace.id), eq(messages.draftStatus, "pending_approval")),
     );
 
-  const m = rows[0] ?? { autoHandled: 0, escalated: 0, approved: 0, avgConfidence: null };
+  const m = rows[0] ?? { autoHandled: 0, escalated: 0, approved: 0, leadsDetected: 0, avgConfidence: null };
   // Honest estimate, labeled as such in the UI: ~4 min per auto-handled
   // conversation, ~2 min saved per approved draft (vs writing from scratch).
   const timeSavedMinutes = m.autoHandled * 4 + m.approved * 2;
@@ -37,6 +38,7 @@ export async function GET() {
     escalated: m.escalated,
     approved: m.approved,
     awaitingApproval: pending[0]?.n ?? 0,
+    leadsDetected: (m as { leadsDetected?: number }).leadsDetected ?? 0,
     avgConfidence: m.avgConfidence,
     timeSavedMinutes,
   });

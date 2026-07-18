@@ -1,3 +1,4 @@
+import { deliverOutbound } from "@platform/channels";
 import { conversations, db, messages, runs } from "@platform/db";
 import { draftActionSchema } from "@platform/schemas";
 import { and, desc, eq } from "drizzle-orm";
@@ -72,5 +73,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     }
   });
 
-  return NextResponse.json({ ok: true, action: parsed.data.action });
+  let delivery: "ok" | "failed" = "ok";
+  if (approved) {
+    // Email channels actually send here; web chat is a widget-poll no-op.
+    await deliverOutbound(pending.id).catch(() => {
+      delivery = "failed";
+    });
+  }
+  return NextResponse.json({ ok: true, action: parsed.data.action, delivery });
 }

@@ -7,6 +7,16 @@ import { requireWorkspace, unauthorized } from "@/lib/workspace";
 
 const patchSchema = z.object({ autonomySettings: workspaceAutonomySchema }).strict();
 
+export async function GET() {
+  const ctx = await requireWorkspace();
+  if (!ctx) return unauthorized();
+  return NextResponse.json({
+    id: ctx.workspace.id,
+    name: ctx.workspace.name,
+    autonomySettings: ctx.workspace.autonomySettings ?? null,
+  });
+}
+
 /** Workspace-level autonomy settings (Decision 012): the business's risk dial. */
 export async function PATCH(req: Request) {
   const ctx = await requireWorkspace();

@@ -2,6 +2,7 @@ import * as Sentry from "@sentry/node";
 import { callAi } from "@platform/ai";
 import { getContextPack } from "@platform/brain";
 import {
+  deliverOutbound,
   findBannedPhrase,
   priorClosedConversations,
   recentConversationMessages,
@@ -33,7 +34,7 @@ import {
 } from "@platform/catalog";
 import { decideAction, resolvePolicy, type AutonomyDecision } from "@platform/core";
 import { Worker, type ConnectionOptions } from "bullmq";
-import { eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 
 const PROMPT_REF = LEAD_CONCIERGE_PROMPT_REF;
 const PROMPT_VERSION = LEAD_CONCIERGE_PROMPT_VERSION;
@@ -287,6 +288,7 @@ async function processDraft(job: WebchatDraftJob) {
         outcomeMetrics: { drafted: false, needsHuman: true, escalationReason: decision.reason },
         ...telemetry,
       });
+      if (holdingLine) await deliverAutoMessage(job.conversationId);
       return { outcome: "escalated" };
     }
 
@@ -315,6 +317,7 @@ async function processDraft(job: WebchatDraftJob) {
       await addRunEvent(run.id, ++seq, "step", "Reply sent automatically", {
         preview: draft.reply.slice(0, 200),
       });
+      await deliverAutoMessage(job.conversationId);
       await finishRun(run.id, "succeeded", {
         outcomeMetrics: { drafted: true, autoSent: true },
         ...telemetry,
@@ -353,6 +356,23 @@ async function processDraft(job: WebchatDraftJob) {
     }).catch(() => {});
     throw err;
   }
+}
+
+async function deliverAutoMessage(conversationId: string) {
+  // Deliver the newest auto_sent outbound on its channel (email sends; web chat
+  // is a no-op — the widget polls). Failure marks deliveryState, never throws
+  // the whole run away.
+  const rows = await db()
+    .select({ id: messages.id })
+    .from(messages)
+    .where(and(eq(messages.conversationId, conversationId), eq(messages.draftStatus, "auto_sent")))
+    .orderBy(desc(messages.createdAt))
+    .limit(1);
+  if (!rows[0]) return;
+  await deliverOutbound(rows[0].id).catch((err) => {
+    console.error("[deliver] auto message failed:", err.message);
+    Sentry.captureException(err);
+  });
 }
 
 function autonomyEventTitle(decision: AutonomyDecision): string {

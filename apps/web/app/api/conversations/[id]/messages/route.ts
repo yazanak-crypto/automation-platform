@@ -1,4 +1,4 @@
-import { supersedePendingDrafts } from "@platform/channels";
+import { deliverOutbound, supersedePendingDrafts } from "@platform/channels";
 import { conversations, db, messages } from "@platform/db";
 import { manualReplySchema } from "@platform/schemas";
 import { and, eq } from "drizzle-orm";
@@ -46,5 +46,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       .where(eq(conversations.id, id));
     return inserted;
   });
-  return NextResponse.json(rows[0], { status: 201 });
+  let delivery: "ok" | "failed" = "ok";
+  await deliverOutbound(rows[0]!.id).catch(() => {
+    delivery = "failed";
+  });
+  return NextResponse.json({ ...rows[0], delivery }, { status: 201 });
 }

@@ -150,6 +150,27 @@ export const brainChangeLog = pgTable(
   ],
 );
 
+// ── Integrations (Decision 009): OAuth connections via Nango — no raw tokens ─
+
+export const connections = pgTable(
+  "connections",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id),
+    provider: text("provider").notNull(), // e.g. "google-mail"
+    nangoConnectionId: text("nango_connection_id").notNull().unique(),
+    // Display only (e.g. the connected email address) — never credentials.
+    externalAccountLabel: text("external_account_label"),
+    status: text("status", { enum: ["active", "needs_reconnect", "revoked"] })
+      .notNull()
+      .default("active"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("connections_workspace_idx").on(t.workspaceId)],
+);
+
 // ── Channels & conversations (Decision 007, M1 step 3/4) ────────────────────
 
 export const channels = pgTable(
@@ -160,6 +181,8 @@ export const channels = pgTable(
       .notNull()
       .references(() => workspaces.id),
     type: text("type", { enum: ["web_chat", "email"] }).notNull(),
+    // Email channels ride an OAuth connection; web_chat needs none.
+    connectionId: uuid("connection_id").references(() => connections.id),
     displayName: text("display_name").notNull(),
     // Public, unguessable identifier for the widget; origin check is the real gate.
     widgetKey: uuid("widget_key").notNull().unique().defaultRandom(),
@@ -208,6 +231,8 @@ export const conversations = pgTable(
     status: text("status", { enum: ["open", "waiting_approval", "closed"] })
       .notNull()
       .default("open"),
+    // Generic provider thread anchor (e.g. email thread id) — adapter-owned.
+    providerThreadRef: text("provider_thread_ref"),
     attentionReason: text("attention_reason"),
     lastMessageAt: timestamp("last_message_at", { withTimezone: true }).notNull().defaultNow(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

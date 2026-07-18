@@ -13,6 +13,7 @@ process.on("unhandledRejection", (err) => {
   Sentry.captureException(err);
 });
 import { startBrainWorkers } from "./brainJobs";
+import { startEmailPolling } from "./emailPoll";
 import { startWebchatWorker } from "./webchatDraft";
 
 // Worker skeleton: queue wiring + heartbeat only. Job processors land with
@@ -37,6 +38,7 @@ const worker = new Worker(
 );
 
 const brainWorkers = [...startBrainWorkers(connection), startWebchatWorker(connection)];
+const stopEmailPolling = startEmailPolling();
 
 // Audit P0-5: hourly sweep closes conversations idle >7 days (enables
 // "returning visitor" continuity and keeps the inbox honest).
@@ -64,6 +66,7 @@ worker.on("failed", (job, err) =>
 
 async function shutdown() {
   clearInterval(heartbeat);
+  stopEmailPolling();
   clearInterval(idleSweep);
   await Promise.all(brainWorkers.map((w) => w.close()));
   await worker.close();
