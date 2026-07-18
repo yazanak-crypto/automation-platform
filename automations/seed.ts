@@ -2,6 +2,10 @@
  * Sync the code catalog into the database (idempotent). Run on deploy and in
  * dev: `pnpm --filter @platform/catalog seed`.
  */
+import { config } from "dotenv";
+import { resolve } from "node:path";
+config({ path: resolve(import.meta.dirname, "../.env") });
+
 import { automations, automationVersions, db } from "@platform/db";
 import { and, eq } from "drizzle-orm";
 import { CATALOG } from "./index";

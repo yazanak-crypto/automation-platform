@@ -1,3 +1,4 @@
+import "./env";
 import { Queue, Worker } from "bullmq";
 import IORedis from "ioredis";
 import * as Sentry from "@sentry/node";
