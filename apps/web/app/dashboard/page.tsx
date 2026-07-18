@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getBrain } from "@platform/brain";
 import { requireWorkspace } from "@/lib/workspace";
+import AttentionQueue from "./AttentionQueue";
 
 export const dynamic = "force-dynamic";
 
@@ -38,12 +39,16 @@ export default async function DashboardPage() {
         </Link>
       )}
 
+      <AttentionQueue />
+
       <div className="mt-6 flex gap-4 text-sm">
         <Link href="/brain" className="underline underline-offset-4">Business Brain</Link>
+        <Link href="/channels" className="underline underline-offset-4">Channels</Link>
+        <Link href="/conversations" className="underline underline-offset-4">Conversations</Link>
       </div>
 
       <p className="mt-10 text-sm text-neutral-500">
-        Automations and results appear here once the Lead Concierge lands (M1 steps 6–8).
+        Marketplace and automation metrics land in M1 steps 6–8.
       </p>
     </main>
   );

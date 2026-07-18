@@ -1,0 +1,14 @@
+{
+  "name": "@platform/widget",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src/widget.ts --bundle --minify --target=es2020 --outfile=../apps/web/public/widget.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.2",
+    "typescript": "^5.7.3"
+  }
+}

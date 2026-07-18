@@ -12,9 +12,11 @@
   "dependencies": {
     "@platform/ai": "workspace:^",
     "@platform/brain": "workspace:^",
+    "@platform/channels": "workspace:^",
     "@platform/core": "workspace:^",
     "@platform/db": "workspace:*",
     "@platform/execution": "workspace:*",
+    "@platform/schemas": "workspace:^",
     "bullmq": "^5.34.10",
     "drizzle-orm": "^0.38.3",
     "ioredis": "^5.4.2"

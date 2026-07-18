@@ -12,6 +12,7 @@
     "@clerk/nextjs": "^6.9.9",
     "@platform/ai": "workspace:*",
     "@platform/brain": "workspace:^",
+    "@platform/channels": "workspace:^",
     "@platform/core": "workspace:^",
     "@platform/db": "workspace:*",
     "@platform/schemas": "workspace:^",

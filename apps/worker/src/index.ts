@@ -1,6 +1,7 @@
 import { Queue, Worker } from "bullmq";
 import IORedis from "ioredis";
 import { startBrainWorkers } from "./brainJobs";
+import { startWebchatWorker } from "./webchatDraft";
 
 // Worker skeleton: queue wiring + heartbeat only. Job processors land with
 // their M1 steps (activation provisioning, run finalization, metering).
@@ -23,7 +24,7 @@ const worker = new Worker(
   { connection },
 );
 
-const brainWorkers = startBrainWorkers(connection);
+const brainWorkers = [...startBrainWorkers(connection), startWebchatWorker(connection)];
 
 worker.on("ready", () => console.log("[worker] ready — connected to Redis"));
 worker.on("failed", (job, err) =>

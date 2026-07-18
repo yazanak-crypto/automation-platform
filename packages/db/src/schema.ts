@@ -147,6 +147,148 @@ export const brainChangeLog = pgTable(
   ],
 );
 
+// ── Channels & conversations (Decision 007, M1 step 3/4) ────────────────────
+
+export const channels = pgTable(
+  "channels",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id),
+    type: text("type", { enum: ["web_chat", "email"] }).notNull(),
+    displayName: text("display_name").notNull(),
+    // Public, unguessable identifier for the widget; origin check is the real gate.
+    widgetKey: uuid("widget_key").notNull().unique().defaultRandom(),
+    config: jsonb("config")
+      .$type<{ allowedOrigins?: string[]; accentColor?: string; connectedAt?: string }>()
+      .notNull()
+      .default({}),
+    capabilities: jsonb("capabilities").$type<Record<string, unknown>>(),
+    status: text("status", { enum: ["active", "disabled"] }).notNull().default("active"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("channels_workspace_idx").on(t.workspaceId)],
+);
+
+export const contacts = pgTable(
+  "contacts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id),
+    displayName: text("display_name"),
+    // Anonymous continuity only (plan §1b): opaque visitor token, no CRM.
+    webchatVisitorId: text("webchat_visitor_id"),
+    identities: jsonb("identities").$type<{ email?: string }>().notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("contacts_workspace_visitor_idx").on(t.workspaceId, t.webchatVisitorId),
+  ],
+);
+
+export const conversations = pgTable(
+  "conversations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id),
+    channelId: uuid("channel_id")
+      .notNull()
+      .references(() => channels.id),
+    contactId: uuid("contact_id")
+      .notNull()
+      .references(() => contacts.id),
+    status: text("status", { enum: ["open", "waiting_approval", "closed"] })
+      .notNull()
+      .default("open"),
+    lastMessageAt: timestamp("last_message_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("conversations_workspace_status_idx").on(t.workspaceId, t.status),
+    index("conversations_contact_idx").on(t.contactId),
+  ],
+);
+
+export const messages = pgTable(
+  "messages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    conversationId: uuid("conversation_id")
+      .notNull()
+      .references(() => conversations.id),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id),
+    direction: text("direction", { enum: ["inbound", "outbound"] }).notNull(),
+    body: text("body").notNull(),
+    aiGenerated: boolean("ai_generated").notNull().default(false),
+    // Draft-mode is the only mode (AC-2.10): outbound reaches the visitor only
+    // when draft_status = approved.
+    draftStatus: text("draft_status", {
+      enum: ["none", "pending_approval", "approved", "dismissed"],
+    })
+      .notNull()
+      .default("none"),
+    approvedBy: uuid("approved_by"),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    deliveryState: text("delivery_state"),
+    // Client-minted id for webhook/retry dedupe (AC-2.4).
+    clientMessageId: text("client_message_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("messages_conversation_idx").on(t.conversationId),
+    uniqueIndex("messages_conversation_client_idx").on(t.conversationId, t.clientMessageId),
+  ],
+);
+
+// ── Runs ledger, skeletal (Decision 009 source of truth; full catalog later) ─
+
+export const runs = pgTable(
+  "runs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id),
+    kind: text("kind").notNull(), // e.g. "webchat.draft"
+    conversationId: uuid("conversation_id"),
+    triggerMessageId: uuid("trigger_message_id"),
+    status: text("status", {
+      enum: ["running", "waiting_approval", "succeeded", "failed"],
+    })
+      .notNull()
+      .default("running"),
+    outcomeMetrics: jsonb("outcome_metrics").$type<Record<string, unknown>>(),
+    costMicrocents: integer("cost_microcents").notNull().default(0),
+    errorSummary: text("error_summary"),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+  },
+  (t) => [index("runs_workspace_idx").on(t.workspaceId, t.startedAt)],
+);
+
+export const runEvents = pgTable(
+  "run_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    runId: uuid("run_id")
+      .notNull()
+      .references(() => runs.id),
+    seq: integer("seq").notNull(),
+    kind: text("kind", { enum: ["step", "ai_call", "decision", "error"] }).notNull(),
+    title: text("title").notNull(),
+    detail: jsonb("detail").$type<Record<string, unknown>>(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("run_events_run_idx").on(t.runId, t.seq)],
+);
+
 // Every AI call in the platform is recorded here, from call #1.
 // No code path may reach an LLM provider without writing this row.
 export const aiCalls = pgTable("ai_calls", {

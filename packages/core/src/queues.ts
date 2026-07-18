@@ -6,7 +6,14 @@ import IORedis from "ioredis";
 export const QUEUE_NAMES = {
   brainIngest: "brain.ingest",
   brainEmbed: "brain.embed",
+  webchatDraft: "webchat.draft",
 } as const;
+
+export interface WebchatDraftJob {
+  workspaceId: string;
+  conversationId: string;
+  messageId: string;
+}
 
 export interface BrainIngestJob {
   workspaceId: string;
@@ -37,6 +44,17 @@ function queue(name: string): Queue {
 
 export const brainIngestQueue = () => queue(QUEUE_NAMES.brainIngest);
 export const brainEmbedQueue = () => queue(QUEUE_NAMES.brainEmbed);
+export const webchatDraftQueue = () => queue(QUEUE_NAMES.webchatDraft);
+
+/** Fixed-window rate limit. Returns true if the action is allowed. */
+export async function takeLimit(key: string, max: number, windowSec: number): Promise<boolean> {
+  const r = redis();
+  const window = Math.floor(Date.now() / 1000 / windowSec);
+  const fullKey = `rl:${key}:${window}`;
+  const n = await r.incr(fullKey);
+  if (n === 1) await r.expire(fullKey, windowSec);
+  return n <= max;
+}
 
 /** Sliding daily cap via Redis. Returns true if the action is allowed. */
 export async function takeDailyLimit(
