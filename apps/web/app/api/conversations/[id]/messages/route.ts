@@ -1,3 +1,4 @@
+import { supersedePendingDrafts } from "@platform/channels";
 import { conversations, db, messages } from "@platform/db";
 import { manualReplySchema } from "@platform/schemas";
 import { and, eq } from "drizzle-orm";
@@ -19,6 +20,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     .where(and(eq(conversations.id, id), eq(conversations.workspaceId, ctx.workspace.id)))
     .limit(1);
   if (!convo[0]) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  // Audit P0-1/P0-2: a manual reply retires any pending draft and resolves
+  // waiting runs (incl. needs-human) so attention items clear.
+  await supersedePendingDrafts(id, "manual_reply");
 
   const rows = await db().transaction(async (tx) => {
     const inserted = await tx

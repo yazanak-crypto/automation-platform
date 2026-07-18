@@ -8,9 +8,24 @@ import {
   runEvents,
   runs,
 } from "@platform/db";
+import { closeConversation } from "@platform/channels";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { requireWorkspace, unauthorized } from "@/lib/workspace";
+
+// Audit P0-5: owner can close a conversation (retires drafts, resolves runs).
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const ctx = await requireWorkspace();
+  if (!ctx) return unauthorized();
+  const { id } = await params;
+  const body = (await req.json().catch(() => null)) as { status?: string } | null;
+  if (body?.status !== "closed") {
+    return NextResponse.json({ error: "Only status:'closed' is supported" }, { status: 400 });
+  }
+  const ok = await closeConversation(ctx.workspace.id, id);
+  if (!ok) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  return NextResponse.json({ ok: true });
+}
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const ctx = await requireWorkspace();

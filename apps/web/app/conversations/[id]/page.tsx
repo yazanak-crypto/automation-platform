@@ -68,13 +68,31 @@ export default function ConversationDetail({ params }: { params: Promise<{ id: s
 
   return (
     <main className="mx-auto max-w-2xl p-8">
-      <header className="mb-6">
-        <h1 className="text-xl font-semibold">Conversation</h1>
-        <p className="text-sm text-neutral-500">
-          {data.conversation.channelName}
-          {data.conversation.priorConversations > 0 &&
-            ` · conversation ${data.conversation.priorConversations + 1} with this visitor`}
-        </p>
+      <header className="mb-6 flex items-start justify-between">
+        <div>
+          <h1 className="text-xl font-semibold">Conversation</h1>
+          <p className="text-sm text-neutral-500">
+            {data.conversation.channelName}
+            {data.conversation.priorConversations > 0 &&
+              ` · conversation ${data.conversation.priorConversations + 1} with this visitor`}
+            {data.conversation.status === "closed" && " · closed"}
+          </p>
+        </div>
+        {data.conversation.status !== "closed" && (
+          <button
+            onClick={async () => {
+              await fetch(`/api/conversations/${id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ status: "closed" }),
+              });
+              await load();
+            }}
+            className="rounded-lg bg-neutral-800 px-3 py-1.5 text-xs text-neutral-400"
+          >
+            Close conversation
+          </button>
+        )}
       </header>
 
       <div className="space-y-3">

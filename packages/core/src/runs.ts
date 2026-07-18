@@ -1,4 +1,4 @@
-import { db, runEvents, runs } from "@platform/db";
+import { aiCalls, db, runEvents, runs } from "@platform/db";
 import { eq, sql } from "drizzle-orm";
 
 // Skeletal runs ledger helpers (plan §1). Our table is the source of truth
@@ -30,19 +30,21 @@ export async function finishRun(
   status: "waiting_approval" | "succeeded" | "failed",
   patch: {
     outcomeMetrics?: Record<string, unknown>;
-    addCostMicrocents?: number;
     errorSummary?: string;
   } = {},
 ) {
+  // Audit P0-4: the run's cost is always the sum of its ai_calls — aggregated
+  // here so dashboard metrics (step 8) and plan caps (step 9) read real money.
   await db()
     .update(runs)
     .set({
       status,
       outcomeMetrics: patch.outcomeMetrics,
       errorSummary: patch.errorSummary,
-      ...(patch.addCostMicrocents
-        ? { costMicrocents: sql`${runs.costMicrocents} + ${patch.addCostMicrocents}` }
-        : {}),
+      costMicrocents: sql`coalesce((
+        SELECT sum(${aiCalls.estimatedCostMicrocents})::int
+        FROM ${aiCalls} WHERE ${aiCalls.runId} = ${runId}
+      ), 0)`,
       ...(status === "waiting_approval" ? {} : { finishedAt: new Date() }),
     })
     .where(eq(runs.id, runId));

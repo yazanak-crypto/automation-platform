@@ -27,12 +27,22 @@ export async function POST(req: Request) {
     );
   }
 
-  // jobId dedupe: one concurrent ingest per workspace.
-  const job = await brainIngestQueue().add(
+  // Audit P0-3: unique jobId per request (a fixed id collided with completed
+  // jobs kept for an hour, silently no-oping re-ingests). Concurrency is
+  // guarded by an explicit check against live jobs instead.
+  const queue = brainIngestQueue();
+  const live = await queue.getJobs(["waiting", "active", "delayed"]);
+  if (live.some((j) => j.data.workspaceId === ctx.workspace.id)) {
+    return NextResponse.json(
+      { error: "We're already reading a website for you — give it a moment." },
+      { status: 409 },
+    );
+  }
+  const job = await queue.add(
     "ingest",
     { workspaceId: ctx.workspace.id, url },
     {
-      jobId: `ingest-${ctx.workspace.id}`,
+      jobId: `ingest-${ctx.workspace.id}-${Date.now()}`,
       removeOnComplete: { age: 3600 },
       removeOnFail: { age: 3600 },
       attempts: 1,

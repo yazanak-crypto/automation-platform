@@ -4,6 +4,7 @@ import {
   findBannedPhrase,
   priorClosedConversations,
   recentConversationMessages,
+  supersedePendingDrafts,
 } from "@platform/channels";
 import {
   addRunEvent,
@@ -227,6 +228,12 @@ async function processDraft(job: WebchatDraftJob) {
         outcomeMetrics: { classification: draft.classification, drafted: false, needsHuman: true },
       });
       return { outcome: "needs_human" };
+    }
+
+    // Audit P0-2: a newer draft supersedes any older pending one — nothing orphans.
+    const superseded = await supersedePendingDrafts(job.conversationId, "superseded");
+    if (superseded > 0) {
+      await addRunEvent(run.id, ++seq, "step", "Replaced an older waiting draft", {});
     }
 
     await db().transaction(async (tx) => {
