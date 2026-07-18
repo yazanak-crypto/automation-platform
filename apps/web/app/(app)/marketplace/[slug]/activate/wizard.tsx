@@ -20,7 +20,7 @@ interface Channel {
 }
 interface Preview {
   reply: string;
-  classification: string;
+  category: string;
   reasoning: string;
   usedFacts: string[];
   needsHuman: boolean;
@@ -49,6 +49,7 @@ export default function ActivateWizard({
   const [sample, setSample] = useState(sampleMessages[0] ?? "");
   const [preview, setPreview] = useState<Preview | null>(null);
   const [busy, setBusy] = useState(false);
+  const [mode, setMode] = useState<"supervised" | "smart">("supervised");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -86,7 +87,7 @@ export default function ActivateWizard({
     const res = await fetch("/api/activations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ automationSlug: slug, config, channelIds: selected }),
+      body: JSON.stringify({ automationSlug: slug, config, channelIds: selected, mode }),
     });
     setBusy(false);
     if (!res.ok) {
@@ -280,13 +281,30 @@ export default function ActivateWizard({
 
       {step === 3 && (
         <section className="mt-8">
-          <h2 className="font-medium">Ready to go live</h2>
+          <h2 className="font-medium">Choose how it starts</h2>
+          <div className="mt-4 space-y-2">
+            <label className={`block cursor-pointer rounded-xl border p-4 ${mode === "supervised" ? "border-neutral-300" : "border-neutral-800"}`}>
+              <input type="radio" className="mr-2" checked={mode === "supervised"} onChange={() => setMode("supervised")} />
+              <span className="text-sm font-medium">Supervised — recommended to start</span>
+              <p className="mt-1 text-xs text-neutral-500">
+                Every reply waits for your approval. Your AI earns autonomy as you approve its
+                work — we&apos;ll show you when it&apos;s ready for more.
+              </p>
+            </label>
+            <label className={`block cursor-pointer rounded-xl border p-4 ${mode === "smart" ? "border-neutral-300" : "border-neutral-800"}`}>
+              <input type="radio" className="mr-2" checked={mode === "smart"} onChange={() => setMode("smart")} />
+              <span className="text-sm font-medium">Smart Automation — handle routine questions instantly</span>
+              <p className="mt-1 text-xs text-neutral-500">
+                Low-risk questions backed by your confirmed Business Brain are answered
+                automatically. Refunds, complaints and anything unclear still come to you.
+              </p>
+            </label>
+          </div>
           <ul className="mt-4 space-y-2 text-sm text-neutral-300">
             <li>✓ Listening on {selected.length} channel{selected.length === 1 ? "" : "s"}</li>
-            <li>✓ Replies drafted in your voice from your Business Brain</li>
+            <li>✓ Replies in your voice, from your Business Brain</li>
             <li>
-              ✓ <span className="font-medium">Nothing is ever sent without your approval</span> —
-              every draft waits for you on the dashboard
+              ✓ <span className="font-medium">{mode === "supervised" ? "Nothing is ever sent without your approval" : "High-risk conversations always come to you"}</span>
             </li>
           </ul>
           <div className="mt-6 flex gap-3">

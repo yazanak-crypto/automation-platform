@@ -1,3 +1,4 @@
+import type { AutonomyPolicy } from "@platform/schemas";
 import type { z } from "zod";
 
 // Catalog-as-code (Decision 009): each automation is a data object. Adding
@@ -13,6 +14,8 @@ export interface AutomationDefinition {
   version: number;
   /** Validates activation config server-side; configFields render the form. */
   configSchema: z.ZodType<Record<string, unknown> | undefined>;
+  /** Recommended autonomy policy (Decision 012) — the owner can override it. */
+  autonomyPolicy: AutonomyPolicy;
   definition: {
     howItWorks: string[];
     requiredCapabilities: string[];

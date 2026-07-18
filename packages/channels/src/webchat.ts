@@ -202,7 +202,10 @@ export async function getVisitorView(
         eq(messages.conversationId, convo[0].id),
         or(
           eq(messages.direction, "inbound"),
-          and(eq(messages.direction, "outbound"), eq(messages.draftStatus, "approved")),
+          and(
+            eq(messages.direction, "outbound"),
+            inArray(messages.draftStatus, ["approved", "auto_sent"]),
+          ),
         ),
       ),
     )
@@ -247,7 +250,7 @@ export async function recentConversationMessages(conversationId: string, limit =
         eq(messages.conversationId, conversationId),
         or(
           eq(messages.direction, "inbound"),
-          inArray(messages.draftStatus, ["approved", "none"]),
+          inArray(messages.draftStatus, ["approved", "auto_sent", "none"]),
         ),
       ),
     )

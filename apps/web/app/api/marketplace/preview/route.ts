@@ -65,7 +65,7 @@ export async function POST(req: Request) {
   try {
     const raw = res.text.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, "").trim();
     const out = JSON.parse(raw) as {
-      classification?: string;
+      category?: string;
       reply?: string;
       reasoning?: string;
       usedFacts?: string[];
@@ -73,10 +73,12 @@ export async function POST(req: Request) {
     };
     return NextResponse.json({
       reply: out.reply ?? "",
-      classification: out.classification ?? "other",
+      category: out.category ?? "unknown",
       reasoning: out.reasoning ?? "",
       usedFacts: out.usedFacts ?? [],
       needsHuman: out.needsHuman ?? false,
+      confidence: (out as { confidence?: number }).confidence ?? 0,
+      grounded: (out as { groundedOnContext?: boolean }).groundedOnContext ?? false,
       brainVersion,
     });
   } catch {

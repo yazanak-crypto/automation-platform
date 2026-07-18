@@ -31,6 +31,10 @@ export async function finishRun(
   patch: {
     outcomeMetrics?: Record<string, unknown>;
     errorSummary?: string;
+    /** Autonomy telemetry (Decision 012). */
+    category?: string;
+    confidence?: number;
+    action?: string;
   } = {},
 ) {
   // Audit P0-4: the run's cost is always the sum of its ai_calls — aggregated
@@ -41,6 +45,9 @@ export async function finishRun(
       status,
       outcomeMetrics: patch.outcomeMetrics,
       errorSummary: patch.errorSummary,
+      category: patch.category,
+      confidence: patch.confidence,
+      action: patch.action,
       costMicrocents: sql`coalesce((
         SELECT sum(${aiCalls.estimatedCostMicrocents})::int
         FROM ${aiCalls} WHERE ${aiCalls.runId} = ${runId}

@@ -29,13 +29,17 @@ export const draftActionSchema = z.object({
 
 export const manualReplySchema = z.object({ body: z.string().min(1).max(4000) });
 
-/** Strict shape of the webchat draft prompt output. */
+import { CATEGORIES } from "./autonomy";
+
+/** Strict shape of the webchat draft prompt output (v3 — Decision 012). */
 export const webchatDraftOutputSchema = z.object({
-  classification: z.enum(["question", "lead", "spam", "abusive", "other"]),
+  category: z.enum([...CATEGORIES, "spam", "abusive"] as [string, ...string[]]),
   hot: z.boolean().default(false),
   reply: z.string().max(4000),
   reasoning: z.string().max(1000),
   usedFacts: z.array(z.string().max(300)).max(20).default([]),
+  groundedOnContext: z.boolean().default(false),
+  confidence: z.number().min(0).max(1).default(0),
   needsHuman: z.boolean().default(false),
 });
 export type WebchatDraftOutput = z.infer<typeof webchatDraftOutputSchema>;

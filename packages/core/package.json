@@ -13,7 +13,8 @@
     "@platform/db": "workspace:*",
     "bullmq": "^5.34.10",
     "drizzle-orm": "^0.38.3",
-    "ioredis": "^5.4.2"
+    "ioredis": "^5.4.2",
+    "@platform/schemas": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22",

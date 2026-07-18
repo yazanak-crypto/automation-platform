@@ -22,6 +22,28 @@ export const leadConcierge: AutomationDefinition = {
   tier: "starter",
   version: 1,
   configSchema: leadConciergeConfigSchema,
+  // Recommended policy (Decision 012). Low-risk grounded questions auto-handle
+  // in Smart Mode; leads stay owner-reviewed in v1; high risk always escalates.
+  autonomyPolicy: {
+    minConfidence: 0.8,
+    categoryActions: {
+      hours: "auto",
+      location: "auto",
+      shipping_info: "auto",
+      faq: "auto",
+      appointment_info: "auto",
+      pricing_stated: "auto",
+      product_availability: "auto",
+      product_recommendation: "approve",
+      lead_inquiry: "approve",
+      general_inquiry: "approve",
+      refund_request: "escalate",
+      complaint: "escalate",
+      negotiation: "escalate",
+      sensitive: "escalate",
+      unknown: "escalate",
+    },
+  },
   definition: {
     howItWorks: [
       "A visitor writes to you through your website chat",

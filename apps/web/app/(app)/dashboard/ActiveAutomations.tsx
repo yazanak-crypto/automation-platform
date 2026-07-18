@@ -7,18 +7,33 @@ interface Activation {
   id: string;
   automationSlug: string;
   status: string;
+  mode: "supervised" | "smart";
   channelIds: string[];
   activatedAt: string;
 }
 
 const NAMES: Record<string, string> = { "lead-concierge": "Lead Concierge" };
 
+interface Nudge { activationId: string; approvals: number; wouldHaveAutoHandled: number }
+
 export default function ActiveAutomations() {
   const [rows, setRows] = useState<Activation[] | null>(null);
+  const [nudge, setNudge] = useState<Nudge | null>(null);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/activations");
-    if (res.ok) setRows(await res.json());
+    if (!res.ok) return;
+    const list: Activation[] = await res.json();
+    setRows(list);
+    // Graduation nudge (Decision 012): first supervised+active+eligible wins.
+    for (const act of list.filter((x) => x.status === "active" && x.mode === "supervised")) {
+      const g = await fetch(`/api/autonomy/${act.id}`).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+      if (g?.graduation?.eligible) {
+        setNudge({ activationId: act.id, approvals: g.graduation.approvals, wouldHaveAutoHandled: g.graduation.wouldHaveAutoHandled });
+        return;
+      }
+    }
+    setNudge(null);
   }, []);
   useEffect(() => {
     void load();
@@ -51,6 +66,18 @@ export default function ActiveAutomations() {
 
   return (
     <section className="mt-6">
+      {nudge && (
+        <Link
+          href={`/automations/${nudge.activationId}`}
+          className="mb-4 block rounded-xl border border-indigo-800 bg-indigo-950/30 p-5 hover:border-indigo-600"
+        >
+          <p className="font-medium text-indigo-200">Your AI has earned more autonomy 🎓</p>
+          <p className="mt-1 text-sm text-indigo-300/80">
+            You approved {nudge.approvals} drafts — {nudge.wouldHaveAutoHandled} of them could have
+            been handled instantly. Turn on Smart Automation?
+          </p>
+        </Link>
+      )}
       <h2 className="mb-3 font-medium">
         Your automations{" "}
         <span className="text-sm text-neutral-500">
@@ -75,6 +102,9 @@ export default function ActiveAutomations() {
                 >
                   {a.status}
                 </span>
+                <span className="ml-1.5 rounded-full bg-neutral-800 px-2 py-0.5 text-xs text-neutral-400">
+                  {a.mode === "smart" ? "smart automation" : "supervised"}
+                </span>
               </p>
               {a.status === "paused" && (
                 <p className="mt-0.5 text-xs text-neutral-500">
@@ -86,12 +116,17 @@ export default function ActiveAutomations() {
                 {new Date(a.activatedAt).toLocaleDateString()}
               </p>
             </div>
+            <div className="flex items-center gap-2">
+            <Link href={`/automations/${a.id}`} className="rounded-lg bg-neutral-800 px-3 py-1.5 text-xs">
+              Autonomy
+            </Link>
             <button
               onClick={() => setStatus(a.id, a.status === "active" ? "paused" : "active")}
               className="rounded-lg bg-neutral-800 px-3 py-1.5 text-xs"
             >
               {a.status === "active" ? "Pause" : "Resume"}
             </button>
+            </div>
           </li>
         ))}
       </ul>

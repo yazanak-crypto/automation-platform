@@ -16,6 +16,7 @@ const createSchema = z.object({
   automationSlug: z.string().max(100),
   config: z.record(z.unknown()).default({}),
   channelIds: z.array(z.string().uuid()).min(1).max(10),
+  mode: z.enum(["supervised", "smart"]).default("supervised"),
 });
 
 export async function POST(req: Request) {
@@ -25,7 +26,7 @@ export async function POST(req: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
-  const { automationSlug, config, channelIds } = parsed.data;
+  const { automationSlug, config, channelIds, mode } = parsed.data;
 
   // Config is validated against the automation's own Zod schema (catalog-as-code).
   const def = getDefinition(automationSlug);
@@ -81,6 +82,7 @@ export async function POST(req: Request) {
       automationSlug,
       config: configParsed.data ?? {},
       channelIds,
+      mode,
     })
     .returning();
   return NextResponse.json(rows[0], { status: 201 });

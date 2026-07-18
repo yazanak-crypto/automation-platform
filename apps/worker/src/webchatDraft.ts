@@ -15,18 +15,23 @@ import {
   QUEUE_NAMES,
   type WebchatDraftJob,
 } from "@platform/core";
-import { conversations, db, messages } from "@platform/db";
+import { conversations, db, messages, workspaces } from "@platform/db";
 import {
   boundaryCheckOutputSchema,
   webchatDraftOutputSchema,
+  type ActivationAutonomyOverrides,
+  type Category,
   type WebchatDraftOutput,
+  type WorkspaceAutonomySettings,
 } from "@platform/schemas";
 import {
   buildLeadConciergePrompt,
+  leadConcierge,
   LEAD_CONCIERGE_PROMPT_REF,
   LEAD_CONCIERGE_PROMPT_VERSION,
   LEAD_CONCIERGE_SYSTEM,
 } from "@platform/catalog";
+import { decideAction, resolvePolicy, type AutonomyDecision } from "@platform/core";
 import { Worker, type ConnectionOptions } from "bullmq";
 import { eq } from "drizzle-orm";
 
@@ -168,21 +173,27 @@ async function processDraft(job: WebchatDraftJob) {
     }
     if (!draft) throw new Error("Draft output failed validation twice");
 
-    await addRunEvent(run.id, ++seq, "decision", `Classified as ${draft.classification}`, {
+    await addRunEvent(run.id, ++seq, "decision", `Classified as ${draft.category}`, {
       reasoning: draft.reasoning,
       usedFacts: draft.usedFacts,
+      confidence: draft.confidence,
+      grounded: draft.groundedOnContext,
     });
 
-    if (draft.classification === "spam" || draft.classification === "abusive") {
+    if (draft.category === "spam" || draft.category === "abusive") {
       await finishRun(run.id, "succeeded", {
-        outcomeMetrics: { classification: draft.classification, drafted: false },
+        outcomeMetrics: { drafted: false },
+        category: draft.category,
+        confidence: draft.confidence,
+        action: "ignored",
       });
-      return { outcome: draft.classification };
+      return { outcome: draft.category };
     }
+    const category = draft.category as Category;
 
-    let needsHuman = draft.needsHuman || !draft.reply.trim();
-
-    if (!needsHuman) {
+    // Boundary post-check (fail-closed), with one regeneration attempt.
+    let boundaryCheckPassed = true;
+    if (draft.reply.trim()) {
       const bannedPhrases =
         (pack.voice as { bannedPhrases?: string[] } | undefined)?.bannedPhrases ?? [];
       let check = await violatesBoundaries({
@@ -209,32 +220,106 @@ async function processDraft(job: WebchatDraftJob) {
             bannedPhrases,
           });
           if (!check.violates) {
-            draft = { ...retryDraft, classification: draft.classification };
+            draft = { ...retryDraft, category: draft.category };
           } else {
-            needsHuman = true;
+            boundaryCheckPassed = false;
           }
         } else {
-          needsHuman = true;
+          boundaryCheckPassed = false;
         }
       }
     }
 
-    if (needsHuman) {
-      await addRunEvent(run.id, ++seq, "decision", "Needs a human reply", {});
-      await db()
-        .update(conversations)
-        .set({ status: "waiting_approval" })
-        .where(eq(conversations.id, job.conversationId));
-      await finishRun(run.id, "waiting_approval", {
-        outcomeMetrics: { classification: draft.classification, drafted: false, needsHuman: true },
+    // ── The autonomy decision (Decision 012): deterministic, never the LLM ──
+    const wsRows = await db()
+      .select({ autonomySettings: workspaces.autonomySettings })
+      .from(workspaces)
+      .where(eq(workspaces.id, job.workspaceId))
+      .limit(1);
+    const policy = resolvePolicy(
+      leadConcierge.autonomyPolicy,
+      (wsRows[0]?.autonomySettings ?? null) as WorkspaceAutonomySettings | null,
+      (activation.autonomyOverrides ?? null) as ActivationAutonomyOverrides | null,
+    );
+    const decision = decideAction({
+      mode: activation.mode,
+      policy,
+      category,
+      confidence: draft.confidence,
+      grounded: draft.groundedOnContext,
+      boundaryCheckPassed,
+      needsHuman: draft.needsHuman,
+      hasReply: !!draft.reply.trim(),
+    });
+    await addRunEvent(run.id, ++seq, "decision", autonomyEventTitle(decision), {
+      reason: decision.reason,
+      wouldAutoSend: decision.wouldAutoSend,
+    });
+
+    const telemetry = {
+      category,
+      confidence: draft.confidence,
+      action: decision.action === "escalate" ? "escalated" : decision.action,
+    };
+
+    if (decision.action === "escalate") {
+      const overrides = (activation.autonomyOverrides ?? {}) as ActivationAutonomyOverrides;
+      const holdingLine = overrides.holdingLineEnabled !== false;
+      await db().transaction(async (tx) => {
+        if (holdingLine) {
+          // Fixed copy, never generated — the visitor isn't ghosted.
+          await tx.insert(messages).values({
+            workspaceId: job.workspaceId,
+            conversationId: job.conversationId,
+            direction: "outbound",
+            body: "Thanks for reaching out — I've passed this to the owner. You'll hear back from them shortly.",
+            aiGenerated: true,
+            draftStatus: "auto_sent",
+            deliveryState: "visible",
+          });
+        }
+        await tx
+          .update(conversations)
+          .set({ status: "waiting_approval", attentionReason: decision.reason })
+          .where(eq(conversations.id, job.conversationId));
       });
-      return { outcome: "needs_human" };
+      await finishRun(run.id, "waiting_approval", {
+        outcomeMetrics: { drafted: false, needsHuman: true, escalationReason: decision.reason },
+        ...telemetry,
+      });
+      return { outcome: "escalated" };
     }
 
     // Audit P0-2: a newer draft supersedes any older pending one — nothing orphans.
     const superseded = await supersedePendingDrafts(job.conversationId, "superseded");
     if (superseded > 0) {
       await addRunEvent(run.id, ++seq, "step", "Replaced an older waiting draft", {});
+    }
+
+    if (decision.action === "auto_send") {
+      await db().transaction(async (tx) => {
+        await tx.insert(messages).values({
+          workspaceId: job.workspaceId,
+          conversationId: job.conversationId,
+          direction: "outbound",
+          body: draft.reply,
+          aiGenerated: true,
+          draftStatus: "auto_sent",
+          deliveryState: "visible",
+        });
+        await tx
+          .update(conversations)
+          .set({ status: "open", attentionReason: null, lastMessageAt: new Date() })
+          .where(eq(conversations.id, job.conversationId));
+      });
+      await addRunEvent(run.id, ++seq, "step", "Reply sent automatically", {
+        preview: draft.reply.slice(0, 200),
+      });
+      await finishRun(run.id, "succeeded", {
+        outcomeMetrics: { drafted: true, autoSent: true },
+        ...telemetry,
+      });
+      return { outcome: "auto_sent" };
     }
 
     await db().transaction(async (tx) => {
@@ -248,14 +333,15 @@ async function processDraft(job: WebchatDraftJob) {
       });
       await tx
         .update(conversations)
-        .set({ status: "waiting_approval" })
+        .set({ status: "waiting_approval", attentionReason: decision.reason })
         .where(eq(conversations.id, job.conversationId));
     });
     await addRunEvent(run.id, ++seq, "step", "Draft ready for approval", {
       preview: draft.reply.slice(0, 200),
     });
     await finishRun(run.id, "waiting_approval", {
-      outcomeMetrics: { classification: draft.classification, drafted: true },
+      outcomeMetrics: { drafted: true, wouldAutoSend: decision.wouldAutoSend },
+      ...telemetry,
     });
     return { outcome: "drafted" };
   } catch (err) {
@@ -266,6 +352,19 @@ async function processDraft(job: WebchatDraftJob) {
       errorSummary: err instanceof Error ? err.message : String(err),
     }).catch(() => {});
     throw err;
+  }
+}
+
+function autonomyEventTitle(decision: AutonomyDecision): string {
+  switch (decision.action) {
+    case "auto_send":
+      return "Auto-handled";
+    case "escalate":
+      return "Escalated to owner";
+    default:
+      return decision.wouldAutoSend
+        ? "Draft for approval (would have been auto-handled)"
+        : "Draft for approval";
   }
 }
 

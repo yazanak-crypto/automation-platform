@@ -13,6 +13,7 @@ interface DraftItem {
 interface NeedsHumanItem {
   conversationId: string | null;
   visitorMessage?: string | null;
+  reason?: string | null;
 }
 
 export default function AttentionQueue() {
@@ -95,6 +96,7 @@ export default function AttentionQueue() {
               A visitor message needs a personal reply:{" "}
               <span className="text-neutral-400">{n.visitorMessage}</span>
             </p>
+            {n.reason && <p className="mt-1 text-xs text-amber-300">{n.reason}</p>}
             {n.conversationId && (
               <Link
                 href={`/conversations/${n.conversationId}`}

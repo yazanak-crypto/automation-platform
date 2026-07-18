@@ -115,7 +115,11 @@ export default function ConversationDetail({ params }: { params: Promise<{ id: s
               }`}
             >
               <p className="whitespace-pre-wrap">{m.body}</p>
-              {m.aiGenerated && <p className="mt-1 text-xs opacity-60">AI · approved by you</p>}
+              {m.aiGenerated && (
+                <p className="mt-1 text-xs opacity-60">
+                  {m.draftStatus === "auto_sent" ? "AI · sent automatically" : "AI · approved by you"}
+                </p>
+              )}
             </div>
           </div>
         ))}

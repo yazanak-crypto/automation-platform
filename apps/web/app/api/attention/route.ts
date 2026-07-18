@@ -48,6 +48,7 @@ export async function GET() {
         WHERE m.conversation_id = ${runs.conversationId} AND m.direction = 'inbound'
         ORDER BY m.created_at DESC LIMIT 1
       )`,
+      reason: sql<string | null>`${runs.outcomeMetrics} ->> 'escalationReason'`,
     })
     .from(runs)
     .where(

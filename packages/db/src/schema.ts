@@ -4,6 +4,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  real,
   text,
   timestamp,
   uniqueIndex,
@@ -29,6 +30,8 @@ export const workspaces = pgTable("workspaces", {
   clerkOrgId: text("clerk_org_id").unique(),
   plan: text("plan").notNull().default("trial"),
   trialEndsAt: timestamp("trial_ends_at", { withTimezone: true }),
+  // Workspace-level risk tolerance (Decision 012): { maxAutoRisk, categoryOverrides }
+  autonomySettings: jsonb("autonomy_settings").$type<Record<string, unknown>>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -205,6 +208,7 @@ export const conversations = pgTable(
     status: text("status", { enum: ["open", "waiting_approval", "closed"] })
       .notNull()
       .default("open"),
+    attentionReason: text("attention_reason"),
     lastMessageAt: timestamp("last_message_at", { withTimezone: true }).notNull().defaultNow(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -230,7 +234,7 @@ export const messages = pgTable(
     // Draft-mode is the only mode (AC-2.10): outbound reaches the visitor only
     // when draft_status = approved.
     draftStatus: text("draft_status", {
-      enum: ["none", "pending_approval", "approved", "dismissed"],
+      enum: ["none", "pending_approval", "approved", "dismissed", "auto_sent"],
     })
       .notNull()
       .default("none"),
@@ -311,9 +315,10 @@ export const activations = pgTable(
     channelIds: jsonb("channel_ids").$type<string[]>().notNull().default([]),
     // Draft-approval is the only mode in M1 (AC-2.10); the enum exists so the
     // trust-graduation upgrade is a data change, not a migration.
-    mode: text("mode", { enum: ["draft_approval", "autopilot"] })
+    mode: text("mode", { enum: ["supervised", "smart"] })
       .notNull()
-      .default("draft_approval"),
+      .default("supervised"),
+    autonomyOverrides: jsonb("autonomy_overrides").$type<Record<string, unknown>>(),
     status: text("status", { enum: ["active", "paused", "deactivated"] })
       .notNull()
       .default("active"),
@@ -342,6 +347,10 @@ export const runs = pgTable(
     })
       .notNull()
       .default("running"),
+    // Autonomy telemetry (Decision 012): thin columns for cheap aggregation.
+    category: text("category"),
+    confidence: real("confidence"),
+    action: text("action"),
     outcomeMetrics: jsonb("outcome_metrics").$type<Record<string, unknown>>(),
     costMicrocents: integer("cost_microcents").notNull().default(0),
     errorSummary: text("error_summary"),

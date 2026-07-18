@@ -136,6 +136,9 @@ importers:
       '@platform/db':
         specifier: workspace:*
         version: link:../packages/db
+      '@platform/schemas':
+        specifier: workspace:^
+        version: link:../packages/schemas
       drizzle-orm:
         specifier: ^0.38.3
         version: 0.38.4(@opentelemetry/api@1.9.1)(@types/pg@8.6.1)(@types/react@19.2.17)(postgres@3.4.9)(react@19.2.7)
@@ -242,6 +245,9 @@ importers:
       '@platform/db':
         specifier: workspace:*
         version: link:../db
+      '@platform/schemas':
+        specifier: workspace:*
+        version: link:../schemas
       bullmq:
         specifier: ^5.34.10
         version: 5.80.7

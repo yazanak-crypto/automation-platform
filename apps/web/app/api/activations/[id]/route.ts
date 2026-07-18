@@ -1,4 +1,5 @@
 import { getDefinition } from "@platform/catalog";
+import { activationAutonomySchema } from "@platform/schemas";
 import { activations, db } from "@platform/db";
 import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -8,6 +9,9 @@ import { requireWorkspace, unauthorized } from "@/lib/workspace";
 const patchSchema = z
   .object({
     status: z.enum(["active", "paused", "deactivated"]).optional(),
+    // Autonomy mode (Decision 012): mode changes take effect on the next message.
+    mode: z.enum(["supervised", "smart"]).optional(),
+    autonomyOverrides: activationAutonomySchema.optional(),
     config: z.record(z.unknown()).optional(),
     channelIds: z.array(z.string().uuid()).min(1).max(10).optional(),
   })
@@ -39,6 +43,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     .update(activations)
     .set({
       ...(parsed.data.status ? { status: parsed.data.status } : {}),
+      ...(parsed.data.mode ? { mode: parsed.data.mode } : {}),
+      ...(parsed.data.autonomyOverrides !== undefined
+        ? { autonomyOverrides: parsed.data.autonomyOverrides }
+        : {}),
       ...(parsed.data.channelIds ? { channelIds: parsed.data.channelIds } : {}),
       config,
       updatedAt: new Date(),
