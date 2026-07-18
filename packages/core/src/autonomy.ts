@@ -131,3 +131,15 @@ function draft(_input: AutonomyInput, wouldAutoSend: boolean, reason: string): A
 function label(category: Category): string {
   return category.replace(/_/g, " ");
 }
+
+/**
+ * Audit-2 P0-3: the escalation holding line is itself a customer-facing
+ * message, so it only auto-sends in Smart Mode. Supervised Mode sends
+ * nothing without approval — the letter of the promise, not just the spirit.
+ */
+export function shouldSendHoldingLine(
+  mode: "supervised" | "smart",
+  overrides: { holdingLineEnabled?: boolean } | null | undefined,
+): boolean {
+  return mode === "smart" && overrides?.holdingLineEnabled !== false;
+}

@@ -59,6 +59,36 @@ export async function getBlockedOrigin(widgetKey: string): Promise<string | null
   return redis().get(`wc:blocked:${widgetKey}`).catch(() => null);
 }
 
+/**
+ * Simple Redis mutex (audit-2 P0-1): serializes draft processing per
+ * conversation so concurrent jobs can't double-draft or double-auto-send.
+ * Waits up to `waitMs` for the lock; returns null if it never acquires.
+ */
+export async function withRedisLock<T>(
+  key: string,
+  ttlSec: number,
+  fn: () => Promise<T>,
+  waitMs = 30_000,
+): Promise<T | null> {
+  const r = redis();
+  const token = crypto.randomUUID();
+  const fullKey = `lock:${key}`;
+  const deadline = Date.now() + waitMs;
+  for (;;) {
+    const ok = await r.set(fullKey, token, "EX", ttlSec, "NX");
+    if (ok) break;
+    if (Date.now() > deadline) return null;
+    await new Promise((res) => setTimeout(res, 400));
+  }
+  try {
+    return await fn();
+  } finally {
+    // Release only our own token (avoid deleting a successor's lock after TTL).
+    const val = await r.get(fullKey);
+    if (val === token) await r.del(fullKey);
+  }
+}
+
 /** Fixed-window rate limit. Returns true if the action is allowed. */
 export async function takeLimit(key: string, max: number, windowSec: number): Promise<boolean> {
   const r = redis();

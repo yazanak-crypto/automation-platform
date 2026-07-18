@@ -52,3 +52,25 @@ describe.skipIf(!hasRedis)("ingest queue regressions", () => {
 describe.skipIf(hasRedis)("ingest queue regressions (skipped)", () => {
   it("requires REDIS_URL", () => expect(true).toBe(true));
 });
+
+describe.skipIf(!process.env.REDIS_URL)("P0-1: withRedisLock mutual exclusion", () => {
+  it("serializes concurrent critical sections", async () => {
+    const { withRedisLock } = await import("../src/queues");
+    const key = `t:${crypto.randomUUID()}`;
+    const order: string[] = [];
+    await Promise.all([
+      withRedisLock(key, 10, async () => {
+        order.push("a-start");
+        await new Promise((r) => setTimeout(r, 300));
+        order.push("a-end");
+      }),
+      (async () => {
+        await new Promise((r) => setTimeout(r, 50));
+        return withRedisLock(key, 10, async () => {
+          order.push("b-start");
+        });
+      })(),
+    ]);
+    expect(order).toEqual(["a-start", "a-end", "b-start"]);
+  });
+});

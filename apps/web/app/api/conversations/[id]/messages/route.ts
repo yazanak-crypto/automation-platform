@@ -47,8 +47,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return inserted;
   });
   let delivery: "ok" | "failed" = "ok";
-  await deliverOutbound(rows[0]!.id).catch(() => {
+  await deliverOutbound(rows[0]!.id).catch(async () => {
     delivery = "failed";
+    await db()
+      .update(conversations)
+      .set({ status: "waiting_approval", attentionReason: "Your reply failed to send — try again" })
+      .where(eq(conversations.id, id));
   });
   return NextResponse.json({ ...rows[0], delivery }, { status: 201 });
 }

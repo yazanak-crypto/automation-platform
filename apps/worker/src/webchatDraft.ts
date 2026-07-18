@@ -16,7 +16,7 @@ import {
   QUEUE_NAMES,
   type WebchatDraftJob,
 } from "@platform/core";
-import { conversations, db, messages, workspaces } from "@platform/db";
+import { conversations, db, messages, runs, workspaces } from "@platform/db";
 import {
   boundaryCheckOutputSchema,
   webchatDraftOutputSchema,
@@ -32,7 +32,14 @@ import {
   LEAD_CONCIERGE_PROMPT_VERSION,
   LEAD_CONCIERGE_SYSTEM,
 } from "@platform/catalog";
-import { decideAction, resolvePolicy, type AutonomyDecision } from "@platform/core";
+import {
+  decideAction,
+  resolvePolicy,
+  shouldSendHoldingLine,
+  takeLimit,
+  withRedisLock,
+  type AutonomyDecision,
+} from "@platform/core";
 import { Worker, type ConnectionOptions } from "bullmq";
 import { and, desc, eq } from "drizzle-orm";
 
@@ -86,6 +93,26 @@ async function violatesBoundaries(args: {
 }
 
 async function processDraft(job: WebchatDraftJob) {
+  // Audit-2 P0-1: serialize per conversation; concurrent messages can never
+  // double-draft or double-auto-send.
+  const result = await withRedisLock(`draft:${job.conversationId}`, 120, () =>
+    processDraftLocked(job),
+  );
+  if (result === null) throw new Error("Could not acquire conversation lock");
+  return result;
+}
+
+async function latestInboundId(conversationId: string): Promise<string | null> {
+  const rows = await db()
+    .select({ id: messages.id })
+    .from(messages)
+    .where(and(eq(messages.conversationId, conversationId), eq(messages.direction, "inbound")))
+    .orderBy(desc(messages.createdAt))
+    .limit(1);
+  return rows[0]?.id ?? null;
+}
+
+async function processDraftLocked(job: WebchatDraftJob) {
   // Activation gate (M1 step 6): only act when this workspace has an active
   // Lead Concierge activation covering this conversation's channel.
   const convoRows = await db()
@@ -103,6 +130,26 @@ async function processDraft(job: WebchatDraftJob) {
   if (!activation) {
     // No activation → no AI, no run, no cost. Owner replies manually.
     return { outcome: "skipped", reason: "no active activation" };
+  }
+
+  // Audit-2 P0-1: if a newer visitor message already arrived, skip — the
+  // newest job answers with full context instead of racing this one.
+  if ((await latestInboundId(job.conversationId)) !== job.messageId) {
+    return { outcome: "skipped", reason: "superseded by newer message" };
+  }
+
+  // Audit-2 P0-2: interim per-workspace AI-draft cap across ALL channels
+  // until Step 9 metering lands. Deferred, never silently dropped.
+  if (!(await takeLimit(`draftcap:${job.workspaceId}`, 300, 86400))) {
+    await db()
+      .update(conversations)
+      .set({
+        status: "waiting_approval",
+        attentionReason: "Daily AI limit reached — this message is waiting for your reply",
+      })
+      .where(eq(conversations.id, job.conversationId));
+    console.warn(`[draft] workspace ${job.workspaceId} hit the daily draft cap`);
+    return { outcome: "capped" };
   }
 
   const run = await createRun({
@@ -265,7 +312,7 @@ async function processDraft(job: WebchatDraftJob) {
 
     if (decision.action === "escalate") {
       const overrides = (activation.autonomyOverrides ?? {}) as ActivationAutonomyOverrides;
-      const holdingLine = overrides.holdingLineEnabled !== false;
+      const holdingLine = shouldSendHoldingLine(activation.mode, overrides);
       await db().transaction(async (tx) => {
         if (holdingLine) {
           // Fixed copy, never generated — the visitor isn't ghosted.
@@ -288,7 +335,7 @@ async function processDraft(job: WebchatDraftJob) {
         outcomeMetrics: { drafted: false, needsHuman: true, escalationReason: decision.reason },
         ...telemetry,
       });
-      if (holdingLine) await deliverAutoMessage(job.conversationId);
+      if (holdingLine) await deliverAutoMessage(job.conversationId, run.id);
       return { outcome: "escalated" };
     }
 
@@ -296,6 +343,12 @@ async function processDraft(job: WebchatDraftJob) {
     const superseded = await supersedePendingDrafts(job.conversationId, "superseded");
     if (superseded > 0) {
       await addRunEvent(run.id, ++seq, "step", "Replaced an older waiting draft", {});
+    }
+
+    if (decision.action === "auto_send" && (await latestInboundId(job.conversationId)) !== job.messageId) {
+      await addRunEvent(run.id, ++seq, "decision", "Newer message arrived — not auto-sending", {});
+      await finishRun(run.id, "succeeded", { outcomeMetrics: { superseded: true }, ...telemetry });
+      return { outcome: "superseded" };
     }
 
     if (decision.action === "auto_send") {
@@ -317,11 +370,11 @@ async function processDraft(job: WebchatDraftJob) {
       await addRunEvent(run.id, ++seq, "step", "Reply sent automatically", {
         preview: draft.reply.slice(0, 200),
       });
-      await deliverAutoMessage(job.conversationId);
       await finishRun(run.id, "succeeded", {
         outcomeMetrics: { drafted: true, autoSent: true },
         ...telemetry,
       });
+      await deliverAutoMessage(job.conversationId, run.id);
       return { outcome: "auto_sent" };
     }
 
@@ -358,7 +411,7 @@ async function processDraft(job: WebchatDraftJob) {
   }
 }
 
-async function deliverAutoMessage(conversationId: string) {
+async function deliverAutoMessage(conversationId: string, runId: string) {
   // Deliver the newest auto_sent outbound on its channel (email sends; web chat
   // is a no-op — the widget polls). Failure marks deliveryState, never throws
   // the whole run away.
@@ -369,9 +422,21 @@ async function deliverAutoMessage(conversationId: string) {
     .orderBy(desc(messages.createdAt))
     .limit(1);
   if (!rows[0]) return;
-  await deliverOutbound(rows[0].id).catch((err) => {
+  await deliverOutbound(rows[0].id).catch(async (err) => {
+    // Audit-2 P0-4: a failed delivery is never silent — the owner sees it.
     console.error("[deliver] auto message failed:", err.message);
     Sentry.captureException(err);
+    await db()
+      .update(conversations)
+      .set({
+        status: "waiting_approval",
+        attentionReason: "A reply failed to send — please resend or reply yourself",
+      })
+      .where(eq(conversations.id, conversationId));
+    await db()
+      .update(runs)
+      .set({ status: "failed", errorSummary: `Delivery failed: ${err.message}` })
+      .where(eq(runs.id, runId));
   });
 }
 

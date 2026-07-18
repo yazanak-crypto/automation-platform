@@ -76,8 +76,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   let delivery: "ok" | "failed" = "ok";
   if (approved) {
     // Email channels actually send here; web chat is a widget-poll no-op.
-    await deliverOutbound(pending.id).catch(() => {
+    await deliverOutbound(pending.id).catch(async () => {
       delivery = "failed";
+      // Audit-2 P0-4: surface the failure — the conversation returns to the queue.
+      await db()
+        .update(conversations)
+        .set({ status: "waiting_approval", attentionReason: "Your approved reply failed to send — try again or reply another way" })
+        .where(eq(conversations.id, id));
     });
   }
   return NextResponse.json({ ok: true, action: parsed.data.action, delivery });

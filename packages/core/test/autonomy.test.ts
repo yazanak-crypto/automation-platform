@@ -135,3 +135,13 @@ describe("AC-2.14: mode semantics (kill switch)", () => {
     expect(d.wouldAutoSend).toBe(false);
   });
 });
+
+describe("P0-3: holding line respects Supervised Mode", () => {
+  it("only sends in smart mode, and only when not disabled", async () => {
+    const { shouldSendHoldingLine } = await import("../src/autonomy");
+    expect(shouldSendHoldingLine("smart", null)).toBe(true);
+    expect(shouldSendHoldingLine("smart", { holdingLineEnabled: false })).toBe(false);
+    expect(shouldSendHoldingLine("supervised", null)).toBe(false);
+    expect(shouldSendHoldingLine("supervised", { holdingLineEnabled: true })).toBe(false);
+  });
+});
