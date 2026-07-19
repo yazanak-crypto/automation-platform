@@ -89,7 +89,7 @@ export function Card({
           ? "border-l-2 border-l-brass"
           : "";
   return (
-    <div className={`rounded-[10px] border border-line bg-raised p-4 ${edge} ${className}`}>
+    <div className={`lit rounded-[10px] border border-line bg-raised p-4 ${edge} ${className}`}>
       {children}
     </div>
   );

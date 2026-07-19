@@ -58,7 +58,7 @@ export default async function DashboardPage({
       {/* The go-live moment (Design Direction, moment #1). */}
       {params.activated === "1" && (
         <div
-          className="rise mb-8 rounded-[14px] border p-6"
+          className="rise moment-glow mb-8 rounded-[14px] border p-6"
           style={{ borderColor: "var(--brass)", background: "var(--brass-dim)" }}
         >
           <p className="text-lg font-semibold tracking-[-0.01em]">Your concierge is on duty.</p>

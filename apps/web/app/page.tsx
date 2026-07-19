@@ -6,7 +6,7 @@ import { Wordmark } from "@/components/wordmark";
 
 export default function Home() {
   return (
-    <main className="flex min-h-screen flex-col">
+    <main className="flex min-h-screen flex-col overflow-hidden">
       <header className="mx-auto flex w-full max-w-5xl items-center justify-between px-6 py-6">
         <Wordmark href="/" size="lg" />
         <SignedOut>
@@ -23,7 +23,7 @@ export default function Home() {
         </SignedIn>
       </header>
 
-      <section className="mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center px-6 pb-24">
+      <section className="horizon mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center px-6 pb-24">
         <p className="mb-5 text-[13px] font-medium uppercase tracking-[0.14em]" style={{ color: "var(--brass)" }}>
           The AI operator for your business
         </p>

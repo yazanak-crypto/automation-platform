@@ -55,7 +55,7 @@ export default function ActiveAutomations() {
       {nudge && (
         <Link
           href={`/automations/${nudge.activationId}`}
-          className="rise mb-4 block rounded-[14px] border p-5 transition-colors"
+          className="rise moment-glow mb-4 block rounded-[14px] border p-5 transition-colors"
           style={{ borderColor: "var(--brass)", background: "var(--brass-dim)" }}
         >
           <p className="font-medium">Your AI has earned more autonomy</p>

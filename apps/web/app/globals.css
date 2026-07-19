@@ -132,6 +132,38 @@ body {
   animation: shimmer 1.6s linear infinite;
 }
 
+/* ── Light as hierarchy (Pinterest study): brass as LIGHT, not just ink. ── */
+/* The horizon: one warm glow rising from below. Landing hero + rare moments. */
+.horizon {
+  position: relative;
+  isolation: isolate;
+}
+.horizon::before {
+  content: "";
+  position: absolute;
+  inset: auto -20% -55% -20%;
+  height: 80%;
+  z-index: -1;
+  border-radius: 50% 50% 0 0;
+  background: radial-gradient(
+    ellipse 60% 55% at 50% 100%,
+    rgba(212, 184, 114, 0.16) 0%,
+    rgba(212, 184, 114, 0.05) 45%,
+    transparent 70%
+  );
+  pointer-events: none;
+}
+/* Moment glow: soft brass halo for the two celebration surfaces. */
+.moment-glow {
+  box-shadow:
+    0 0 44px -8px rgba(212, 184, 114, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+/* Lit material: raised surfaces catch light on their top edge. */
+.lit {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .rise,
   .collapse-out,
