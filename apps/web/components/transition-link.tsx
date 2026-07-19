@@ -1,16 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { Wordmark } from "./wordmark";
 import { COPY } from "@/lib/tokens";
 
 /**
- * Branded route transition (spec §1): pressed feedback <100ms, overlay with
- * gold shimmer sweep + wordmark pulse + cycling microcopy. Hard ceiling 1.2s —
- * the overlay never outlives the navigation; if the route resolves faster it
- * disappears with it. Prefetch happens via next/link on hover/viewport.
+ * Branded route transition (spec §1). The overlay is tied to REAL navigation
+ * state via useTransition: isPending stays true from router.push until the
+ * destination's server components finish rendering and commit — so the loading
+ * state lasts exactly as long as the navigation, never a fixed timeout. A long
+ * safety cap only guards against a genuinely hung request.
  */
 export function TransitionLink({
   href,
@@ -22,26 +23,27 @@ export function TransitionLink({
   className?: string;
 }) {
   const router = useRouter();
-  const pathname = usePathname();
-  const [active, setActive] = useState(false);
+  const [pending, startTransition] = useTransition();
   const [line, setLine] = useState(0);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [safetyElapsed, setSafetyElapsed] = useState(false);
+  const safety = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Route changed or ceiling hit → overlay gone.
+  // Cycle microcopy + arm the safety cap only while genuinely navigating.
   useEffect(() => {
-    setActive(false);
-    if (timer.current) clearTimeout(timer.current);
-  }, [pathname]);
-
-  useEffect(() => {
-    if (!active) return;
+    if (!pending) {
+      setSafetyElapsed(false);
+      if (safety.current) clearTimeout(safety.current);
+      return;
+    }
     const cycle = setInterval(() => setLine((l) => (l + 1) % COPY.overlay.lines.length), 420);
-    timer.current = setTimeout(() => setActive(false), 1200);
+    safety.current = setTimeout(() => setSafetyElapsed(true), 15000);
     return () => {
       clearInterval(cycle);
-      if (timer.current) clearTimeout(timer.current);
+      if (safety.current) clearTimeout(safety.current);
     };
-  }, [active]);
+  }, [pending]);
+
+  const showOverlay = pending && !safetyElapsed;
 
   return (
     <>
@@ -50,16 +52,16 @@ export function TransitionLink({
         prefetch
         className={className}
         onClick={(e) => {
-          if (e.metaKey || e.ctrlKey) return;
+          if (e.metaKey || e.ctrlKey || e.shiftKey) return; // let new-tab through
           e.preventDefault();
-          setActive(true);
-          router.push(href);
+          // isPending is true until the destination RSC render commits.
+          startTransition(() => router.push(href));
         }}
       >
         {children}
       </Link>
-      {active && (
-        <div className="fixed inset-0 z-[9998] flex flex-col items-center justify-center bg-bg" aria-hidden>
+      {showOverlay && (
+        <div className="fixed inset-0 z-[9998] flex flex-col items-center justify-center bg-bg" aria-live="polite">
           <div className="shimmer-line" />
           <div className="pulse-once">
             <Wordmark size="lg" />

@@ -11,15 +11,25 @@ export interface AuthedIdentity {
   name?: string;
 }
 
-export async function resolveWorkspace(identity: AuthedIdentity) {
+/**
+ * Fast path (perf): resolve an EXISTING workspace by Clerk id in one join,
+ * with no Clerk API round-trip. Returns null on first login (no row yet),
+ * where the caller falls back to the create path that needs email/name.
+ */
+export async function findWorkspaceByClerkId(clerkUserId: string) {
   const found = await db()
     .select({ user: users, workspace: workspaces })
     .from(users)
     .innerJoin(workspaceMembers, eq(workspaceMembers.userId, users.id))
     .innerJoin(workspaces, eq(workspaces.id, workspaceMembers.workspaceId))
-    .where(eq(users.clerkId, identity.clerkUserId))
+    .where(eq(users.clerkId, clerkUserId))
     .limit(1);
-  if (found[0]) return found[0];
+  return found[0] ?? null;
+}
+
+export async function resolveWorkspace(identity: AuthedIdentity) {
+  const found = await findWorkspaceByClerkId(identity.clerkUserId);
+  if (found) return found;
 
   // First login: create user + personal workspace + owner membership.
   return db().transaction(async (tx) => {

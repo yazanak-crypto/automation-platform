@@ -1,5 +1,5 @@
 import { UserButton } from "@clerk/nextjs";
-import { getBrain } from "@platform/brain";
+import { getOnboardingStatus } from "@platform/brain";
 import { redirect } from "next/navigation";
 import { Wordmark } from "@/components/wordmark";
 import NavLinks, { MobileTabBar } from "./nav-links";
@@ -13,13 +13,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   // Spec §2 (DB-aware gate): a fresh, un-onboarded workspace never lands on an
   // empty dashboard — it's routed through onboarding first. Onboarding lives
-  // OUTSIDE this (app) group, so it's never caught by this redirect.
+  // OUTSIDE this (app) group, so it's never caught by this redirect. Uses a
+  // single-column read, not the full brain (perf).
   if (ctx) {
-    const brain = await getBrain(ctx.workspace.id).catch(() => null);
-    const onboarded =
-      brain?.profile.onboardingStatus === "confirmed" ||
-      brain?.profile.onboardingStatus === "skipped";
-    if (!onboarded) redirect("/onboarding");
+    const status = await getOnboardingStatus(ctx.workspace.id).catch(() => "pending");
+    if (status !== "confirmed" && status !== "skipped") redirect("/onboarding");
   }
 
   return (

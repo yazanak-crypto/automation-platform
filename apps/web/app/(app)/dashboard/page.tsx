@@ -25,26 +25,28 @@ export default async function DashboardPage({
 }) {
   const params = await searchParams;
   const ctx = await requireWorkspace();
-  const brain = ctx ? await getBrain(ctx.workspace.id) : null;
-  const activations = ctx ? await listActivations(ctx.workspace.id) : [];
+  const wsId = ctx?.workspace.id;
+
+  // Perf: these four reads are independent — run them concurrently, not in a
+  // sequential await chain. (requireWorkspace is cache()'d, so it doesn't
+  // re-query here — it shares the layout's result.)
+  const [brain, activations, waiting, channelCount] = wsId
+    ? await Promise.all([
+        getBrain(wsId),
+        listActivations(wsId),
+        db()
+          .select({ n: sql<number>`count(*)::int` })
+          .from(messages)
+          .where(and(eq(messages.workspaceId, wsId), eq(messages.draftStatus, "pending_approval"))),
+        db()
+          .select({ n: sql<number>`count(*)::int` })
+          .from(channels)
+          .where(eq(channels.workspaceId, wsId)),
+      ])
+    : [null, [], [{ n: 0 }], [{ n: 0 }]];
+
   const active = activations.filter((a) => a.status === "active");
-
-  const waiting = ctx
-    ? await db()
-        .select({ n: sql<number>`count(*)::int` })
-        .from(messages)
-        .where(
-          and(eq(messages.workspaceId, ctx.workspace.id), eq(messages.draftStatus, "pending_approval")),
-        )
-    : [{ n: 0 }];
   const waitingCount = waiting[0]?.n ?? 0;
-
-  const channelCount = ctx
-    ? await db()
-        .select({ n: sql<number>`count(*)::int` })
-        .from(channels)
-        .where(eq(channels.workspaceId, ctx.workspace.id))
-    : [{ n: 0 }];
   const hasChannel = (channelCount[0]?.n ?? 0) > 0;
   // Never-empty rule (spec §4): show the guided checklist until the workspace
   // is actually operating (a channel + an activation).

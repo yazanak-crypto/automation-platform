@@ -58,6 +58,20 @@ export async function ensureProfile(workspaceId: string) {
   return retry[0];
 }
 
+/**
+ * Perf: the layout gate only needs onboarding status — a single indexed
+ * column read, not the full brain (which pulls boundaries + knowledge).
+ * Returns "pending" when no profile row exists yet (brand-new workspace).
+ */
+export async function getOnboardingStatus(workspaceId: string): Promise<string> {
+  const rows = await db()
+    .select({ status: businessProfiles.onboardingStatus })
+    .from(businessProfiles)
+    .where(eq(businessProfiles.workspaceId, workspaceId))
+    .limit(1);
+  return rows[0]?.status ?? "pending";
+}
+
 export async function getBrain(workspaceId: string) {
   const profile = await ensureProfile(workspaceId);
   const bounds = await db()
