@@ -13,7 +13,7 @@ interface Channel {
 }
 
 const inputCls =
-  "w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm focus:border-neutral-400 focus:outline-none";
+  "w-full rounded-lg border border-line bg-raised px-3 py-2 text-sm focus:border-line-strong focus:outline-none";
 
 export default function ChannelsPage() {
   const [channels, setChannels] = useState<Channel[] | null>(null);
@@ -61,21 +61,21 @@ export default function ChannelsPage() {
   return (
     <main className="mx-auto max-w-3xl p-8">
       <h1 className="text-2xl font-semibold">Channels</h1>
-      <p className="mt-1 text-sm text-neutral-400">Where customers reach you.</p>
-      {notice && <p className="mt-3 text-sm text-emerald-400">{notice}</p>}
+      <p className="mt-1 text-sm text-ink-2">Where customers reach you.</p>
+      {notice && <p className="mt-3 text-sm text-ok">{notice}</p>}
 
       <EmailSection channels={channels ?? []} reload={load} />
 
       {channels === null ? (
-        <p className="mt-8 text-neutral-500">Loading…</p>
+        <div className="mt-8 space-y-4" role="status" aria-label="Loading"><div className="skeleton h-32 w-full" /></div>
       ) : !webchat ? (
-        <div className="mt-8 rounded-xl border border-neutral-800 p-6">
+        <div className="mt-8 rounded-xl border border-line p-6">
           <h2 className="font-medium">Website chat</h2>
-          <p className="mt-1 text-sm text-neutral-400">
+          <p className="mt-1 text-sm text-ink-2">
             A chat bubble on your website. Visitors ask; AI drafts replies from your Business
             Brain; nothing sends without your approval.
           </p>
-          <label className="mt-4 block text-sm text-neutral-400">
+          <label className="mt-4 block text-sm text-ink-2">
             Your website (where the widget will live)
           </label>
           <input
@@ -128,11 +128,11 @@ function EmailSection({ channels, reload }: { channels: Channel[]; reload: () =>
   }
 
   return (
-    <div className="mt-8 rounded-xl border border-neutral-800 p-6">
+    <div className="mt-8 rounded-xl border border-line p-6">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="font-medium">Email (Gmail)</h2>
-          <p className="mt-1 text-sm text-neutral-400">
+          <p className="mt-1 text-sm text-ink-2">
             Your AI reads incoming email and drafts replies — same approval flow, same autonomy
             rules as website chat.
           </p>
@@ -146,23 +146,23 @@ function EmailSection({ channels, reload }: { channels: Channel[]; reload: () =>
             {busy ? "Connecting…" : emails.length > 0 ? "Connect another" : "Connect Gmail"}
           </button>
         ) : (
-          <span className="text-xs text-neutral-600">Email connections not configured yet</span>
+          <span className="text-xs text-ink-3">Email connections not configured yet</span>
         )}
       </div>
-      {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
+      {error && <p className="mt-3 text-sm text-stop">{error}</p>}
       {emails.length > 0 && (
         <ul className="mt-4 space-y-2">
           {emails.map((c) => (
-            <li key={c.id} className="flex items-center justify-between rounded-lg border border-neutral-800 px-4 py-2.5">
+            <li key={c.id} className="flex items-center justify-between rounded-lg border border-line px-4 py-2.5">
               <span className="text-sm">{c.displayName}</span>
-              <span className="rounded-full bg-emerald-950 px-2 py-0.5 text-xs text-emerald-300">
+              <span className="rounded-full bg-ok-dim px-2 py-0.5 text-[11px] font-medium text-ok">
                 {c.status === "active" ? "● Watching inbox" : c.status}
               </span>
             </li>
           ))}
         </ul>
       )}
-      <p className="mt-3 text-xs text-neutral-600">
+      <p className="mt-3 text-xs text-ink-3">
         Credentials are held by our OAuth vault, never stored by us. Disconnect anytime from your
         Google account settings.
       </p>
@@ -182,26 +182,26 @@ function WebchatCard({
   const snippet = `<script src="${typeof window !== "undefined" ? window.location.origin : ""}/widget.js" data-key="${channel.widgetKey}" async></script>`;
 
   return (
-    <div className="mt-8 space-y-6 rounded-xl border border-neutral-800 p-6">
+    <div className="mt-8 space-y-6 rounded-xl border border-line p-6">
       <div className="flex items-center justify-between">
         <h2 className="font-medium">{channel.displayName}</h2>
         {channel.config.connectedAt ? (
-          <span className="rounded-full bg-emerald-950 px-2.5 py-1 text-xs text-emerald-300">
+          <span className="rounded-full bg-ok-dim px-2.5 py-1 text-[11px] font-medium text-ok">
             ● Widget connected
           </span>
         ) : (
-          <span className="rounded-full bg-neutral-800 px-2.5 py-1 text-xs text-neutral-400">
+          <span className="rounded-full bg-hover px-2.5 py-1 text-xs text-ink-2">
             Waiting for first visitor…
           </span>
         )}
       </div>
 
       <div>
-        <p className="mb-1 text-sm text-neutral-400">
+        <p className="mb-1 text-sm text-ink-2">
           Paste this before <code>&lt;/body&gt;</code> on your site:
         </p>
         <div className="flex items-center gap-2">
-          <code className="block flex-1 overflow-x-auto rounded-lg bg-neutral-900 p-3 text-xs text-neutral-300">
+          <code className="block flex-1 overflow-x-auto rounded-lg bg-raised p-3 text-xs text-ink-2">
             {snippet}
           </code>
           <button
@@ -218,12 +218,12 @@ function WebchatCard({
       </div>
 
       {channel.lastBlockedOrigin && (
-        <div className="rounded-lg border border-amber-900/60 bg-amber-950/20 p-3 text-sm">
-          <p className="text-amber-300">
+        <div className="rounded-lg border border-line border-l-2 border-l-wait bg-raised p-3 text-sm">
+          <p className="text-wait">
             A widget tried to connect from <code>{channel.lastBlockedOrigin}</code> but that site
             isn&apos;t on your allowed list.
           </p>
-          <p className="mt-1 text-xs text-neutral-400">
+          <p className="mt-1 text-xs text-ink-2">
             If that&apos;s your site, add it below and save. If you don&apos;t recognize it, you can
             ignore this.
           </p>
@@ -231,7 +231,7 @@ function WebchatCard({
       )}
 
       <div>
-        <label className="mb-1 block text-sm text-neutral-400">
+        <label className="mb-1 block text-sm text-ink-2">
           Allowed sites (comma-separated — only these can use your widget)
         </label>
         <div className="flex gap-2">

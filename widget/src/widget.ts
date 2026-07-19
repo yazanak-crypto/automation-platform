@@ -29,13 +29,13 @@
     return node;
   };
 
-  const root = el("div", { position: "fixed", bottom: "20px", right: "20px", zIndex: "999999", fontFamily: "system-ui, sans-serif" }, document.body);
+  const root = el("div", { position: "fixed", bottom: "20px", right: "20px", zIndex: "999999", fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }, document.body);
 
   const button = el("button", {
     width: "56px", height: "56px", borderRadius: "50%", border: "none", cursor: "pointer",
     background: accent, color: "#fff", fontSize: "24px", boxShadow: "0 4px 14px rgba(0,0,0,.25)",
   }, root) as HTMLButtonElement;
-  button.textContent = "💬";
+  button.innerHTML = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4V5z"/></svg>';
   button.setAttribute("aria-label", "Open chat");
 
   const panel = el("div", {
@@ -61,7 +61,7 @@
   send.textContent = "Send";
 
   const powered = el("div", { textAlign: "center", fontSize: "11px", color: "#999", padding: "4px 0 8px", background: "#fff" }, panel);
-  powered.textContent = "Powered by Platform";
+  powered.textContent = "Powered by Operator";
 
   function render() {
     list.textContent = "";
@@ -89,8 +89,8 @@
     if (status === 403 && !warnedBlocked) {
       warnedBlocked = true;
       console.warn(
-        `Platform chat: this site (${location.origin}) isn't on the allowed list for this widget key. ` +
-          "Add it under Channels → Website chat → Allowed sites in your Platform dashboard.",
+        `Operator chat: this site (${location.origin}) isn't on the allowed list for this widget key. ` +
+          "Add it under Channels → Website chat → Allowed sites in your Operator dashboard.",
       );
     }
   }
@@ -139,7 +139,9 @@
   function setOpen(next: boolean) {
     open = next;
     panel.style.display = open ? "flex" : "none";
-    button.textContent = open ? "✕" : "💬";
+    button.innerHTML = open
+      ? '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>'
+      : '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4V5z"/></svg>';
     if (pollTimer) window.clearInterval(pollTimer);
     if (open) {
       void poll();

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { Page, PageHeader, Skeleton } from "@/components/ui";
 
 interface Boundary {
   id: string;
@@ -30,8 +31,8 @@ interface Brain {
 }
 
 const inputCls =
-  "w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm focus:border-neutral-400 focus:outline-none";
-const labelCls = "mb-1 block text-sm text-neutral-400";
+  "w-full rounded-lg border border-line bg-raised px-3 py-2 text-sm focus:border-line-strong focus:outline-none";
+const labelCls = "mb-1 block text-sm text-ink-2";
 const btnCls = "rounded-lg bg-white px-4 py-2 text-sm font-medium text-black disabled:opacity-50";
 
 // Audit P1-8: no user action may fail silently. api() reports every failure
@@ -86,38 +87,52 @@ export default function BrainPage() {
   }, []);
 
   if (!brain) {
-    return <main className="p-8 text-neutral-500">Loading your Business Brain…</main>;
+    return (
+      <Page>
+        <div className="space-y-4 pt-2" role="status" aria-label="Loading">
+          <Skeleton className="h-7 w-52" />
+          <Skeleton className="h-4 w-80" />
+          <Skeleton className="mt-6 h-24 w-full" />
+          <Skeleton className="h-24 w-full" />
+        </div>
+      </Page>
+    );
   }
 
   const suggestedCount = brain.knowledge.filter((k) => k.status === "suggested").length;
 
+  const confirmedFacts = brain.knowledge.filter((k) => k.status === "confirmed").length;
+  const activeBoundaries = brain.boundaries.filter((b) => b.active).length;
   return (
-    <main className="mx-auto max-w-3xl p-8">
-      <header className="mb-6">
-        <h1 className="text-2xl font-semibold">Business Brain</h1>
-        <p className="mt-1 text-sm text-neutral-400">
-          What the platform knows about your business. Every automation uses this.
-          <span className="ml-2 text-neutral-600">v{brain.profile.brainVersion}</span>
-        </p>
-      </header>
+    <Page>
+      <PageHeader
+        title="Business Brain"
+        subtitle={
+          <>
+            Everything your AI knows and is allowed to say.{" "}
+            <span className="tnum">{confirmedFacts}</span> confirmed fact{confirmedFacts === 1 ? "" : "s"} ·{" "}
+            <span className="tnum">{activeBoundaries}</span> boundar{activeBoundaries === 1 ? "y" : "ies"} guarding replies
+          </>
+        }
+      />
 
-      <nav className="mb-6 flex gap-2 border-b border-neutral-800 pb-2">
+      <nav className="mb-6 flex gap-5 border-b border-line">
         {(["profile", "boundaries", "knowledge"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`rounded-md px-3 py-1.5 text-sm capitalize ${tab === t ? "bg-neutral-800 text-white" : "text-neutral-400"}`}
+            className={`-mb-px border-b-2 pb-2.5 text-[13.5px] capitalize transition-colors ${tab === t ? "border-current font-medium text-ink" : "border-transparent text-ink-3 hover:text-ink-2"}`}
           >
             {t}
             {t === "knowledge" && suggestedCount > 0 && (
-              <span className="ml-1.5 rounded-full bg-indigo-900 px-1.5 text-xs text-indigo-300">{suggestedCount}</span>
+              <span className="ml-1.5 rounded-full bg-brass-dim px-1.5 text-[11px] font-medium text-brass">{suggestedCount}</span>
             )}
           </button>
         ))}
       </nav>
 
       {notice && (
-        <p className={`mb-4 text-sm ${notice.kind === "ok" ? "text-emerald-400" : "text-red-400"}`}>
+        <p className={`mb-4 text-sm ${notice.kind === "ok" ? "text-ok" : "text-stop"}`}>
           {notice.msg}
         </p>
       )}
@@ -125,7 +140,7 @@ export default function BrainPage() {
       {tab === "profile" && <ProfileTab brain={brain} setBrain={setBrain} onSaved={() => flash("Profile saved — active on the next AI run.")} />}
       {tab === "boundaries" && <BoundariesTab brain={brain} reload={load} onSaved={flash} />}
       {tab === "knowledge" && <KnowledgeTab brain={brain} setBrain={setBrain} reload={load} onSaved={flash} />}
-    </main>
+    </Page>
   );
 }
 
@@ -213,12 +228,12 @@ function BoundariesTab({ brain, reload, onSaved }: { brain: Brain; reload: () =>
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-neutral-400">
+      <p className="text-sm text-ink-2">
         Hard rules the AI must never cross — e.g. &quot;Never offer discounts&quot;, &quot;Always hand off legal questions&quot;.
       </p>
       <div className="flex gap-2">
         <input className={inputCls} value={rule} onChange={(e) => setRule(e.target.value)} placeholder="Never promise specific delivery dates" />
-        <select className="rounded-lg border border-neutral-700 bg-neutral-900 px-2 text-sm" value={category} onChange={(e) => setCategory(e.target.value)}>
+        <select className="rounded-lg border border-line bg-raised px-2 text-sm" value={category} onChange={(e) => setCategory(e.target.value)}>
           <option value="never_promise">never promise</option>
           <option value="never_offer">never offer</option>
           <option value="handoff">hand off</option>
@@ -228,24 +243,24 @@ function BoundariesTab({ brain, reload, onSaved }: { brain: Brain; reload: () =>
       </div>
       <ul className="space-y-2">
         {brain.boundaries.map((b) => (
-          <li key={b.id} className="flex items-center justify-between rounded-lg border border-neutral-800 p-3">
+          <li key={b.id} className="flex items-center justify-between rounded-lg border border-line p-3">
             <div>
-              <p className={`text-sm ${b.active ? "" : "text-neutral-500 line-through"}`}>{b.ruleText}</p>
-              <p className="text-xs text-neutral-500">{b.category.replace("_", " ")}</p>
+              <p className={`text-sm ${b.active ? "" : "text-ink-3 line-through"}`}>{b.ruleText}</p>
+              <p className="text-xs text-ink-3">{b.category.replace("_", " ")}</p>
             </div>
             <div className="flex gap-2">
-              <button className="rounded bg-neutral-800 px-2 py-1 text-xs"
+              <button className="rounded bg-hover px-2 py-1 text-xs"
                 onClick={safely(async () => { await api(`/api/brain/boundaries/${b.id}`, "PATCH", { active: !b.active }); await reload(); })}>
                 {b.active ? "Disable" : "Enable"}
               </button>
-              <button className="rounded bg-red-950/60 px-2 py-1 text-xs text-red-300"
+              <button className="rounded bg-stop-dim px-2 py-1 text-[11px] font-medium text-stop"
                 onClick={safely(async () => { await api(`/api/brain/boundaries/${b.id}`, "DELETE"); await reload(); onSaved("Boundary removed."); })}>
                 Delete
               </button>
             </div>
           </li>
         ))}
-        {brain.boundaries.length === 0 && <li className="text-sm text-neutral-500">No boundaries yet — add your first rule above.</li>}
+        {brain.boundaries.length === 0 && <li className="text-sm text-ink-3">No boundaries yet — add your first rule above.</li>}
       </ul>
     </div>
   );
@@ -283,7 +298,7 @@ function KnowledgeTab({
 
   return (
     <div className="space-y-5">
-      <div className="rounded-lg border border-neutral-800 p-4">
+      <div className="rounded-lg border border-line p-4">
         <h3 className="mb-2 text-sm font-medium">Add an FAQ</h3>
         <div className="space-y-2">
           <input className={inputCls} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Question — e.g. Do you ship internationally?" />
@@ -295,7 +310,7 @@ function KnowledgeTab({
       <div className="flex gap-2">
         {(["all", "suggested", "confirmed"] as const).map((f) => (
           <button key={f} onClick={() => setFilter(f)}
-            className={`rounded-md px-2.5 py-1 text-xs capitalize ${filter === f ? "bg-neutral-800 text-white" : "text-neutral-400"}`}>
+            className={`rounded-md px-2.5 py-1 text-xs capitalize ${filter === f ? "bg-hover text-white" : "text-ink-2"}`}>
             {f}
           </button>
         ))}
@@ -303,33 +318,33 @@ function KnowledgeTab({
 
       <ul className="space-y-2">
         {items.map((k) => (
-          <li key={k.id} className="rounded-lg border border-neutral-800 p-3">
+          <li key={k.id} className="rounded-lg border border-line p-3">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-sm font-medium">
                   {k.title}
                   {k.status === "suggested" && (
-                    <span className="ml-2 rounded bg-indigo-950 px-1.5 py-0.5 text-xs text-indigo-300">suggested</span>
+                    <span className="ml-2 rounded bg-brass-dim px-1.5 py-0.5 text-[11px] font-medium text-brass">suggested</span>
                   )}
                 </p>
-                <p className="mt-1 text-sm text-neutral-400">{k.content}</p>
-                {k.sourceRef && <p className="mt-1 text-xs text-neutral-600">from {k.sourceRef}</p>}
+                <p className="mt-1 text-sm text-ink-2">{k.content}</p>
+                {k.sourceRef && <p className="mt-1 text-xs text-ink-3">from {k.sourceRef}</p>}
               </div>
               <div className="flex shrink-0 gap-2">
                 {k.status === "suggested" ? (
                   <>
-                    <button onClick={safely(() => setStatus(k.id, "confirmed"))} className="rounded bg-emerald-900/60 px-2 py-1 text-xs text-emerald-300">Confirm</button>
-                    <button onClick={safely(() => setStatus(k.id, "rejected"))} className="rounded bg-neutral-800 px-2 py-1 text-xs text-neutral-400">Dismiss</button>
+                    <button onClick={safely(() => setStatus(k.id, "confirmed"))} className="rounded bg-ok-dim px-2 py-1 text-[11px] font-medium text-ok">Confirm</button>
+                    <button onClick={safely(() => setStatus(k.id, "rejected"))} className="rounded bg-hover px-2 py-1 text-xs text-ink-2">Dismiss</button>
                   </>
                 ) : (
-                  <button onClick={safely(async () => { await api(`/api/brain/knowledge/${k.id}`, "DELETE"); await reload(); })} className="rounded bg-red-950/60 px-2 py-1 text-xs text-red-300">Delete</button>
+                  <button onClick={safely(async () => { await api(`/api/brain/knowledge/${k.id}`, "DELETE"); await reload(); })} className="rounded bg-stop-dim px-2 py-1 text-[11px] font-medium text-stop">Delete</button>
                 )}
               </div>
             </div>
           </li>
         ))}
         {items.length === 0 && (
-          <li className="text-sm text-neutral-500">
+          <li className="text-sm text-ink-3">
             {filter === "suggested" ? "Nothing waiting for review." : "No knowledge yet — add your first FAQ above."}
           </li>
         )}

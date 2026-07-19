@@ -51,7 +51,14 @@ export default function BillingPage() {
     if (url) window.location.href = url;
   }
 
-  if (!data) return <main className="p-8 text-neutral-500">Loading…</main>;
+  if (!data)
+    return (
+      <main className="mx-auto max-w-2xl p-8" role="status" aria-label="Loading">
+        <div className="skeleton h-7 w-32" />
+        <div className="skeleton mt-6 h-28 w-full" />
+        <div className="skeleton mt-6 h-40 w-full" />
+      </main>
+    );
   const { status, plans } = data;
   const pct = status.allowance === 0 ? 100 : Math.min(100, Math.round((status.used / status.allowance) * 100));
   const currentPlan = plans.find((p) => p.id === status.plan);
@@ -59,18 +66,18 @@ export default function BillingPage() {
   return (
     <main className="mx-auto max-w-2xl p-8">
       <h1 className="text-2xl font-semibold">Billing</h1>
-      <p className="mt-1 text-sm text-neutral-400">
+      <p className="mt-1 text-sm text-ink-2">
         Your plan includes monthly AI credits. One credit ≈ one cent of AI work — most replies use
         a few credits.
       </p>
-      {error && <p className="mt-4 text-sm text-red-400">{error}</p>}
+      {error && <p className="mt-4 text-sm text-stop">{error}</p>}
 
-      <section className="mt-6 rounded-xl border border-neutral-800 p-5">
+      <section className="mt-6 rounded-xl border border-line p-5">
         <div className="flex items-center justify-between">
           <p className="font-medium">
             {currentPlan?.name ?? status.plan}
             {status.subscriptionStatus && status.subscriptionStatus !== "active" && (
-              <span className="ml-2 rounded-full bg-amber-950 px-2 py-0.5 text-xs text-amber-300">
+              <span className="ml-2 rounded-full bg-wait-dim px-2 py-0.5 text-[11px] font-medium text-wait">
                 {status.subscriptionStatus}
               </span>
             )}
@@ -79,7 +86,7 @@ export default function BillingPage() {
             <button
               onClick={() => go("/api/billing/portal", undefined, "portal")}
               disabled={busy === "portal"}
-              className="rounded-lg bg-neutral-800 px-3 py-1.5 text-xs disabled:opacity-50"
+              className="rounded-lg bg-hover px-3 py-1.5 text-xs disabled:opacity-50"
             >
               Manage subscription
             </button>
@@ -87,21 +94,21 @@ export default function BillingPage() {
         </div>
         <div className="mt-4">
           <div className="flex justify-between text-sm">
-            <span className={status.exhausted ? "text-red-400" : "text-neutral-300"}>
+            <span className={status.exhausted ? "text-stop" : "text-ink-2"}>
               {status.used.toLocaleString()} of {status.allowance.toLocaleString()} credits used
             </span>
-            <span className="text-neutral-500">
+            <span className="text-ink-3">
               resets {new Date(status.periodEnd).toLocaleDateString()}
             </span>
           </div>
-          <div className="mt-2 h-2 overflow-hidden rounded-full bg-neutral-800">
+          <div className="mt-2 h-2 overflow-hidden rounded-full bg-hover">
             <div
-              className={`h-full ${status.exhausted ? "bg-red-500" : pct > 85 ? "bg-amber-400" : "bg-emerald-500"}`}
+              className={`h-full ${status.exhausted ? "bg-stop" : pct > 85 ? "bg-wait" : "bg-ok"}`}
               style={{ width: `${pct}%` }}
             />
           </div>
           {status.exhausted && (
-            <p className="mt-2 text-sm text-red-400">
+            <p className="mt-2 text-sm text-stop">
               Credits are used up — the AI has paused. New messages wait in Conversations for your
               own reply until you upgrade or the month resets.
             </p>
@@ -117,18 +124,18 @@ export default function BillingPage() {
             return (
               <div
                 key={p.id}
-                className={`rounded-xl border p-5 ${isCurrent ? "border-neutral-400" : "border-neutral-800"}`}
+                className={`rounded-xl border p-5 ${isCurrent ? "border-line-strong" : "border-line"}`}
               >
                 <p className="font-medium">{p.name}</p>
                 <p className="mt-1 text-2xl font-semibold">
                   ${p.priceMonthlyUsd}
-                  <span className="text-sm font-normal text-neutral-500">/mo</span>
+                  <span className="text-sm font-normal text-ink-3">/mo</span>
                 </p>
-                <p className="mt-2 text-sm text-neutral-400">
+                <p className="mt-2 text-sm text-ink-2">
                   {p.monthlyCredits.toLocaleString()} AI credits / month
                 </p>
                 {isCurrent ? (
-                  <p className="mt-4 text-xs text-neutral-500">Current plan</p>
+                  <p className="mt-4 text-xs text-ink-3">Current plan</p>
                 ) : p.purchasable ? (
                   <button
                     onClick={() => go("/api/billing/checkout", { plan: p.id }, p.id)}
@@ -138,7 +145,7 @@ export default function BillingPage() {
                     {busy === p.id ? "Redirecting…" : "Upgrade"}
                   </button>
                 ) : p.id !== "trial" ? (
-                  <p className="mt-4 text-xs text-neutral-600">
+                  <p className="mt-4 text-xs text-ink-3">
                     {data.billingConfigured ? "Not available yet" : "Billing not configured yet"}
                   </p>
                 ) : null}

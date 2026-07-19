@@ -16,8 +16,8 @@ interface Brain {
 }
 
 const inputCls =
-  "w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm focus:border-neutral-400 focus:outline-none";
-const labelCls = "mb-1 block text-sm text-neutral-400";
+  "w-full rounded-lg border border-line bg-raised px-3 py-2 text-sm focus:border-line-strong focus:outline-none";
+const labelCls = "mb-1 block text-sm text-ink-2";
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -133,7 +133,7 @@ export default function OnboardingPage() {
       <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-6 p-8">
         <div>
           <h1 className="text-2xl font-semibold">Tell us about your business</h1>
-          <p className="mt-1 text-sm text-neutral-400">
+          <p className="mt-1 text-sm text-ink-2">
             We&apos;ll read your website and set things up for you.
           </p>
         </div>
@@ -145,11 +145,11 @@ export default function OnboardingPage() {
           <label className={labelCls}>Website (optional)</label>
           <input className={inputCls} value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://acme.com" />
         </div>
-        {error && <p className="text-sm text-red-400">{error}</p>}
+        {error && <p className="text-sm text-stop">{error}</p>}
         <button onClick={start} className="rounded-lg bg-white py-2.5 font-medium text-black">
           Continue
         </button>
-        <button onClick={skip} className="text-sm text-neutral-500 hover:text-neutral-300">
+        <button onClick={skip} className="text-sm text-ink-3 hover:text-ink-2">
           Skip for now
         </button>
       </main>
@@ -159,9 +159,9 @@ export default function OnboardingPage() {
   if (step === "reading") {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center gap-4">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-neutral-700 border-t-white" />
-        <p className="text-neutral-300">{progress}</p>
-        <p className="text-sm text-neutral-500">Usually under a minute.</p>
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-line border-t-white" />
+        <p className="text-ink-2">{progress}</p>
+        <p className="text-sm text-ink-3">Usually under a minute.</p>
       </main>
     );
   }
@@ -175,14 +175,14 @@ export default function OnboardingPage() {
       <div>
         <h1 className="text-2xl font-semibold">Here&apos;s what we learned about your business</h1>
         {sparseDraft && (
-          <p className="mt-2 rounded-lg border border-neutral-800 bg-neutral-900/60 p-3 text-sm text-neutral-400">
+          <p className="mt-2 rounded-lg border border-line bg-raised p-3 text-sm text-ink-2">
             We couldn&apos;t read much from your site — no problem. Fill in what matters below;
             two sentences about what you do is plenty to start.
           </p>
         )}
-        <p className="mt-1 text-sm text-neutral-400">
+        <p className="mt-1 text-sm text-ink-2">
           Everything below is a draft — review and adjust before confirming. Fields marked{" "}
-          <span className="rounded bg-indigo-950 px-1.5 py-0.5 text-xs text-indigo-300">AI</span> were
+          <span className="rounded bg-brass-dim px-1.5 py-0.5 text-[11px] font-medium text-brass">AI</span> were
           inferred from your website.
         </p>
       </div>
@@ -205,21 +205,21 @@ export default function OnboardingPage() {
       {suggested.length > 0 && (
         <section>
           <h2 className="mb-2 font-medium">
-            Suggested knowledge <span className="text-sm text-neutral-500">— confirm what&apos;s right</span>
+            Suggested knowledge <span className="text-sm text-ink-3">— confirm what&apos;s right</span>
           </h2>
           <ul className="space-y-2">
             {suggested.map((k) => (
-              <li key={k.id} className="rounded-lg border border-neutral-800 p-3">
+              <li key={k.id} className="rounded-lg border border-line p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-sm font-medium">{k.title}</p>
-                    <p className="mt-1 text-sm text-neutral-400">{k.content}</p>
+                    <p className="mt-1 text-sm text-ink-2">{k.content}</p>
                   </div>
                   <div className="flex shrink-0 gap-2">
-                    <button onClick={() => reviewItem(k.id, "confirmed")} className="rounded bg-emerald-900/60 px-2 py-1 text-xs text-emerald-300">
+                    <button onClick={() => reviewItem(k.id, "confirmed")} className="rounded bg-ok-dim px-2 py-1 text-[11px] font-medium text-ok">
                       Confirm
                     </button>
-                    <button onClick={() => reviewItem(k.id, "rejected")} className="rounded bg-neutral-800 px-2 py-1 text-xs text-neutral-400">
+                    <button onClick={() => reviewItem(k.id, "rejected")} className="rounded bg-hover px-2 py-1 text-xs text-ink-2">
                       Dismiss
                     </button>
                   </div>
@@ -234,7 +234,7 @@ export default function OnboardingPage() {
         <button disabled={saving} onClick={confirm} className="rounded-lg bg-white px-5 py-2.5 font-medium text-black disabled:opacity-50">
           {saving ? "Saving…" : "Looks right →"}
         </button>
-        <button onClick={skip} className="text-sm text-neutral-500 hover:text-neutral-300">
+        <button onClick={skip} className="text-sm text-ink-3 hover:text-ink-2">
           Finish later
         </button>
       </div>
@@ -243,5 +243,5 @@ export default function OnboardingPage() {
 }
 
 function AiBadge() {
-  return <span className="ml-1 rounded bg-indigo-950 px-1.5 py-0.5 text-xs text-indigo-300">AI</span>;
+  return <span className="ml-1 rounded bg-brass-dim px-1.5 py-0.5 text-[11px] font-medium text-brass">AI</span>;
 }
