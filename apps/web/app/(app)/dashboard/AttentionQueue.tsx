@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { useBurst } from "@/components/motion";
 import { Button, Card, RelativeTime, Section } from "@/components/ui";
 
 interface DraftItem {
@@ -25,6 +26,7 @@ export default function AttentionQueue() {
   const [leaving, setLeaving] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const { burst, burstNode } = useBurst();
 
   const load = useCallback(async () => {
     const res = await fetch("/api/attention").catch(() => null);
@@ -66,6 +68,8 @@ export default function AttentionQueue() {
   if (!loaded || total === 0) return null;
 
   return (
+    <>
+    {burstNode}
     <Section
       label="Needs you"
       right={<span className="tnum text-[12px] text-ink-3">{total} item{total === 1 ? "" : "s"}</span>}
@@ -93,7 +97,10 @@ export default function AttentionQueue() {
                   variant="ok"
                   size="sm"
                   disabled={busy === d.conversationId}
-                  onClick={() => act(d.conversationId, "approve")}
+                  onClick={(e) => {
+                    burst(e);
+                    void act(d.conversationId, "approve");
+                  }}
                 >
                   Approve &amp; send
                 </Button>
@@ -137,5 +144,6 @@ export default function AttentionQueue() {
         ))}
       </div>
     </Section>
+    </>
   );
 }

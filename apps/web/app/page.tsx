@@ -1,5 +1,7 @@
 import { SignedIn, SignedOut, SignInButton } from "@clerk/nextjs";
 import Link from "next/link";
+import { Magnetic, Tilt } from "@/components/motion";
+import { Orbit } from "@/components/orbit";
 import { Reveal } from "@/components/reveal";
 import { Wordmark } from "@/components/wordmark";
 import { BRAND } from "@/lib/brand";
@@ -47,7 +49,8 @@ export default function Home() {
       </header>
 
       {/* Hero: cathedral composition over the brass horizon. */}
-      <section className="horizon mx-auto flex w-full max-w-3xl flex-col items-center px-6 pt-24 text-center sm:pt-32">
+      <section className="horizon relative mx-auto flex w-full max-w-3xl flex-col items-center px-6 pt-24 text-center sm:pt-32">
+        <Orbit className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[520px] w-full opacity-70" />
         <span className="rise inline-flex items-center gap-2 rounded-full border border-line bg-raised px-3.5 py-1.5 text-[12px] text-ink-2">
           <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: "var(--brass)" }} />
           Early access — the first AI employee for customer conversations
@@ -66,11 +69,13 @@ export default function Home() {
         </p>
         <div className="rise mt-9 flex flex-col items-center gap-3">
           <SignedOut>
-            <SignInButton>
-              <button className="rounded-lg bg-white px-7 py-3 text-sm font-medium text-black transition-all duration-150 hover:bg-white/90 active:scale-[0.98]">
-                Start free
-              </button>
-            </SignInButton>
+            <Magnetic>
+              <SignInButton>
+                <button className="rounded-lg bg-white px-7 py-3 text-sm font-medium text-black transition-all duration-150 hover:bg-white/90 active:scale-[0.98]">
+                  Start free
+                </button>
+              </SignInButton>
+            </Magnetic>
           </SignedOut>
           <SignedIn>
             <Link
@@ -85,6 +90,7 @@ export default function Home() {
 
         {/* The product frame emerging from the light (video study). */}
         <Reveal>
+          <Tilt>
           <div className="lit moment-glow mx-auto mt-16 w-full max-w-2xl rounded-t-[14px] border border-b-0 border-line bg-raised p-5 text-left">
             <div className="flex items-center justify-between border-b border-line pb-3">
               <span className="text-[13px] font-medium">Good morning</span>
@@ -105,6 +111,7 @@ export default function Home() {
               ))}
             </div>
           </div>
+          </Tilt>
         </Reveal>
       </section>
 
