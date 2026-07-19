@@ -3,32 +3,126 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const LINKS = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/marketplace", label: "Marketplace" },
-  { href: "/conversations", label: "Conversations" },
-  { href: "/brain", label: "Business Brain" },
-  { href: "/channels", label: "Channels" },
-  { href: "/billing", label: "Billing" },
+// Icons: 1.5px-stroke minimal set, inline so no icon-lib dependency.
+const ICONS: Record<string, React.ReactNode> = {
+  dashboard: (
+    <path d="M3 10.5 10 4l7 6.5M5 9v7h10V9" />
+  ),
+  conversations: (
+    <path d="M4 5h12v8H8l-4 3V5z" />
+  ),
+  marketplace: (
+    <path d="M4 7l1-3h10l1 3M4 7h12v9H4V7zm4 3h4" />
+  ),
+  brain: (
+    <path d="M10 3a5 5 0 0 1 5 5c0 2-1 3-1 5H6c0-2-1-3-1-5a5 5 0 0 1 5-5zM8 16h4" />
+  ),
+  channels: (
+    <path d="M7 12a3 3 0 1 1 0-6l2 1m2 6a3 3 0 1 0 0 6l2-1M7 9l6 5" />
+  ),
+  billing: (
+    <path d="M3 7h14v8H3V7zm0 3h14" />
+  ),
+};
+
+function Icon({ name }: { name: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="h-[17px] w-[17px] shrink-0">
+      {ICONS[name]}
+    </svg>
+  );
+}
+
+const GROUPS: { label: string; links: { href: string; label: string; icon: string }[] }[] = [
+  {
+    label: "Operate",
+    links: [
+      { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
+      { href: "/conversations", label: "Conversations", icon: "conversations" },
+    ],
+  },
+  {
+    label: "Configure",
+    links: [
+      { href: "/marketplace", label: "Marketplace", icon: "marketplace" },
+      { href: "/brain", label: "Business Brain", icon: "brain" },
+      { href: "/channels", label: "Channels", icon: "channels" },
+    ],
+  },
+  {
+    label: "Account",
+    links: [{ href: "/billing", label: "Billing", icon: "billing" }],
+  },
 ];
+
+function isActive(pathname: string, href: string) {
+  return pathname === href || pathname.startsWith(`${href}/`) || (href === "/dashboard" && pathname.startsWith("/automations"));
+}
 
 export default function NavLinks() {
   const pathname = usePathname();
   return (
-    <nav className="mt-8 flex flex-col gap-1">
-      {LINKS.map((l) => {
-        const active = pathname === l.href || pathname.startsWith(`${l.href}/`);
+    <nav className="mt-7 flex flex-col gap-5">
+      {GROUPS.map((g) => (
+        <div key={g.label}>
+          <p className="mb-1.5 px-2 text-[10.5px] font-medium uppercase tracking-[0.14em] text-ink-3">
+            {g.label}
+          </p>
+          <div className="flex flex-col gap-px">
+            {g.links.map((l) => {
+              const active = isActive(pathname, l.href);
+              return (
+                <Link
+                  key={l.href}
+                  href={l.href}
+                  className={`relative flex items-center gap-2.5 rounded-md px-2 py-[7px] text-[13.5px] transition-colors duration-150 ${
+                    active ? "bg-hover text-ink" : "text-ink-2 hover:bg-raised hover:text-ink"
+                  }`}
+                >
+                  {active && (
+                    <span className="absolute -left-3 top-1/2 h-4 w-[2px] -translate-y-1/2 rounded-full" style={{ background: "var(--brass)" }} />
+                  )}
+                  <Icon name={l.icon} />
+                  {l.label}
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </nav>
+  );
+}
+
+/** Mobile bottom tab bar — the phone-first surface (fixes broken mobile nav). */
+export function MobileTabBar() {
+  const pathname = usePathname();
+  const tabs = [
+    { href: "/dashboard", label: "Home", icon: "dashboard" },
+    { href: "/conversations", label: "Inbox", icon: "conversations" },
+    { href: "/marketplace", label: "Market", icon: "marketplace" },
+    { href: "/brain", label: "Brain", icon: "brain" },
+    { href: "/channels", label: "Channels", icon: "channels" },
+  ];
+  return (
+    <nav
+      className="fixed inset-x-0 bottom-0 z-40 flex border-t border-line bg-bg/95 backdrop-blur md:hidden"
+      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+    >
+      {tabs.map((t) => {
+        const active = isActive(pathname, t.href);
         return (
           <Link
-            key={l.href}
-            href={l.href}
-            className={`rounded-md px-2 py-1.5 text-sm transition-colors duration-150 ${
-              active
-                ? "bg-neutral-800/80 text-white"
-                : "text-neutral-400 hover:bg-neutral-900 hover:text-neutral-200"
+            key={t.href}
+            href={t.href}
+            className={`flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[10px] ${
+              active ? "text-ink" : "text-ink-3"
             }`}
           >
-            {l.label}
+            <span className={active ? "text-brass" : ""}>
+              <Icon name={t.icon} />
+            </span>
+            {t.label}
           </Link>
         );
       })}

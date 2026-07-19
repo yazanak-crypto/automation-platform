@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { Button, Card, RelativeTime, Section } from "@/components/ui";
 
 interface DraftItem {
   conversationId: string;
@@ -9,25 +10,30 @@ interface DraftItem {
   visitorMessage?: string | null;
   contactEmail?: string | null;
   reasoning?: string | null;
+  createdAt: string;
 }
 interface NeedsHumanItem {
   conversationId: string | null;
   visitorMessage?: string | null;
   reason?: string | null;
+  startedAt: string;
 }
 
 export default function AttentionQueue() {
   const [drafts, setDrafts] = useState<DraftItem[]>([]);
   const [needsHuman, setNeedsHuman] = useState<NeedsHumanItem[]>([]);
+  const [leaving, setLeaving] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
 
   const load = useCallback(async () => {
-    const res = await fetch("/api/attention");
-    if (res.ok) {
+    const res = await fetch("/api/attention").catch(() => null);
+    if (res?.ok) {
       const data = await res.json();
       setDrafts(data.drafts);
       setNeedsHuman(data.needsHuman);
     }
+    setLoaded(true);
   }, []);
   useEffect(() => {
     void load();
@@ -37,77 +43,99 @@ export default function AttentionQueue() {
 
   async function act(conversationId: string, action: "approve" | "dismiss") {
     setBusy(conversationId);
-    await fetch(`/api/conversations/${conversationId}/draft`, {
+    const res = await fetch(`/api/conversations/${conversationId}/draft`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action }),
-    });
+    }).catch(() => null);
     setBusy(null);
-    await load();
+    if (!res?.ok) return;
+    // Moment #2: the card leaves deliberately, not by vanishing.
+    setLeaving((s) => new Set(s).add(conversationId));
+    setTimeout(() => {
+      setDrafts((d) => d.filter((x) => x.conversationId !== conversationId));
+      setLeaving((s) => {
+        const n = new Set(s);
+        n.delete(conversationId);
+        return n;
+      });
+    }, 230);
   }
 
-  if (drafts.length === 0 && needsHuman.length === 0) return null;
+  const total = drafts.length + needsHuman.length;
+  if (!loaded || total === 0) return null;
 
   return (
-    <section className="mt-6">
-      <h2 className="mb-3 font-medium">
-        Needs your attention{" "}
-        <span className="text-sm text-neutral-500">
-          — {drafts.length + needsHuman.length} item{drafts.length + needsHuman.length === 1 ? "" : "s"}
-        </span>
-      </h2>
-      <ul className="space-y-3">
+    <Section
+      label="Needs you"
+      right={<span className="tnum text-[12px] text-ink-3">{total} item{total === 1 ? "" : "s"}</span>}
+    >
+      <div className="space-y-3">
         {drafts.map((d) => (
-          <li key={d.conversationId} className="rounded-xl border border-amber-900/60 bg-amber-950/10 p-4">
-            <p className="text-xs text-neutral-500">
-              {d.contactEmail ?? "Anonymous visitor"} asked:
-            </p>
-            <p className="mt-1 text-sm">{d.visitorMessage}</p>
-            <p className="mt-3 text-xs font-medium uppercase tracking-wide text-amber-400">AI draft</p>
-            <p className="mt-1 whitespace-pre-wrap text-sm text-neutral-200">{d.draftBody}</p>
-            {d.reasoning && <p className="mt-1 text-xs text-neutral-500">{d.reasoning}</p>}
-            <div className="mt-3 flex gap-2">
-              <button
-                disabled={busy === d.conversationId}
-                onClick={() => act(d.conversationId, "approve")}
-                className="rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
-              >
-                Approve & send
-              </button>
-              <Link
-                href={`/conversations/${d.conversationId}`}
-                className="rounded-lg bg-neutral-800 px-3 py-1.5 text-xs"
-              >
-                Edit / view
-              </Link>
-              <button
-                disabled={busy === d.conversationId}
-                onClick={() => act(d.conversationId, "dismiss")}
-                className="rounded-lg bg-neutral-800 px-3 py-1.5 text-xs text-neutral-400 disabled:opacity-50"
-              >
-                Dismiss
-              </button>
-            </div>
-          </li>
+          <div key={d.conversationId} className={leaving.has(d.conversationId) ? "collapse-out" : "rise"}>
+            <Card tone="wait">
+              <div className="flex items-baseline justify-between gap-3">
+                <p className="text-[12px] text-ink-3">{d.contactEmail ?? "A website visitor"} asked</p>
+                <RelativeTime value={d.createdAt} />
+              </div>
+              <p className="mt-1 text-sm leading-relaxed">{d.visitorMessage}</p>
+
+              <div className="mt-3 border-t border-line pt-3">
+                <p className="text-[11px] font-medium uppercase tracking-[0.1em] text-ink-3">
+                  Your AI drafted
+                </p>
+                <p className="mt-1.5 whitespace-pre-wrap text-sm leading-relaxed">{d.draftBody}</p>
+                {d.reasoning && <p className="mt-1.5 text-[12.5px] text-ink-3">{d.reasoning}</p>}
+              </div>
+
+              <div className="mt-3.5 flex items-center gap-2">
+                <Button
+                  variant="ok"
+                  size="sm"
+                  disabled={busy === d.conversationId}
+                  onClick={() => act(d.conversationId, "approve")}
+                >
+                  Approve &amp; send
+                </Button>
+                <Link
+                  href={`/conversations/${d.conversationId}`}
+                  className="rounded-lg border border-line px-3 py-1.5 text-[13px] text-ink-2 transition-colors hover:border-line-strong hover:text-ink"
+                >
+                  Edit
+                </Link>
+                <Button
+                  size="sm"
+                  disabled={busy === d.conversationId}
+                  onClick={() => act(d.conversationId, "dismiss")}
+                >
+                  Dismiss
+                </Button>
+              </div>
+            </Card>
+          </div>
         ))}
+
         {needsHuman.map((n, i) => (
-          <li key={n.conversationId ?? i} className="rounded-xl border border-neutral-800 p-4">
-            <p className="text-sm">
-              A visitor message needs a personal reply:{" "}
-              <span className="text-neutral-400">{n.visitorMessage}</span>
-            </p>
-            {n.reason && <p className="mt-1 text-xs text-amber-300">{n.reason}</p>}
-            {n.conversationId && (
-              <Link
-                href={`/conversations/${n.conversationId}`}
-                className="mt-2 inline-block rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-black"
-              >
-                Reply now
-              </Link>
-            )}
-          </li>
+          <div key={n.conversationId ?? i} className="rise">
+            <Card tone="stop">
+              <div className="flex items-baseline justify-between gap-3">
+                <p className="text-sm font-medium">This one needs you personally</p>
+                <RelativeTime value={n.startedAt} />
+              </div>
+              {n.reason && <p className="mt-0.5 text-[12.5px] text-wait">{n.reason}</p>}
+              <p className="mt-1.5 text-sm leading-relaxed text-ink-2">{n.visitorMessage}</p>
+              {n.conversationId && (
+                <Link
+                  href={`/conversations/${n.conversationId}`}
+                  className="mt-3 inline-block rounded-lg bg-white px-3.5 py-1.5 text-[13px] font-medium text-black transition-transform active:scale-[0.98]"
+                >
+                  Reply now
+                </Link>
+              )}
+            </Card>
+          </div>
         ))}
-      </ul>
-    </section>
+      </div>
+    </Section>
   );
 }

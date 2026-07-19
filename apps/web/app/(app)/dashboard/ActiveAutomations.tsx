@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { Button, EmptyState, Section, SkeletonRows, modePill } from "@/components/ui";
 
 interface Activation {
   id: string;
@@ -11,128 +12,113 @@ interface Activation {
   channelIds: string[];
   activatedAt: string;
 }
+interface Nudge { activationId: string; approvals: number; wouldHaveAutoHandled: number }
 
 const NAMES: Record<string, string> = { "lead-concierge": "Lead Concierge" };
-
-interface Nudge { activationId: string; approvals: number; wouldHaveAutoHandled: number }
 
 export default function ActiveAutomations() {
   const [rows, setRows] = useState<Activation[] | null>(null);
   const [nudge, setNudge] = useState<Nudge | null>(null);
 
   const load = useCallback(async () => {
-    const res = await fetch("/api/activations");
-    if (!res.ok) return;
+    const res = await fetch("/api/activations").catch(() => null);
+    if (!res?.ok) return setRows([]);
     const list: Activation[] = await res.json();
     setRows(list);
-    // Graduation nudge (Decision 012): first supervised+active+eligible wins.
     for (const act of list.filter((x) => x.status === "active" && x.mode === "supervised")) {
       const g = await fetch(`/api/autonomy/${act.id}`).then((r) => (r.ok ? r.json() : null)).catch(() => null);
       if (g?.graduation?.eligible) {
-        setNudge({ activationId: act.id, approvals: g.graduation.approvals, wouldHaveAutoHandled: g.graduation.wouldHaveAutoHandled });
+        setNudge({
+          activationId: act.id,
+          approvals: g.graduation.approvals,
+          wouldHaveAutoHandled: g.graduation.wouldHaveAutoHandled,
+        });
         return;
       }
     }
     setNudge(null);
   }, []);
-  useEffect(() => {
-    void load();
-  }, [load]);
+  useEffect(() => { void load(); }, [load]);
 
   async function setStatus(id: string, status: "active" | "paused") {
     await fetch(`/api/activations/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
-    });
+    }).catch(() => null);
     await load();
   }
 
-  if (rows === null) return null;
-
-  if (rows.length === 0) {
-    return (
-      <Link
-        href="/marketplace"
-        className="mt-6 block rounded-xl border border-neutral-800 p-5 hover:border-neutral-600"
-      >
-        <p className="font-medium">Activate your first automation</p>
-        <p className="mt-1 text-sm text-neutral-400">
-          Start with the Lead Concierge — never miss a lead from your website again.
-        </p>
-      </Link>
-    );
-  }
-
   return (
-    <section className="mt-6">
+    <Section label="Your automations">
+      {/* Moment #3 candidate: graduation — the product's best news, told plainly. */}
       {nudge && (
         <Link
           href={`/automations/${nudge.activationId}`}
-          className="mb-4 block rounded-xl border border-indigo-800 bg-indigo-950/30 p-5 hover:border-indigo-600"
+          className="rise mb-4 block rounded-[14px] border p-5 transition-colors"
+          style={{ borderColor: "var(--brass)", background: "var(--brass-dim)" }}
         >
-          <p className="font-medium text-indigo-200">Your AI has earned more autonomy 🎓</p>
-          <p className="mt-1 text-sm text-indigo-300/80">
-            You approved {nudge.approvals} drafts — {nudge.wouldHaveAutoHandled} of them could have
-            been handled instantly. Turn on Smart Automation?
+          <p className="font-medium">Your AI has earned more autonomy</p>
+          <p className="mt-1 text-sm leading-relaxed text-ink-2">
+            You approved {nudge.approvals} drafts — {nudge.wouldHaveAutoHandled} could have been
+            handled instantly. Turn on Smart Automation? →
           </p>
         </Link>
       )}
-      <h2 className="mb-3 font-medium">
-        Your automations{" "}
-        <span className="text-sm text-neutral-500">
-          — {rows.filter((r) => r.status === "active").length} active
-        </span>
-      </h2>
-      <ul className="space-y-2">
-        {rows.map((a) => (
-          <li
-            key={a.id}
-            className="flex items-center justify-between rounded-xl border border-neutral-800 p-4"
-          >
-            <div>
-              <p className="text-sm font-medium">
-                {NAMES[a.automationSlug] ?? a.automationSlug}
-                <span
-                  className={`ml-2 rounded-full px-2 py-0.5 text-xs ${
-                    a.status === "active"
-                      ? "bg-emerald-950 text-emerald-300"
-                      : "bg-neutral-800 text-neutral-400"
-                  }`}
-                >
-                  {a.status}
-                </span>
-                <span className="ml-1.5 rounded-full bg-neutral-800 px-2 py-0.5 text-xs text-neutral-400">
-                  {a.mode === "smart" ? "smart automation" : "supervised"}
-                </span>
-              </p>
-              {a.status === "paused" && (
-                <p className="mt-0.5 text-xs text-neutral-500">
-                  Paused — new messages wait in Conversations for your own reply. Nothing is lost.
-                </p>
-              )}
-              <p className="mt-0.5 text-xs text-neutral-500">
-                {a.channelIds.length} channel{a.channelIds.length === 1 ? "" : "s"} · since{" "}
-                {new Date(a.activatedAt).toLocaleDateString()}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-            <Link href={`/automations/${a.id}`} className="rounded-lg bg-neutral-800 px-3 py-1.5 text-xs">
-              Autonomy
-            </Link>
-            <button
-              onClick={() => setStatus(a.id, a.status === "active" ? "paused" : "active")}
-              className="rounded-lg bg-neutral-800 px-3 py-1.5 text-xs"
+
+      {rows === null ? (
+        <SkeletonRows rows={2} />
+      ) : rows.length === 0 ? (
+        <EmptyState
+          title="Put your first automation on duty"
+          action={
+            <Link
+              href="/marketplace"
+              className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black"
             >
-              {a.status === "active" ? "Pause" : "Resume"}
-            </button>
-            </div>
-          </li>
-        ))}
-      </ul>
-      <Link href="/marketplace" className="mt-3 inline-block text-sm text-neutral-400 underline underline-offset-4">
-        Browse more automations →
-      </Link>
-    </section>
+              Browse the marketplace
+            </Link>
+          }
+        >
+          Start with the Lead Concierge — it watches your channels and drafts replies in your
+          voice. Nothing sends without you.
+        </EmptyState>
+      ) : (
+        <ul className="divide-y divide-line border-y border-line">
+          {rows.map((a) => (
+            <li key={a.id} className="rise flex items-center justify-between gap-3 py-3.5">
+              <div className="flex min-w-0 items-center gap-3">
+                <p className="truncate text-sm font-medium">{NAMES[a.automationSlug] ?? a.automationSlug}</p>
+                {modePill(a.mode, a.status)}
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <span className="tnum hidden text-[12px] text-ink-3 sm:block">
+                  {a.channelIds.length} channel{a.channelIds.length === 1 ? "" : "s"}
+                </span>
+                <Link
+                  href={`/automations/${a.id}`}
+                  className="rounded-lg border border-line px-3 py-1.5 text-[13px] text-ink-2 transition-colors hover:border-line-strong hover:text-ink"
+                >
+                  Autonomy
+                </Link>
+                <Button size="sm" onClick={() => setStatus(a.id, a.status === "active" ? "paused" : "active")}>
+                  {a.status === "active" ? "Pause" : "Resume"}
+                </Button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+      {rows !== null && rows.length > 0 && (
+        <Link href="/marketplace" className="mt-3 inline-block text-[13px] text-ink-3 transition-colors hover:text-ink-2">
+          Browse more automations →
+        </Link>
+      )}
+      {rows?.some((a) => a.status === "paused") && (
+        <p className="mt-2 text-[12px] text-ink-3">
+          Paused — new messages wait in Conversations for your own reply. Nothing is lost.
+        </p>
+      )}
+    </Section>
   );
 }

@@ -1,58 +1,106 @@
 import Link from "next/link";
 import { getBrain } from "@platform/brain";
+import { listActivations } from "@platform/core";
+import { db, messages } from "@platform/db";
+import { and, eq, sql } from "drizzle-orm";
+import { Notice, Page, PageHeader } from "@/components/ui";
 import { requireWorkspace } from "@/lib/workspace";
 import ActiveAutomations from "./ActiveAutomations";
+import AttentionQueue from "./AttentionQueue";
 import StatStrip from "./StatStrip";
 import SystemBanners from "./SystemBanners";
-import AttentionQueue from "./AttentionQueue";
 
 export const dynamic = "force-dynamic";
 
-export default async function DashboardPage() {
+function daypart() {
+  const h = new Date().getHours();
+  return h < 5 ? "evening" : h < 12 ? "morning" : h < 18 ? "afternoon" : "evening";
+}
+
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ activated?: string }>;
+}) {
+  const params = await searchParams;
   const ctx = await requireWorkspace();
   const brain = ctx ? await getBrain(ctx.workspace.id) : null;
-  const status = brain?.profile.onboardingStatus;
+  const activations = ctx ? await listActivations(ctx.workspace.id) : [];
+  const active = activations.filter((a) => a.status === "active");
+
+  const waiting = ctx
+    ? await db()
+        .select({ n: sql<number>`count(*)::int` })
+        .from(messages)
+        .where(
+          and(eq(messages.workspaceId, ctx.workspace.id), eq(messages.draftStatus, "pending_approval")),
+        )
+    : [{ n: 0 }];
+  const waitingCount = waiting[0]?.n ?? 0;
+
+  // The status sentence: "What is happening?" answered before anything else.
+  const status =
+    active.length === 0
+      ? "No automations on duty yet."
+      : `${active.length} automation${active.length === 1 ? "" : "s"} on duty · ${
+          waitingCount === 0
+            ? "nothing waiting on you"
+            : `${waitingCount} draft${waitingCount === 1 ? "" : "s"} waiting for you`
+        }`;
+
+  const brainConfirmed = brain?.profile.onboardingStatus === "confirmed";
   const suggested = brain?.knowledge.filter((k) => k.status === "suggested").length ?? 0;
 
   return (
-    <main className="mx-auto max-w-4xl p-8">
-      <h1 className="text-2xl font-semibold">Dashboard</h1>
+    <Page wide>
+      <PageHeader title={`Good ${daypart()}`} subtitle={status} />
 
-      {status !== "confirmed" && (
-        <Link
-          href={status === "draft_ready" ? "/onboarding" : "/onboarding"}
-          className="mt-6 block rounded-xl border border-indigo-900 bg-indigo-950/40 p-5 hover:border-indigo-700"
+      {/* The go-live moment (Design Direction, moment #1). */}
+      {params.activated === "1" && (
+        <div
+          className="rise mb-8 rounded-[14px] border p-6"
+          style={{ borderColor: "var(--brass)", background: "var(--brass-dim)" }}
         >
-          <p className="font-medium text-indigo-200">Finish setting up your Business Brain</p>
-          <p className="mt-1 text-sm text-indigo-300/70">
-            The more the platform knows about your business, the better every automation works.
+          <p className="text-lg font-semibold tracking-[-0.01em]">Your concierge is on duty.</p>
+          <p className="mt-1.5 max-w-lg text-sm leading-relaxed text-ink-2">
+            It&apos;s watching your channels now. Every reply it drafts will wait here for your
+            approval — you&apos;ll see the first one the moment a customer writes in.
           </p>
-        </Link>
-      )}
-
-      {suggested > 0 && (
-        <Link
-          href="/brain"
-          className="mt-4 block rounded-xl border border-neutral-800 p-5 hover:border-neutral-600"
-        >
-          <p className="font-medium">
-            {suggested} suggested knowledge item{suggested === 1 ? "" : "s"} waiting for review
-          </p>
-          <p className="mt-1 text-sm text-neutral-400">Confirm what&apos;s right so the AI can use it.</p>
-        </Link>
+        </div>
       )}
 
       {ctx && <SystemBanners workspaceId={ctx.workspace.id} />}
-      <StatStrip />
+
+      {!brainConfirmed && (
+        <div className="mt-6">
+          <Notice tone="brass" title="Finish teaching it your business" href="/onboarding">
+            The more your Business Brain knows, the better every reply gets. Two minutes.
+          </Notice>
+        </div>
+      )}
+      {suggested > 0 && (
+        <div className="mt-3">
+          <Notice
+            tone="wait"
+            title={`${suggested} learned fact${suggested === 1 ? "" : "s"} waiting for your review`}
+            href="/brain"
+          >
+            Confirm what&apos;s right so the AI can use it in replies.
+          </Notice>
+        </div>
+      )}
+
       <AttentionQueue />
+      <StatStrip />
       <ActiveAutomations />
 
-      <div className="mt-6 flex gap-4 text-sm">
-        <Link href="/marketplace" className="underline underline-offset-4">Marketplace</Link>
-        <Link href="/brain" className="underline underline-offset-4">Business Brain</Link>
-        <Link href="/channels" className="underline underline-offset-4">Channels</Link>
-        <Link href="/conversations" className="underline underline-offset-4">Conversations</Link>
-      </div>
-    </main>
+      <p className="mt-12 text-[12px] text-ink-3">
+        Every AI action is recorded and explainable —{" "}
+        <Link href="/conversations" className="underline underline-offset-4 hover:text-ink-2">
+          open any conversation
+        </Link>{" "}
+        and ask &ldquo;Why this reply?&rdquo;
+      </p>
+    </Page>
   );
 }

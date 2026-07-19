@@ -2,6 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import {
+  EmptyState,
+  Page,
+  PageHeader,
+  RelativeTime,
+  SkeletonRows,
+  conversationStatusPill,
+} from "@/components/ui";
 
 interface Row {
   id: string;
@@ -15,14 +23,21 @@ interface Row {
   pendingDraft: boolean;
 }
 
+const FILTERS = [
+  { id: "all", label: "All" },
+  { id: "waiting_approval", label: "Needs you" },
+  { id: "open", label: "Open" },
+  { id: "closed", label: "Closed" },
+] as const;
+
 export default function ConversationsPage() {
   const [rows, setRows] = useState<Row[] | null>(null);
-  const [filter, setFilter] = useState<"all" | "waiting_approval" | "open" | "closed">("all");
+  const [filter, setFilter] = useState<(typeof FILTERS)[number]["id"]>("all");
 
   useEffect(() => {
     const load = async () => {
-      const res = await fetch("/api/conversations");
-      if (res.ok) setRows(await res.json());
+      const res = await fetch("/api/conversations").catch(() => null);
+      if (res?.ok) setRows(await res.json());
     };
     void load();
     const t = setInterval(load, 8000);
@@ -30,60 +45,88 @@ export default function ConversationsPage() {
   }, []);
 
   const filtered = rows?.filter((r) => filter === "all" || r.status === filter) ?? [];
+  const needsYou = rows?.filter((r) => r.pendingDraft || r.status === "waiting_approval").length ?? 0;
 
   return (
-    <main className="mx-auto max-w-3xl p-8">
-      <h1 className="text-2xl font-semibold">Conversations</h1>
-      <div className="mt-4 flex gap-2">
-        {(["all", "waiting_approval", "open", "closed"] as const).map((f) => (
+    <Page wide>
+      <PageHeader
+        title="Conversations"
+        subtitle={
+          rows === null
+            ? undefined
+            : needsYou === 0
+              ? "Your AI is watching every channel. Nothing needs you right now."
+              : `${needsYou} conversation${needsYou === 1 ? "" : "s"} waiting on you.`
+        }
+      />
+
+      {/* Underline filter tabs — chrome, not cards. */}
+      <div className="flex gap-5 border-b border-line">
+        {FILTERS.map((f) => (
           <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={`rounded-md px-2.5 py-1 text-xs ${filter === f ? "bg-neutral-800 text-white" : "text-neutral-400"}`}
+            key={f.id}
+            onClick={() => setFilter(f.id)}
+            className={`-mb-px border-b-2 pb-2.5 text-[13.5px] transition-colors ${
+              filter === f.id
+                ? "border-current font-medium text-ink"
+                : "border-transparent text-ink-3 hover:text-ink-2"
+            }`}
           >
-            {f === "waiting_approval" ? "needs review" : f}
+            {f.label}
           </button>
         ))}
       </div>
 
       {rows === null ? (
-        <p className="mt-8 text-neutral-500">Loading…</p>
+        <div className="mt-4">
+          <SkeletonRows rows={5} />
+        </div>
       ) : filtered.length === 0 ? (
-        <p className="mt-8 text-sm text-neutral-500">
-          No conversations yet. Once your widget is live, visitor messages appear here.
-        </p>
+        <div className="mt-6">
+          <EmptyState title={filter === "all" ? "No conversations yet" : "Nothing here"}>
+            {filter === "all"
+              ? "The moment a customer writes in on any connected channel, the conversation appears here with your AI already working on it."
+              : "Conversations matching this filter will appear here."}
+          </EmptyState>
+        </div>
       ) : (
-        <ul className="mt-6 space-y-2">
+        <ul className="divide-y divide-line">
           {filtered.map((r) => (
             <li key={r.id}>
               <Link
                 href={`/conversations/${r.id}`}
-                className="block rounded-lg border border-neutral-800 p-4 hover:border-neutral-600"
+                className="rise flex items-center gap-4 py-3.5 transition-colors hover:bg-raised md:px-2 md:-mx-2 md:rounded-lg"
               >
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium">
-                    {r.contactEmail ?? r.contactName ?? "Anonymous visitor"}
-                    {r.priorConversations > 0 && (
-                      <span className="ml-2 text-xs text-neutral-500">
-                        {r.priorConversations + 1} conversations
-                      </span>
-                    )}
+                <span
+                  className="h-2 w-2 shrink-0 rounded-full"
+                  style={{
+                    background:
+                      r.pendingDraft || r.status === "waiting_approval"
+                        ? "var(--wait)"
+                        : r.status === "closed"
+                          ? "var(--line-strong)"
+                          : "var(--ok)",
+                  }}
+                />
+                <div className="w-44 min-w-0 shrink-0">
+                  <p className="truncate text-sm font-medium">
+                    {r.contactEmail ?? r.contactName ?? "Website visitor"}
                   </p>
-                  <div className="flex items-center gap-2">
-                    {r.pendingDraft && (
-                      <span className="rounded-full bg-amber-950 px-2 py-0.5 text-xs text-amber-300">
-                        draft waiting
-                      </span>
-                    )}
-                    <span className="text-xs text-neutral-500">{r.channelName}</span>
-                  </div>
+                  <p className="truncate text-[11.5px] text-ink-3">
+                    {r.channelName}
+                    {r.priorConversations > 0 && ` · ${r.priorConversations + 1} conversations`}
+                  </p>
                 </div>
-                <p className="mt-1 truncate text-sm text-neutral-400">{r.lastMessage}</p>
+                <p className="min-w-0 flex-1 truncate text-[13.5px] text-ink-2">{r.lastMessage}</p>
+                <div className="flex shrink-0 items-center gap-3">
+                  {conversationStatusPill(r.status, r.pendingDraft)}
+                  <RelativeTime value={r.lastMessageAt} />
+                </div>
               </Link>
             </li>
           ))}
         </ul>
       )}
-    </main>
+    </Page>
   );
 }

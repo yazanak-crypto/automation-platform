@@ -1,17 +1,16 @@
-import Link from "next/link";
 import { aiConfigured } from "@platform/ai";
 import { getCreditStatus } from "@platform/core";
+import { Notice } from "@/components/ui";
 
-/** Server-rendered system state banners: AI setup + credit warnings. */
+/** Server-rendered system state: AI setup + credit posture. Owner language only. */
 export default async function SystemBanners({ workspaceId }: { workspaceId: string }) {
   if (!aiConfigured()) {
     return (
-      <div className="mt-6 rounded-xl border border-amber-900/70 bg-amber-950/20 p-5">
-        <p className="font-medium text-amber-200">The AI engine isn&apos;t set up yet</p>
-        <p className="mt-1 text-sm text-amber-300/70">
-          Everything else works — conversations arrive and you can reply yourself. Add an AI
-          provider key (ANTHROPIC_API_KEY) to turn on drafting and automation.
-        </p>
+      <div className="mt-6">
+        <Notice tone="wait" title="The AI engine isn't connected yet">
+          Everything else works — conversations arrive and you can reply yourself. Connect an AI
+          provider in your server settings to turn on drafting and automation.
+        </Notice>
       </div>
     );
   }
@@ -21,30 +20,24 @@ export default async function SystemBanners({ workspaceId }: { workspaceId: stri
 
   if (credits.exhausted) {
     return (
-      <Link
-        href="/billing"
-        className="mt-6 block rounded-xl border border-red-900/70 bg-red-950/20 p-5 hover:border-red-700"
-      >
-        <p className="font-medium text-red-200">AI credits used up — the AI has paused</p>
-        <p className="mt-1 text-sm text-red-300/70">
-          New messages wait in Conversations for your own reply. Upgrade to keep the AI working →
-        </p>
-      </Link>
+      <div className="mt-6">
+        <Notice tone="stop" title="AI credits used up — your AI is paused" href="/billing">
+          New messages wait in Conversations for your own reply. Upgrade to put it back on duty →
+        </Notice>
+      </div>
     );
   }
   if (credits.remaining <= credits.allowance * 0.15) {
     return (
-      <Link
-        href="/billing"
-        className="mt-6 block rounded-xl border border-amber-900/70 bg-amber-950/20 p-5 hover:border-amber-700"
-      >
-        <p className="font-medium text-amber-200">
-          {credits.remaining.toLocaleString()} AI credits left this month
-        </p>
-        <p className="mt-1 text-sm text-amber-300/70">
-          At the current pace the AI will pause soon. See plans →
-        </p>
-      </Link>
+      <div className="mt-6">
+        <Notice
+          tone="wait"
+          title={`${credits.remaining.toLocaleString()} AI credits left this month`}
+          href="/billing"
+        >
+          At the current pace your AI will pause soon. See plans →
+        </Notice>
+      </div>
     );
   }
   return null;
