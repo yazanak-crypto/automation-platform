@@ -153,7 +153,9 @@ async function processDraftLocked(job: WebchatDraftJob) {
       .update(conversations)
       .set({
         status: "waiting_approval",
-        attentionReason: "AI credits for this month are used up — upgrade your plan or reply yourself",
+        attentionReason: credits.trialEnded
+          ? "Your free trial has ended — upgrade to put your AI back on duty"
+          : "AI credits for this month are used up — upgrade your plan or reply yourself",
       })
       .where(eq(conversations.id, job.conversationId));
     return { outcome: "credits_exhausted" };

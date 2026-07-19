@@ -50,7 +50,8 @@ export async function resolveWorkspace(identity: AuthedIdentity) {
         .values({
           name: identity.name ? `${identity.name}'s workspace` : "My workspace",
           slug,
-          trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+          // 7-day free trial (founder decision) — time-gated, not credit-gated.
+          trialEndsAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
         })
         .returning()
     )[0]!;

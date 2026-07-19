@@ -18,6 +18,17 @@ export default async function SystemBanners({ workspaceId }: { workspaceId: stri
   const credits = await getCreditStatus(workspaceId).catch(() => null);
   if (!credits) return null;
 
+  if (credits.trialEnded) {
+    return (
+      <div className="mt-6">
+        <Notice tone="stop" title="Your free trial has ended" href="/billing">
+          Your AI is paused; new messages wait in Conversations for your own reply. Pick a plan to
+          put it back on duty →
+        </Notice>
+      </div>
+    );
+  }
+
   if (credits.exhausted) {
     return (
       <div className="mt-6">

@@ -88,6 +88,22 @@ describe.skipIf(!hasDb)("credit status + subscription state (DB)", () => {
     expect(s.periodEnd.getTime()).toBe(end.getTime());
   });
 
+  it("7-day trial: past trialEndsAt blocks AI even with credits left", async () => {
+    const ws2 = (
+      await db().insert(workspaces).values({ name: "Trial T", slug: `t-${uuid().slice(0, 12)}`, trialEndsAt: new Date(Date.now() - 3600_000) }).returning()
+    )[0]!.id;
+    const s = await getCreditStatus(ws2, { skipCache: true });
+    expect(s.trialEnded).toBe(true);
+    expect(s.exhausted).toBe(true);
+
+    const ws3 = (
+      await db().insert(workspaces).values({ name: "Trial A", slug: `t-${uuid().slice(0, 12)}`, trialEndsAt: new Date(Date.now() + 86400_000) }).returning()
+    )[0]!.id;
+    const s3 = await getCreditStatus(ws3, { skipCache: true });
+    expect(s3.trialEnded).toBe(false);
+    expect(s3.exhausted).toBe(false);
+  });
+
   it("cancellation drops back to trial", async () => {
     await applySubscriptionState({
       workspaceId: ws,

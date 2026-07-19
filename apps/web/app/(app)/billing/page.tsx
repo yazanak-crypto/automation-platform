@@ -18,6 +18,8 @@ interface Data {
     exhausted: boolean;
     periodEnd: string;
     subscriptionStatus: string | null;
+    trialEndsAt: string | null;
+    trialEnded: boolean;
   };
   plans: Plan[];
   billingConfigured: boolean;
@@ -67,8 +69,8 @@ export default function BillingPage() {
     <main className="mx-auto max-w-2xl p-8">
       <h1 className="text-2xl font-semibold">Billing</h1>
       <p className="mt-1 text-sm text-ink-2">
-        Your plan includes monthly AI credits. One credit ≈ one cent of AI work — most replies use
-        a few credits.
+        Start with 7 days free. Paid plans include monthly AI credits — one credit ≈ one cent of
+        AI work; most replies use a few.
       </p>
       {error && <p className="mt-4 text-sm text-stop">{error}</p>}
 
@@ -76,6 +78,16 @@ export default function BillingPage() {
         <div className="flex items-center justify-between">
           <p className="font-medium">
             {currentPlan?.name ?? status.plan}
+            {status.plan === "trial" && status.trialEndsAt && !status.trialEnded && (
+              <span className="ml-2 rounded-full bg-brass-dim px-2 py-0.5 text-[11px] font-medium text-brass">
+                {Math.max(1, Math.ceil((new Date(status.trialEndsAt).getTime() - Date.now()) / 86400000))} day{Math.ceil((new Date(status.trialEndsAt).getTime() - Date.now()) / 86400000) === 1 ? "" : "s"} left
+              </span>
+            )}
+            {status.trialEnded && (
+              <span className="ml-2 rounded-full bg-stop-dim px-2 py-0.5 text-[11px] font-medium text-stop">
+                trial ended
+              </span>
+            )}
             {status.subscriptionStatus && status.subscriptionStatus !== "active" && (
               <span className="ml-2 rounded-full bg-wait-dim px-2 py-0.5 text-[11px] font-medium text-wait">
                 {status.subscriptionStatus}
@@ -109,8 +121,9 @@ export default function BillingPage() {
           </div>
           {status.exhausted && (
             <p className="mt-2 text-sm text-stop">
-              Credits are used up — the AI has paused. New messages wait in Conversations for your
-              own reply until you upgrade or the month resets.
+              {status.trialEnded
+                ? "Your free trial has ended — pick a plan to put your AI back on duty."
+                : "Credits are used up — the AI has paused. New messages wait in Conversations for your own reply until you upgrade or the month resets."}
             </p>
           )}
         </div>
@@ -132,7 +145,7 @@ export default function BillingPage() {
                   <span className="text-sm font-normal text-ink-3">/mo</span>
                 </p>
                 <p className="mt-2 text-sm text-ink-2">
-                  {p.monthlyCredits.toLocaleString()} AI credits / month
+                  {p.id === "trial" ? "7 days free · full product" : `${p.monthlyCredits.toLocaleString()} AI credits / month`}
                 </p>
                 {isCurrent ? (
                   <p className="mt-4 text-xs text-ink-3">Current plan</p>

@@ -9,7 +9,8 @@ import { redis } from "./queues";
 export const MICROCENTS_PER_CREDIT = 10_000;
 
 export const PLANS = {
-  trial: { name: "Trial", monthlyCredits: 300, priceMonthlyUsd: 0 },
+  // 7-day free trial; the credit ceiling is a quiet anti-abuse cap, not the gate.
+  trial: { name: "Free trial", monthlyCredits: 300, priceMonthlyUsd: 0 },
   starter: { name: "Starter", monthlyCredits: 2_000, priceMonthlyUsd: 49 },
   pro: { name: "Pro", monthlyCredits: 10_000, priceMonthlyUsd: 149 },
 } as const;
@@ -24,6 +25,9 @@ export function creditsFromMicrocents(microcents: number): number {
 }
 
 export interface CreditStatus {
+  /** Set when the workspace is on trial: when it ends / whether it has ended. */
+  trialEndsAt: string | null;
+  trialEnded: boolean;
   plan: PlanId;
   allowance: number;
   used: number;
@@ -54,6 +58,12 @@ export async function getCreditStatus(
     }
   }
 
+  const wsRows = await db()
+    .select({ trialEndsAt: workspaces.trialEndsAt })
+    .from(workspaces)
+    .where(eq(workspaces.id, workspaceId))
+    .limit(1);
+
   const subRows = await db()
     .select()
     .from(subscriptions)
@@ -75,12 +85,19 @@ export async function getCreditStatus(
 
   const allowance = PLANS[plan].monthlyCredits;
   const used = creditsFromMicrocents(usage[0]?.microcents ?? 0);
+
+  // Trial workspaces are time-gated (7 days). null trialEndsAt = legacy/no
+  // expiry, treated as active for safety.
+  const trialEndsAt = plan === "trial" ? (wsRows[0]?.trialEndsAt ?? null) : null;
+  const trialEnded = plan === "trial" && !!trialEndsAt && trialEndsAt.getTime() < Date.now();
   const status: CreditStatus = {
     plan,
     allowance,
     used,
     remaining: Math.max(0, allowance - used),
-    exhausted: used >= allowance,
+    exhausted: trialEnded || used >= allowance,
+    trialEndsAt: trialEndsAt ? trialEndsAt.toISOString() : null,
+    trialEnded,
     periodStart: period.start,
     periodEnd: period.end,
     subscriptionStatus: sub?.status ?? null,
