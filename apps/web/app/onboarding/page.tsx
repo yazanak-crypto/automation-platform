@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Wordmark } from "@/components/wordmark";
 
 type Step = "start" | "reading" | "review";
 
@@ -28,6 +29,7 @@ export default function OnboardingPage() {
   const [progress, setProgress] = useState("Reading your site…");
   const [brain, setBrain] = useState<Brain | null>(null);
   const [saving, setSaving] = useState(false);
+  const [assembling, setAssembling] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const loadBrain = useCallback(async () => {
@@ -36,6 +38,23 @@ export default function OnboardingPage() {
   }, []);
 
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
+
+  // Continuity (spec §4): persist progress so a returning user resumes, never
+  // restarts. Only the safe pre-review fields; never resume mid-"reading".
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("otto.onboarding") ?? "null");
+      if (saved) {
+        setName(saved.name ?? "");
+        setUrl(saved.url ?? "");
+        if (saved.step === "review") setStep("review");
+      }
+    } catch { /* ignore */ }
+  }, []);
+  useEffect(() => {
+    const s = step === "reading" ? "start" : step; // never persist a transient state
+    localStorage.setItem("otto.onboarding", JSON.stringify({ name, url, step: s }));
+  }, [name, url, step]);
 
   async function start() {
     setError(null);
@@ -87,13 +106,21 @@ export default function OnboardingPage() {
     }, 2000);
   }
 
+  // Spec §4: after onboarding completes, a full-screen "assembling" moment
+  // (never a raw swap) then into the seeded dashboard.
+  function finish() {
+    localStorage.removeItem("otto.onboarding");
+    setAssembling(true);
+    setTimeout(() => router.push("/dashboard?activated=1"), 1900);
+  }
+
   async function skip() {
     await fetch("/api/brain/profile", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ onboardingStatus: "skipped" }),
     });
-    router.push("/dashboard");
+    finish();
   }
 
   async function confirm() {
@@ -109,7 +136,7 @@ export default function OnboardingPage() {
         onboardingStatus: "confirmed",
       }),
     });
-    router.push("/dashboard");
+    finish();
   }
 
   async function reviewItem(id: string, status: "confirmed" | "rejected") {
@@ -127,6 +154,26 @@ export default function OnboardingPage() {
     setBrain((b) =>
       b ? { ...b, profile: { ...b.profile, identity: { ...b.profile.identity, ...patch } } } : b,
     );
+
+  if (assembling) {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center gap-5">
+        <div className="pulse-once">
+          <Wordmark size="lg" href="/onboarding" />
+        </div>
+        <div className="flex gap-1.5">
+          {[0, 1, 2, 3].map((i) => (
+            <span
+              key={i}
+              className="h-8 w-8 rounded-lg border border-line bg-raised"
+              style={{ animation: `rise-in 500ms cubic-bezier(0.16,1,0.3,1) ${i * 120}ms both` }}
+            />
+          ))}
+        </div>
+        <p className="tnum font-mono text-[12px] text-ink-3">assembling your workspace…</p>
+      </main>
+    );
+  }
 
   if (step === "start") {
     return (

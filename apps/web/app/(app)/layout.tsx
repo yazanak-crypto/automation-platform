@@ -1,4 +1,6 @@
 import { UserButton } from "@clerk/nextjs";
+import { getBrain } from "@platform/brain";
+import { redirect } from "next/navigation";
 import { Wordmark } from "@/components/wordmark";
 import NavLinks, { MobileTabBar } from "./nav-links";
 import { requireWorkspace } from "@/lib/workspace";
@@ -8,6 +10,17 @@ import { requireWorkspace } from "@/lib/workspace";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const ctx = await requireWorkspace();
+
+  // Spec §2 (DB-aware gate): a fresh, un-onboarded workspace never lands on an
+  // empty dashboard — it's routed through onboarding first. Onboarding lives
+  // OUTSIDE this (app) group, so it's never caught by this redirect.
+  if (ctx) {
+    const brain = await getBrain(ctx.workspace.id).catch(() => null);
+    const onboarded =
+      brain?.profile.onboardingStatus === "confirmed" ||
+      brain?.profile.onboardingStatus === "skipped";
+    if (!onboarded) redirect("/onboarding");
+  }
 
   return (
     <div className="flex min-h-screen">

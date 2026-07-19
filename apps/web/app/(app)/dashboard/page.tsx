@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { getBrain } from "@platform/brain";
 import { listActivations } from "@platform/core";
-import { db, messages } from "@platform/db";
+import { channels, db, messages } from "@platform/db";
 import { and, eq, sql } from "drizzle-orm";
 import { Notice, Page, PageHeader } from "@/components/ui";
 import { requireWorkspace } from "@/lib/workspace";
 import ActiveAutomations from "./ActiveAutomations";
 import AttentionQueue from "./AttentionQueue";
+import SetupChecklist from "./SetupChecklist";
 import StatStrip from "./StatStrip";
 import SystemBanners from "./SystemBanners";
 
@@ -37,6 +38,17 @@ export default async function DashboardPage({
         )
     : [{ n: 0 }];
   const waitingCount = waiting[0]?.n ?? 0;
+
+  const channelCount = ctx
+    ? await db()
+        .select({ n: sql<number>`count(*)::int` })
+        .from(channels)
+        .where(eq(channels.workspaceId, ctx.workspace.id))
+    : [{ n: 0 }];
+  const hasChannel = (channelCount[0]?.n ?? 0) > 0;
+  // Never-empty rule (spec §4): show the guided checklist until the workspace
+  // is actually operating (a channel + an activation).
+  const setupIncomplete = !hasChannel || activations.length === 0;
 
   // The status sentence: "What is happening?" answered before anything else.
   const status =
@@ -71,13 +83,7 @@ export default async function DashboardPage({
 
       {ctx && <SystemBanners workspaceId={ctx.workspace.id} />}
 
-      {!brainConfirmed && (
-        <div className="mt-6">
-          <Notice tone="brass" title="Finish teaching it your business" href="/onboarding">
-            The more your Business Brain knows, the better every reply gets. Two minutes.
-          </Notice>
-        </div>
-      )}
+      {/* Brain-setup nudge lives in the checklist below when setup is incomplete. */}
       {suggested > 0 && (
         <div className="mt-3">
           <Notice
@@ -90,9 +96,19 @@ export default async function DashboardPage({
         </div>
       )}
 
-      <AttentionQueue />
-      <StatStrip />
-      <ActiveAutomations />
+      {setupIncomplete ? (
+        <SetupChecklist
+          brainConfirmed={brainConfirmed}
+          hasChannel={hasChannel}
+          hasActivation={activations.length > 0}
+        />
+      ) : (
+        <>
+          <AttentionQueue />
+          <StatStrip />
+          <ActiveAutomations />
+        </>
+      )}
 
       <p className="mt-12 text-[12px] text-ink-3">
         Every AI action is recorded and explainable —{" "}

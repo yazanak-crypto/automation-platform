@@ -120,7 +120,7 @@ export function Button({
   const pad = size === "sm" ? "px-3 py-1.5 text-[13px]" : size === "lg" ? "px-6 py-2.5 text-sm" : "px-4 py-2 text-sm";
   return (
     <button
-      className={`ripple-host rounded-lg transition-all duration-150 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40 ${pad} ${BTN[variant]} ${className}`}
+      className={`press-glow ripple-host rounded-lg transition-all duration-150 active:scale-[0.97] disabled:pointer-events-none disabled:opacity-40 ${pad} ${BTN[variant]} ${className}`}
       onPointerDown={(e) => {
         // Click physics: a ripple from the press point, every button, 450ms.
         const host = e.currentTarget;

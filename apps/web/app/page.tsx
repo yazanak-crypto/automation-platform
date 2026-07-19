@@ -3,8 +3,10 @@ import Link from "next/link";
 import { Magnetic, Tilt } from "@/components/motion";
 import { Orbit } from "@/components/orbit";
 import { Reveal } from "@/components/reveal";
+import { TransitionLink } from "@/components/transition-link";
 import { Wordmark } from "@/components/wordmark";
 import { BRAND } from "@/lib/brand";
+import { COPY } from "@/lib/tokens";
 
 // Landing (video study applied): sticky quiet nav, badge pill, hero over the
 // brass horizon, product frame emerging from the light, reveal-on-scroll
@@ -25,24 +27,26 @@ export default function Home() {
           <Wordmark href="/" size="lg" />
           <div className="flex items-center gap-2">
             <SignedOut>
+              <Link
+                href="/demo"
+                prefetch
+                className="rounded-lg px-4 py-1.5 text-sm text-ink-2 transition-colors hover:text-ink"
+              >
+                {COPY.cta.loggedOut}
+              </Link>
               <SignInButton>
-                <button className="rounded-lg px-4 py-1.5 text-sm text-ink-2 transition-colors hover:text-ink">
-                  Sign in
-                </button>
-              </SignInButton>
-              <SignInButton>
-                <button className="rounded-lg bg-white px-4 py-1.5 text-sm font-medium text-black transition-all duration-150 hover:bg-white/90 active:scale-[0.98]">
-                  Start free
+                <button className="press-glow rounded-lg bg-white px-4 py-1.5 text-sm font-medium text-black transition-all duration-150 hover:bg-white/90 active:scale-[0.97]">
+                  {COPY.cta.startFree}
                 </button>
               </SignInButton>
             </SignedOut>
             <SignedIn>
-              <Link
+              <TransitionLink
                 href="/dashboard"
-                className="rounded-lg bg-white px-4 py-1.5 text-sm font-medium text-black transition-all duration-150 hover:bg-white/90 active:scale-[0.98]"
+                className="press-glow inline-block rounded-lg bg-white px-4 py-1.5 text-sm font-medium text-black transition-all duration-150 hover:bg-white/90 active:scale-[0.97]"
               >
-                Open dashboard
-              </Link>
+                {COPY.cta.active}
+              </TransitionLink>
             </SignedIn>
           </div>
         </div>
@@ -78,13 +82,18 @@ export default function Home() {
             </Magnetic>
           </SignedOut>
           <SignedIn>
-            <Link
+            <TransitionLink
               href="/dashboard"
-              className="rounded-lg bg-white px-7 py-3 text-sm font-medium text-black transition-all duration-150 hover:bg-white/90 active:scale-[0.98]"
+              className="press-glow inline-block rounded-lg bg-white px-7 py-3 text-sm font-medium text-black transition-all duration-150 hover:bg-white/90 active:scale-[0.97]"
             >
-              Open dashboard
-            </Link>
+              {COPY.cta.active}
+            </TransitionLink>
           </SignedIn>
+          <SignedOut>
+            <Link href="/demo" prefetch className="text-[13px] text-ink-3 underline underline-offset-4 transition-colors hover:text-ink-2">
+              or {COPY.cta.loggedOut.toLowerCase()} first →
+            </Link>
+          </SignedOut>
           <p className="text-[13px] text-ink-3">7 days free · no card required</p>
         </div>
 
