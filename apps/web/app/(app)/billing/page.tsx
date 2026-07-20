@@ -98,7 +98,7 @@ export default function BillingPage() {
             <button
               onClick={() => go("/api/billing/portal", undefined, "portal")}
               disabled={busy === "portal"}
-              className="rounded-lg bg-hover px-3 py-1.5 text-xs disabled:opacity-50"
+              className="press-glow rounded-lg bg-hover px-3 py-1.5 text-xs transition-transform active:scale-[0.97] disabled:opacity-50"
             >
               Manage subscription
             </button>
@@ -153,7 +153,7 @@ export default function BillingPage() {
                   <button
                     onClick={() => go("/api/billing/checkout", { plan: p.id }, p.id)}
                     disabled={busy === p.id}
-                    className="mt-4 w-full rounded-lg bg-white py-2 text-sm font-medium text-black disabled:opacity-50"
+                    className="press-glow mt-4 w-full rounded-lg bg-white py-2 text-sm font-medium text-black transition-transform active:scale-[0.97] disabled:opacity-50"
                   >
                     {busy === p.id ? "Redirecting…" : "Upgrade"}
                   </button>

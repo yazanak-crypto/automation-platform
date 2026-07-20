@@ -1,47 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { useBurst } from "@/components/motion";
 import { Button, Card, RelativeTime, Section } from "@/components/ui";
-
-interface DraftItem {
-  conversationId: string;
-  draftBody: string;
-  visitorMessage?: string | null;
-  contactEmail?: string | null;
-  reasoning?: string | null;
-  createdAt: string;
-}
-interface NeedsHumanItem {
-  conversationId: string | null;
-  visitorMessage?: string | null;
-  reason?: string | null;
-  startedAt: string;
-}
+import { useDashboard } from "./DashboardProvider";
 
 export default function AttentionQueue() {
-  const [drafts, setDrafts] = useState<DraftItem[]>([]);
-  const [needsHuman, setNeedsHuman] = useState<NeedsHumanItem[]>([]);
+  const { data, refresh } = useDashboard();
   const [leaving, setLeaving] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState<string | null>(null);
-  const [loaded, setLoaded] = useState(false);
   const { burst, burstNode } = useBurst();
 
-  const load = useCallback(async () => {
-    const res = await fetch("/api/attention").catch(() => null);
-    if (res?.ok) {
-      const data = await res.json();
-      setDrafts(data.drafts);
-      setNeedsHuman(data.needsHuman);
-    }
-    setLoaded(true);
-  }, []);
-  useEffect(() => {
-    void load();
-    const t = setInterval(load, 8000);
-    return () => clearInterval(t);
-  }, [load]);
+  const drafts = data?.attention.drafts ?? [];
+  const needsHuman = data?.attention.needsHuman ?? [];
 
   async function act(conversationId: string, action: "approve" | "dismiss") {
     setBusy(conversationId);
@@ -52,20 +24,20 @@ export default function AttentionQueue() {
     }).catch(() => null);
     setBusy(null);
     if (!res?.ok) return;
-    // Moment #2: the card leaves deliberately, not by vanishing.
+    // Moment #2: the card leaves deliberately, then the shared payload refreshes.
     setLeaving((s) => new Set(s).add(conversationId));
     setTimeout(() => {
-      setDrafts((d) => d.filter((x) => x.conversationId !== conversationId));
       setLeaving((s) => {
         const n = new Set(s);
         n.delete(conversationId);
         return n;
       });
+      void refresh();
     }, 230);
   }
 
   const total = drafts.length + needsHuman.length;
-  if (!loaded || total === 0) return null;
+  if (!data || total === 0) return null;
 
   return (
     <>

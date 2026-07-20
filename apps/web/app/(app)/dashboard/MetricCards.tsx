@@ -1,36 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useDashboard } from "./DashboardProvider";
 
-interface Summary {
-  conversations: number;
-  resolved: number;
-  awaitingApproval: number;
-  avgConfidence: number | null;
-}
-
-/**
- * Concept's right-rail stat cards, wired to REAL data. Metrics we don't yet
- * measure (response time, satisfaction) show a labelled "—" instead of the
- * mockup's invented numbers — honest by rule.
- */
+/** Right-rail stat cards, from the shared dashboard payload. Real numbers;
+ *  metrics we don't measure yet show a labeled "—/soon". */
 export default function MetricCards() {
-  const [s, setS] = useState<Summary | null>(null);
-  useEffect(() => {
-    const load = async () => {
-      const res = await fetch("/api/metrics/summary");
-      if (res.ok) setS(await res.json());
-    };
-    void load();
-    const t = setInterval(load, 30000);
-    return () => clearInterval(t);
-  }, []);
-
+  const { data } = useDashboard();
+  const m = data?.metrics;
   const cards: { label: string; value: string; soon?: boolean; accent?: boolean }[] = [
-    { label: "Conversations", value: s ? s.conversations.toLocaleString() : "—", accent: true },
-    { label: "Resolved", value: s ? s.resolved.toLocaleString() : "—" },
-    { label: "Awaiting approval", value: s ? s.awaitingApproval.toLocaleString() : "—" },
-    { label: "Avg. AI confidence", value: s?.avgConfidence != null ? String(s.avgConfidence) : "—" },
+    { label: "Conversations", value: m ? m.conversations.toLocaleString() : "—", accent: true },
+    { label: "Resolved", value: m ? m.resolved.toLocaleString() : "—" },
+    { label: "Awaiting approval", value: m ? m.awaitingApproval.toLocaleString() : "—" },
+    { label: "Avg. AI confidence", value: m?.avgConfidence != null ? String(m.avgConfidence) : "—" },
     { label: "Response time", value: "—", soon: true },
     { label: "Satisfaction", value: "—", soon: true },
   ];
@@ -47,7 +28,7 @@ export default function MetricCards() {
               </span>
             )}
           </div>
-          <p className={`tnum mt-1 text-2xl font-semibold ${c.accent ? "" : ""}`} style={c.accent ? { color: "var(--brass)" } : undefined}>
+          <p className="tnum mt-1 text-2xl font-semibold" style={c.accent ? { color: "var(--brass)" } : undefined}>
             {c.value}
           </p>
         </div>

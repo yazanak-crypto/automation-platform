@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
+import { useDashboard } from "./DashboardProvider";
 
 // The AI Core hero (concept faithful): channel badges slowly orbit a breathing
 // brass core. Real, connected channels glow; the rest are dimmed "soon". Pure
@@ -20,16 +21,8 @@ const NODES = [
 export default function ChannelOrbit() {
   const wrap = useRef<HTMLDivElement>(null);
   const badges = useRef<(HTMLDivElement | null)[]>([]);
-  const [connected, setConnected] = useState<Set<string>>(new Set());
-
-  useEffect(() => {
-    fetch("/api/channels")
-      .then((r) => (r.ok ? r.json() : []))
-      .then((rows: { type: string; status: string }[]) =>
-        setConnected(new Set(rows.filter((c) => c.status === "active").map((c) => c.type))),
-      )
-      .catch(() => {});
-  }, []);
+  const { data } = useDashboard();
+  const connected = new Set(data?.connectedTypes ?? []);
 
   useEffect(() => {
     const el = wrap.current;

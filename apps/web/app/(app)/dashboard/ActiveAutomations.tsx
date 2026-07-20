@@ -1,44 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
 import { Button, EmptyState, Section, SkeletonRows, modePill } from "@/components/ui";
-
-interface Activation {
-  id: string;
-  automationSlug: string;
-  status: string;
-  mode: "supervised" | "smart";
-  channelIds: string[];
-  activatedAt: string;
-}
-interface Nudge { activationId: string; approvals: number; wouldHaveAutoHandled: number }
+import { useDashboard } from "./DashboardProvider";
 
 const NAMES: Record<string, string> = { "lead-concierge": "Lead Concierge" };
 
 export default function ActiveAutomations() {
-  const [rows, setRows] = useState<Activation[] | null>(null);
-  const [nudge, setNudge] = useState<Nudge | null>(null);
-
-  const load = useCallback(async () => {
-    const res = await fetch("/api/activations").catch(() => null);
-    if (!res?.ok) return setRows([]);
-    const list: Activation[] = await res.json();
-    setRows(list);
-    for (const act of list.filter((x) => x.status === "active" && x.mode === "supervised")) {
-      const g = await fetch(`/api/autonomy/${act.id}`).then((r) => (r.ok ? r.json() : null)).catch(() => null);
-      if (g?.graduation?.eligible) {
-        setNudge({
-          activationId: act.id,
-          approvals: g.graduation.approvals,
-          wouldHaveAutoHandled: g.graduation.wouldHaveAutoHandled,
-        });
-        return;
-      }
-    }
-    setNudge(null);
-  }, []);
-  useEffect(() => { void load(); }, [load]);
+  const { data, refresh } = useDashboard();
+  const rows = data?.activations ?? null;
+  const nudge = data?.nudge ?? null;
 
   async function setStatus(id: string, status: "active" | "paused") {
     await fetch(`/api/activations/${id}`, {
@@ -46,7 +17,7 @@ export default function ActiveAutomations() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
     }).catch(() => null);
-    await load();
+    void refresh();
   }
 
   return (

@@ -88,7 +88,7 @@ export default function ChannelsPage() {
           />
           <button
             onClick={createChannel}
-            className="mt-4 rounded-lg bg-white px-4 py-2 text-sm font-medium text-black"
+            className="press-glow mt-4 rounded-lg bg-white px-4 py-2 text-sm font-medium text-black transition-transform active:scale-[0.97]"
           >
             Set up website chat
           </button>
@@ -143,7 +143,7 @@ function EmailSection({ channels, reload }: { channels: Channel[]; reload: () =>
           <button
             onClick={connect}
             disabled={busy}
-            className="shrink-0 rounded-lg bg-white px-4 py-2 text-sm font-medium text-black disabled:opacity-50"
+            className="press-glow shrink-0 rounded-lg bg-white px-4 py-2 text-sm font-medium text-black transition-transform active:scale-[0.97] disabled:opacity-50"
           >
             {busy ? "Connecting…" : emails.length > 0 ? "Connect another" : "Connect Gmail"}
           </button>
@@ -239,7 +239,7 @@ function WebchatCard({
         <div className="flex gap-2">
           <input className={inputCls} value={origins} onChange={(e) => setOrigins(e.target.value)} />
           <button
-            className="rounded-lg bg-white px-3 py-2 text-xs font-medium text-black"
+            className="press-glow rounded-lg bg-white px-3 py-2 text-xs font-medium text-black transition-transform active:scale-[0.97]"
             onClick={() => onSaveOrigins(channel, origins)}
           >
             Save

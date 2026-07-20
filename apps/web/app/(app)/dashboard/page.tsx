@@ -8,6 +8,7 @@ import { requireWorkspace } from "@/lib/workspace";
 import ActiveAutomations from "./ActiveAutomations";
 import AttentionQueue from "./AttentionQueue";
 import ChannelOrbit from "./ChannelOrbit";
+import { DashboardProvider } from "./DashboardProvider";
 import LiveLedger from "./LiveLedger";
 import MetricCards from "./MetricCards";
 import RecentConversations from "./RecentConversations";
@@ -97,51 +98,43 @@ export default async function DashboardPage({
         </div>
       )}
 
-      <AttentionQueue />
+      {/* One provider = one fetch + one 15s poll feeds every widget below
+          (replaces the old 6-endpoint fan-out + 5 pollers). */}
+      <DashboardProvider>
+        <AttentionQueue />
 
-      {/* Command center: AI core left, real business metrics right. */}
-      <div className="grid gap-6 lg:grid-cols-[1.55fr_1fr]">
-        <ChannelOrbit />
-        <div className="space-y-2.5">
-          {/* Setup checklist — compact corner card, only until fully live. */}
-          {nextStep && (
-            <div className="lit rounded-[12px] border border-l-2 border-line border-l-brass bg-raised p-4">
-              <div className="flex items-center justify-between">
-                <p className="text-[13px] font-medium">Finish setup</p>
-                <span className="tnum text-[11px] text-ink-3">{setupDone}/3</span>
+        {/* Command center: AI core left, real business metrics right. */}
+        <div className="grid gap-6 lg:grid-cols-[1.55fr_1fr]">
+          <ChannelOrbit />
+          <div className="space-y-2.5">
+            {/* Setup checklist — compact corner card, only until fully live. */}
+            {nextStep && (
+              <div className="lit rounded-[12px] border border-l-2 border-line border-l-brass bg-raised p-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-[13px] font-medium">Finish setup</p>
+                  <span className="tnum text-[11px] text-ink-3">{setupDone}/3</span>
+                </div>
+                <p className="mt-1 text-[12.5px] text-ink-2">{nextStep.label}</p>
+                <Link
+                  href={nextStep.href}
+                  prefetch
+                  className="press-glow mt-3 inline-block rounded-lg bg-white px-3 py-1.5 text-[12.5px] font-medium text-black active:scale-[0.97]"
+                >
+                  Continue →
+                </Link>
               </div>
-              <p className="mt-1 text-[12.5px] text-ink-2">{nextStep.label}</p>
-              <Link
-                href={nextStep.href}
-                prefetch
-                className="press-glow mt-3 inline-block rounded-lg bg-white px-3 py-1.5 text-[12.5px] font-medium text-black active:scale-[0.97]"
-              >
-                Continue →
-              </Link>
-            </div>
-          )}
-          <MetricCards />
+            )}
+            <MetricCards />
+          </div>
         </div>
-      </div>
 
-      {/* Lower row: recent conversations · automations · live ledger. */}
-      <div className="mt-6 grid items-start gap-6 lg:grid-cols-3">
-        <RecentConversations />
-        <div>
-          <h3 className="mb-2 text-sm font-medium">Automations</h3>
-          {active.length === 0 ? (
-            <div className="lit rounded-[12px] border border-line bg-raised p-5">
-              <p className="text-[13px] text-ink-2">No automations on duty yet.</p>
-              <Link href="/marketplace" prefetch className="mt-2 inline-block text-[12.5px] text-brass underline underline-offset-4">
-                Browse automations →
-              </Link>
-            </div>
-          ) : (
-            <ActiveAutomations />
-          )}
+        {/* Lower row: recent conversations · automations · live ledger. */}
+        <div className="mt-6 grid items-start gap-6 lg:grid-cols-3">
+          <RecentConversations />
+          <ActiveAutomations />
+          <LiveLedger />
         </div>
-        <LiveLedger />
-      </div>
+      </DashboardProvider>
     </Page>
   );
 }
