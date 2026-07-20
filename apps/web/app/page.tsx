@@ -56,7 +56,7 @@ export default function Home() {
       <section className="relative flex w-full flex-col items-center px-6 pt-24 text-center sm:pt-32">
         {/* The stage: cinematic brass rings, full-bleed, dimmed so the headline
             is always the brightest element. */}
-        <RingField className="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-[130vh] w-[130vw] -translate-x-1/2 -translate-y-1/2 opacity-60" />
+        <RingField className="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-[130vh] w-[130vw] -translate-x-1/2 -translate-y-1/2 opacity-90" />
         <div className="mx-auto flex w-full max-w-3xl flex-col items-center">
         <span className="rise inline-flex items-center gap-2 rounded-full border border-line bg-raised px-3.5 py-1.5 text-[12px] text-ink-2">
           <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: "var(--brass)" }} />

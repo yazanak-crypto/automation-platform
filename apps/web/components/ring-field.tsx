@@ -34,62 +34,62 @@ export function RingField({ className = "" }: { className?: string }) {
     const ro = new ResizeObserver(resize);
     ro.observe(canvas);
 
-    // Layered rings: radius fraction, base ellipse tilt, rotation speed,
-    // thickness, opacity phase. Radii skew large so light lives at the edges.
+    // Layered rings: radius fraction, ellipse tilt, direction, thickness,
+    // opacity phase. Bold + glowing (not thin lines) — brass light you can see.
     const rings = [
-      { rf: 0.55, tilt: 0.82, spd: 0.06, th: 2.4, phase: 0.0 },
-      { rf: 0.70, tilt: 0.70, spd: -0.045, th: 1.6, phase: 1.2 },
-      { rf: 0.85, tilt: 0.60, spd: 0.032, th: 3.0, phase: 2.4 },
-      { rf: 1.02, tilt: 0.52, spd: -0.024, th: 1.3, phase: 3.5 },
-      { rf: 1.22, tilt: 0.46, spd: 0.018, th: 2.0, phase: 4.6 },
+      { rf: 0.52, tilt: 0.80, dir: 1, th: 5.0, phase: 0.0 },
+      { rf: 0.68, tilt: 0.68, dir: -1, th: 3.5, phase: 1.2 },
+      { rf: 0.84, tilt: 0.58, dir: 1, th: 6.0, phase: 2.4 },
+      { rf: 1.02, tilt: 0.50, dir: -1, th: 3.0, phase: 3.5 },
+      { rf: 1.22, tilt: 0.44, dir: 1, th: 4.5, phase: 4.6 },
     ];
 
-    // Idle vs presence, all eased (lerp) — nothing snaps.
-    let boost = 0, boostTarget = 0;        // 0 idle → 1 active
-    let tiltX = 0, tiltXTarget = 0;        // perspective shift (subtle)
-    let rot = 0;                            // accumulated rotation
-    let lastMove = 0;
+    // Rotation speed tracks cursor VELOCITY: fast cursor → fast spin, slow → slow,
+    // still → gentle idle. All eased, nothing snaps.
+    const IDLE = 1;            // baseline multiplier (slow circular motion)
+    let speed = IDLE, speedTarget = IDLE;
+    let rot = 0;
+    let lastX = 0, lastY = 0, lastT = 0, primed = false;
 
     const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
     function frame(now: number) {
       if (!running) return;
 
-      // Presence decays after the cursor stills → smooth return to idle.
-      if (now - lastMove > 120) { boostTarget = 0; tiltXTarget = 0; }
-      boost = lerp(boost, boostTarget, 0.045);
-      tiltX = lerp(tiltX, tiltXTarget, 0.05);
-
-      const speedMul = reduced ? 0 : 1 + boost * 1.6; // presence speeds rotation
-      rot += 0.0016 * speedMul;
+      speed = lerp(speed, speedTarget, 0.06);
+      speedTarget = lerp(speedTarget, IDLE, 0.02); // decays back to idle when still
+      rot += reduced ? 0 : 0.0022 * speed;
 
       ctx.clearRect(0, 0, w, h);
       const cx = w / 2;
       const cy = h * 0.46;
       const base = Math.min(w, h);
+      const glowPulse = 0.85 + speed * 0.05;
 
       for (const ring of rings) {
         const R = base * ring.rf;
-        // Perspective: cursor x nudges the ellipse tilt a hair (never a translate).
-        const ry = R * (ring.tilt + tiltX * 0.06);
-        const breathe = reduced ? 0.5 : 0.5 + Math.sin(now / 2600 + ring.phase) * 0.5;
-        const alpha = (0.05 + breathe * 0.09) * (0.7 + boost * 0.6);
+        const ry = R * ring.tilt;
+        const breathe = reduced ? 0.7 : 0.6 + Math.sin(now / 2800 + ring.phase) * 0.4;
+        // Bold, visible brass — high alpha, strong glow.
+        const alpha = (0.16 + breathe * 0.16) * glowPulse;
 
         const grad = ctx.createLinearGradient(cx - R, cy, cx + R, cy);
-        grad.addColorStop(0, `rgba(212,184,114,0)`);
-        grad.addColorStop(0.5, `rgba(212,184,114,${alpha})`);
-        grad.addColorStop(1, `rgba(212,184,114,0)`);
+        grad.addColorStop(0, "rgba(212,184,114,0)");
+        grad.addColorStop(0.5, `rgba(226,196,124,${alpha})`);
+        grad.addColorStop(1, "rgba(212,184,114,0)");
 
         ctx.save();
         ctx.translate(cx, cy);
-        ctx.rotate(rot * ring.spd * 40 + ring.phase);
+        ctx.rotate(rot * ring.dir + ring.phase);
         ctx.beginPath();
         ctx.ellipse(0, 0, R, ry, 0, 0, Math.PI * 2);
         ctx.strokeStyle = grad;
         ctx.lineWidth = ring.th;
-        ctx.shadowColor = `rgba(212,184,114,${0.35 + boost * 0.3})`;
-        ctx.shadowBlur = 24 + boost * 16;
+        ctx.lineCap = "round";
+        ctx.shadowColor = "rgba(212,184,114,0.75)";
+        ctx.shadowBlur = 40 + speed * 8;
         ctx.stroke();
+        ctx.stroke(); // double pass → deeper, more luminous glow
         ctx.restore();
       }
 
@@ -97,10 +97,15 @@ export function RingField({ className = "" }: { className?: string }) {
     }
 
     const onMove = (e: MouseEvent) => {
-      lastMove = performance.now();
-      boostTarget = 1;
-      const r = canvas.getBoundingClientRect();
-      tiltXTarget = ((e.clientX - r.left) / r.width - 0.5) * 2; // -1..1
+      const t = performance.now();
+      if (primed) {
+        const dt = Math.max(8, t - lastT);
+        const dist = Math.hypot(e.clientX - lastX, e.clientY - lastY);
+        const v = dist / dt; // px per ms
+        // Map cursor velocity → spin multiplier (idle 1 → up to ~7).
+        speedTarget = Math.min(7, IDLE + v * 2.2);
+      }
+      lastX = e.clientX; lastY = e.clientY; lastT = t; primed = true;
     };
     window.addEventListener("mousemove", onMove, { passive: true });
 

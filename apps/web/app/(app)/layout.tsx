@@ -1,6 +1,7 @@
 import { UserButton } from "@clerk/nextjs";
 import { getOnboardingStatus } from "@platform/brain";
 import { redirect } from "next/navigation";
+import { Orbit } from "@/components/orbit";
 import { Wordmark } from "@/components/wordmark";
 import NavLinks, { MobileTabBar } from "./nav-links";
 import { requireWorkspace } from "@/lib/workspace";
@@ -22,6 +23,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex min-h-screen">
+      {/* The AI, alive — orbit of channels + activity behind every app screen.
+          Low opacity, pointer-safe, offset from the sidebar; never touches
+          readability. One instance for the whole app (Dashboard, Conversations,
+          Marketplace, Brain, Channels, Billing). */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-y-0 left-0 right-0 -z-10 opacity-[0.3] md:left-56"
+      >
+        <Orbit className="h-full w-full" />
+      </div>
+
       <aside className="fixed inset-y-0 z-30 hidden w-56 flex-col border-r border-line px-5 py-6 md:flex">
         <Wordmark />
         <NavLinks />
