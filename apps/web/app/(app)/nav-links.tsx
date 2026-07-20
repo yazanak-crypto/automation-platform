@@ -80,14 +80,11 @@ export default function NavLinks() {
           <div className="flex flex-col gap-px">
             {g.links.map((l) => {
               const active = isActive(pathname, l.href);
-              return (
-                <Link
-                  key={l.href}
-                  href={l.href}
-                  className={`relative flex items-center gap-2.5 rounded-md px-2 py-[7px] text-[13.5px] transition-colors duration-150 ${
-                    active ? "bg-hover text-ink" : "text-ink-2 hover:bg-raised hover:text-ink"
-                  }`}
-                >
+              const cls = `relative flex items-center gap-2.5 rounded-md px-2 py-[7px] text-[13.5px] transition-colors duration-150 ${
+                active ? "bg-hover text-ink" : "text-ink-2 hover:bg-raised hover:text-ink"
+              }`;
+              const inner = (
+                <>
                   {active && (
                     <span className="absolute -left-3 top-1/2 h-4 w-[2px] -translate-y-1/2 rounded-full" style={{ background: "var(--brass)" }} />
                   )}
@@ -98,6 +95,24 @@ export default function NavLinks() {
                       soon
                     </span>
                   )}
+                </>
+              );
+              // Help opens the AI assistant panel instead of navigating.
+              if (l.href === "/help") {
+                return (
+                  <button
+                    key={l.href}
+                    type="button"
+                    onClick={() => window.dispatchEvent(new CustomEvent("otto:help-open"))}
+                    className={`${cls} w-full text-left`}
+                  >
+                    {inner}
+                  </button>
+                );
+              }
+              return (
+                <Link key={l.href} href={l.href} className={cls}>
+                  {inner}
                 </Link>
               );
             })}

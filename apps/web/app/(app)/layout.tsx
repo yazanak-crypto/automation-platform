@@ -2,6 +2,7 @@ import { getOnboardingStatus } from "@platform/brain";
 import { redirect } from "next/navigation";
 import { AccountMenu } from "@/components/account-menu";
 import { Orbit } from "@/components/orbit";
+import { SupportChat } from "@/components/support-chat";
 import { Wordmark } from "@/components/wordmark";
 import NavLinks, { MobileTabBar } from "./nav-links";
 import { requireWorkspace } from "@/lib/workspace";
@@ -52,6 +53,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </div>
 
       <MobileTabBar />
+      <SupportChat />
     </div>
   );
 }
