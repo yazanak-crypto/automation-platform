@@ -19,8 +19,9 @@ export async function POST(req: Request) {
   if (!parsed.success || !isPlanId(parsed.data.plan)) {
     return NextResponse.json({ error: "Unknown plan" }, { status: 400 });
   }
-  const priceId = priceIdForPlan(parsed.data.plan);
-  if (!priceId) {
+  const recurringPriceId = priceIdForPlan(parsed.data.plan);
+  const setupPriceId = setupPriceIdForPlan(parsed.data.plan);
+  if (!recurringPriceId || !setupPriceId) {
     return NextResponse.json({ error: "Plan not available yet." }, { status: 503 });
   }
 
@@ -31,21 +32,17 @@ export async function POST(req: Request) {
     .where(eq(subscriptions.workspaceId, ctx.workspace.id))
     .limit(1);
 
-  // One-time AI-implementation setup fee → added to the subscription's FIRST
-  // invoice via add_invoice_items (the canonical Stripe setup-fee pattern).
-  // Charged once at signup; renewals bill the subscription only.
-  const setupPriceId = setupPriceIdForPlan(parsed.data.plan);
-
+  // The first payment is the setup price ONLY, and it covers month one. We
+  // charge it today in payment mode (saving the card), then create the monthly
+  // subscription with a 30-day billing trial in the webhook — so the first
+  // recurring invoice lands after the first month, not now.
   const session = await stripe().checkout.sessions.create({
-    mode: "subscription",
+    mode: "payment",
     ...(existing[0]?.customerId
       ? { customer: existing[0].customerId }
-      : { customer_email: ctx.user.email }),
-    line_items: [{ price: priceId, quantity: 1 }],
-    subscription_data: {
-      metadata: { workspaceId: ctx.workspace.id },
-      ...(setupPriceId ? { add_invoice_items: [{ price: setupPriceId, quantity: 1 }] } : {}),
-    },
+      : { customer_creation: "always", customer_email: ctx.user.email }),
+    line_items: [{ price: setupPriceId, quantity: 1 }],
+    payment_intent_data: { setup_future_usage: "off_session" },
     metadata: { workspaceId: ctx.workspace.id, plan: parsed.data.plan },
     success_url: `${appUrl()}/billing?upgraded=1`,
     cancel_url: `${appUrl()}/billing`,

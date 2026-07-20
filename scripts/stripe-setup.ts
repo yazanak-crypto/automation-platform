@@ -32,9 +32,9 @@ interface Spec {
 }
 
 const SPECS: Spec[] = [
-  { env: "STRIPE_PRICE_STARTER_SETUP", lookup: "otto_starter_setup", product: "Otto Starter — AI Implementation", amount: 11900, recurring: false },
+  { env: "STRIPE_PRICE_STARTER_SETUP", lookup: "otto_starter_setup", product: "Otto Starter — First payment (setup + month 1)", amount: 11900, recurring: false },
   { env: "STRIPE_PRICE_STARTER", lookup: "otto_starter_sub", product: "Otto Starter — Subscription", amount: 4900, recurring: true },
-  { env: "STRIPE_PRICE_PRO_SETUP", lookup: "otto_premium_setup", product: "Otto Premium — AI Implementation", amount: 21900, recurring: false },
+  { env: "STRIPE_PRICE_PRO_SETUP", lookup: "otto_premium_setup", product: "Otto Premium — First payment (setup + month 1)", amount: 21900, recurring: false },
   { env: "STRIPE_PRICE_PRO", lookup: "otto_premium_sub", product: "Otto Premium — Subscription", amount: 14900, recurring: true },
 ];
 

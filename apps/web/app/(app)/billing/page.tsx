@@ -141,14 +141,17 @@ export default function BillingPage() {
                 className={`rounded-xl border p-5 ${isCurrent ? "border-line-strong" : "border-line"}`}
               >
                 <p className="font-medium">{p.name}</p>
-                <p className="mt-1 text-2xl font-semibold">
-                  ${p.priceMonthlyUsd}
-                  <span className="text-sm font-normal text-ink-3">/mo</span>
-                </p>
-                {p.setupFeeUsd > 0 && (
-                  <p className="mt-0.5 text-[12.5px] text-brass">
-                    + ${p.setupFeeUsd} one-time AI setup
-                  </p>
+                {p.setupFeeUsd > 0 ? (
+                  <>
+                    <p className="mt-1 text-2xl font-semibold">
+                      Starting at ${p.setupFeeUsd}
+                    </p>
+                    <p className="mt-0.5 text-[12.5px] text-ink-2">
+                      then ${p.priceMonthlyUsd}/month after the first month
+                    </p>
+                  </>
+                ) : (
+                  <p className="mt-1 text-2xl font-semibold">Free</p>
                 )}
                 <p className="mt-2 text-sm text-ink-2">
                   {p.id === "trial" ? "7 days free · full product" : `${p.monthlyCredits.toLocaleString()} AI credits / month`}

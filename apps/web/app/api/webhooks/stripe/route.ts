@@ -1,7 +1,8 @@
 import { applySubscriptionState, isPlanId, type PlanId } from "@platform/core";
 import { NextResponse } from "next/server";
 import type Stripe from "stripe";
-import { billingConfigured, planForPriceId, stripe } from "@/lib/stripe";
+import { billingConfigured, planForPriceId, priceIdForPlan, stripe } from "@/lib/stripe";
+import { isPlanId as isPlan } from "@platform/core";
 
 // Stripe webhook — signature-verified (AC-4.6), the ONLY writer of
 // subscription state. Idempotent by construction (upsert to current state).
@@ -33,7 +34,32 @@ export async function POST(req: Request) {
     }
     case "checkout.session.completed": {
       const session = event.data.object;
-      if (session.subscription) {
+      // Setup fee paid (payment mode) → NOW create the monthly subscription with
+      // a 30-day billing trial, so the first recurring invoice lands after month
+      // one (the setup fee covered it). Idempotent on the session id.
+      if (session.mode === "payment" && session.metadata?.workspaceId && session.metadata?.plan) {
+        const plan = session.metadata.plan;
+        const recurringPriceId = isPlan(plan) ? priceIdForPlan(plan) : null;
+        const customerId = typeof session.customer === "string" ? session.customer : session.customer?.id;
+        if (recurringPriceId && customerId) {
+          const pi =
+            typeof session.payment_intent === "string"
+              ? await stripe().paymentIntents.retrieve(session.payment_intent)
+              : null;
+          const pm = typeof pi?.payment_method === "string" ? pi.payment_method : undefined;
+          const sub = await stripe().subscriptions.create(
+            {
+              customer: customerId,
+              items: [{ price: recurringPriceId }],
+              trial_period_days: 30,
+              ...(pm ? { default_payment_method: pm } : {}),
+              metadata: { workspaceId: session.metadata.workspaceId, plan },
+            },
+            { idempotencyKey: `sub-${session.id}` },
+          );
+          await applyFromSubscription(sub);
+        }
+      } else if (session.subscription) {
         const sub = await stripe().subscriptions.retrieve(session.subscription as string);
         await applyFromSubscription(sub);
       }
