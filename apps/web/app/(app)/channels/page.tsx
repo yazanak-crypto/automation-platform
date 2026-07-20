@@ -66,6 +66,8 @@ export default function ChannelsPage() {
 
       <EmailSection channels={channels ?? []} reload={load} />
 
+      <Ecosystem />
+
       {channels === null ? (
         <div className="mt-8 space-y-4" role="status" aria-label="Loading"><div className="skeleton h-32 w-full" /></div>
       ) : !webchat ? (
@@ -245,5 +247,60 @@ function WebchatCard({
         </div>
       </div>
     </div>
+  );
+}
+
+const ECOSYSTEM: { name: string; live?: boolean }[] = [
+  { name: "Website Chat", live: true },
+  { name: "Email · Gmail", live: true },
+  { name: "WhatsApp" },
+  { name: "Instagram" },
+  { name: "Facebook Messenger" },
+  { name: "Telegram" },
+  { name: "SMS" },
+  { name: "Voice" },
+  { name: "Slack" },
+  { name: "Google Business" },
+  { name: "Outlook" },
+  { name: "Shopify" },
+  { name: "Stripe" },
+  { name: "Calendly" },
+  { name: "Google Calendar" },
+  { name: "HubSpot" },
+  { name: "Salesforce" },
+  { name: "Zapier" },
+  { name: "Webhook" },
+  { name: "API" },
+];
+
+function Ecosystem() {
+  return (
+    <section className="mt-12">
+      <div className="mb-3 flex items-baseline justify-between">
+        <h2 className="text-[11px] font-medium uppercase tracking-[0.12em] text-ink-3">
+          The Otto ecosystem
+        </h2>
+        <span className="text-[12px] text-ink-3">2 live · more every month</span>
+      </div>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+        {ECOSYSTEM.map((c) => (
+          <div
+            key={c.name}
+            className={`flex items-center justify-between rounded-[10px] border border-line p-3.5 ${c.live ? "bg-raised" : "opacity-55"}`}
+          >
+            <span className="text-[13px] font-medium">{c.name}</span>
+            {c.live ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-ok-dim px-2 py-0.5 text-[10.5px] font-medium text-ok">
+                <span className="h-1.5 w-1.5 rounded-full bg-current" /> live
+              </span>
+            ) : (
+              <span className="rounded-full bg-hover px-1.5 py-px text-[9.5px] uppercase tracking-wide text-ink-3">
+                soon
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }

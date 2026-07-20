@@ -23,6 +23,15 @@ const ICONS: Record<string, React.ReactNode> = {
   billing: (
     <path d="M3 7h14v8H3V7zm0 3h14" />
   ),
+  analytics: (
+    <path d="M4 16V9m4 7V5m4 11v-4m4 4V8" />
+  ),
+  settings: (
+    <path d="M10 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM10 3v2m0 10v2m7-7h-2M5 10H3m11.5-4.5-1.4 1.4M6.9 13.1l-1.4 1.4m9-.1-1.4-1.4M6.9 6.9 5.5 5.5" />
+  ),
+  help: (
+    <path d="M10 17a7 7 0 1 0 0-14 7 7 0 0 0 0 14zm-1.6-8.5a1.6 1.6 0 1 1 2.4 1.4c-.6.4-.8.7-.8 1.35M10 14h.01" />
+  ),
 };
 
 function Icon({ name }: { name: string }) {
@@ -33,25 +42,25 @@ function Icon({ name }: { name: string }) {
   );
 }
 
-const GROUPS: { label: string; links: { href: string; label: string; icon: string }[] }[] = [
+const GROUPS: { label: string; links: { href: string; label: string; icon: string; soon?: boolean }[] }[] = [
   {
     label: "Operate",
     links: [
-      { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
+      { href: "/dashboard", label: "Overview", icon: "dashboard" },
       { href: "/conversations", label: "Conversations", icon: "conversations" },
-    ],
-  },
-  {
-    label: "Configure",
-    links: [
-      { href: "/marketplace", label: "Marketplace", icon: "marketplace" },
-      { href: "/brain", label: "Business Brain", icon: "brain" },
+      { href: "/marketplace", label: "Automations", icon: "marketplace" },
+      { href: "/brain", label: "Knowledge", icon: "brain" },
       { href: "/channels", label: "Channels", icon: "channels" },
+      { href: "/analytics", label: "Analytics", icon: "analytics", soon: true },
+      { href: "/billing", label: "Billing", icon: "billing" },
     ],
   },
   {
     label: "Account",
-    links: [{ href: "/billing", label: "Billing", icon: "billing" }],
+    links: [
+      { href: "/settings", label: "Settings", icon: "settings" },
+      { href: "/help", label: "Help", icon: "help" },
+    ],
   },
 ];
 
@@ -84,6 +93,11 @@ export default function NavLinks() {
                   )}
                   <Icon name={l.icon} />
                   {l.label}
+                  {l.soon && (
+                    <span className="ml-auto rounded-full bg-hover px-1.5 py-px text-[9.5px] uppercase tracking-wide text-ink-3">
+                      soon
+                    </span>
+                  )}
                 </Link>
               );
             })}

@@ -3,10 +3,12 @@ import { getBrain } from "@platform/brain";
 import { listActivations } from "@platform/core";
 import { channels, db, messages } from "@platform/db";
 import { and, eq, sql } from "drizzle-orm";
-import { Notice, Page, PageHeader } from "@/components/ui";
+import { Notice, Page, PageHeader, Section } from "@/components/ui";
+import { Orbit } from "@/components/orbit";
 import { requireWorkspace } from "@/lib/workspace";
 import ActiveAutomations from "./ActiveAutomations";
 import AttentionQueue from "./AttentionQueue";
+import LiveLedger from "./LiveLedger";
 import SetupChecklist from "./SetupChecklist";
 import StatStrip from "./StatStrip";
 import SystemBanners from "./SystemBanners";
@@ -64,10 +66,14 @@ export default async function DashboardPage({
 
   const brainConfirmed = brain?.profile.onboardingStatus === "confirmed";
   const suggested = brain?.knowledge.filter((k) => k.status === "suggested").length ?? 0;
+  const firstName = ctx?.user.name?.trim().split(/\s+/)[0];
 
   return (
     <Page wide>
-      <PageHeader title={`Good ${daypart()}`} subtitle={status} />
+      <PageHeader
+        title={firstName ? `Good ${daypart()}, ${firstName}` : `Good ${daypart()}`}
+        subtitle="Here's what Otto is working on."
+      />
 
       {/* The go-live moment (Design Direction, moment #1). */}
       {params.activated === "1" && (
@@ -106,9 +112,30 @@ export default async function DashboardPage({
         />
       ) : (
         <>
+          {/* AI Core — Otto coordinating your connected channels, foreground. */}
+          <div className="relative mt-8 h-[220px] overflow-hidden rounded-[16px] border border-line bg-raised">
+            <Orbit className="absolute inset-0 h-full w-full" />
+            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
+              <p className="text-[15px] font-semibold tracking-[-0.01em]">Otto</p>
+              <p className="mt-1 text-[12px] text-ink-3">
+                coordinating {hasChannel ? (channelCount[0]?.n ?? 0) : 0} channel
+                {(channelCount[0]?.n ?? 0) === 1 ? "" : "s"} · always working
+              </p>
+            </div>
+          </div>
+
           <AttentionQueue />
-          <StatStrip />
-          <ActiveAutomations />
+
+          <Section label="Business health">
+            <StatStrip />
+          </Section>
+
+          <div className="mt-10 grid items-start gap-6 lg:grid-cols-[1.15fr_1fr]">
+            <ActiveAutomations />
+            <div className="lg:mt-6">
+              <LiveLedger />
+            </div>
+          </div>
         </>
       )}
 
