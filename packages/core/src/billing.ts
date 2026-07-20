@@ -10,9 +10,9 @@ export const MICROCENTS_PER_CREDIT = 10_000;
 
 export const PLANS = {
   // 7-day free trial; the credit ceiling is a quiet anti-abuse cap, not the gate.
-  trial: { name: "Free trial", monthlyCredits: 300, priceMonthlyUsd: 0 },
-  starter: { name: "Starter", monthlyCredits: 2_000, priceMonthlyUsd: 49 },
-  pro: { name: "Pro", monthlyCredits: 10_000, priceMonthlyUsd: 149 },
+  trial: { name: "Free trial", monthlyCredits: 300, priceMonthlyUsd: 0, setupFeeUsd: 0 },
+  starter: { name: "Starter", monthlyCredits: 2_000, priceMonthlyUsd: 49, setupFeeUsd: 119 },
+  pro: { name: "Premium", monthlyCredits: 10_000, priceMonthlyUsd: 149, setupFeeUsd: 219 },
 } as const;
 export type PlanId = keyof typeof PLANS;
 

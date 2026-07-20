@@ -25,6 +25,13 @@ export function planForPriceId(priceId: string): PlanId | null {
   return null;
 }
 
+/** One-time AI-implementation setup fee, charged on the first invoice. */
+export function setupPriceIdForPlan(plan: PlanId): string | null {
+  if (plan === "starter") return process.env.STRIPE_PRICE_STARTER_SETUP ?? null;
+  if (plan === "pro") return process.env.STRIPE_PRICE_PRO_SETUP ?? null;
+  return null;
+}
+
 export function appUrl(): string {
   return process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 }

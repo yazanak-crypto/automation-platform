@@ -9,14 +9,16 @@
     "lint": "turbo lint",
     "test": "turbo test",
     "e2e": "pnpm --filter @platform/e2e e2e",
-    "preflight": "tsx scripts/preflight.ts"
+    "preflight": "tsx scripts/preflight.ts",
+    "stripe:setup": "tsx scripts/stripe-setup.ts"
   },
   "devDependencies": {
     "turbo": "^2.3.3",
     "typescript": "^5.7.3",
     "tsx": "^4.19.2",
     "dotenv": "^16.4.7",
-    "@anthropic-ai/sdk": "^0.33.1"
+    "@anthropic-ai/sdk": "^0.33.1",
+    "stripe": "^17.5.0"
   },
   "dependencies": {
     "@platform/db": "workspace:*",

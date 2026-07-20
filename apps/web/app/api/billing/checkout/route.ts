@@ -3,7 +3,7 @@ import { db, subscriptions } from "@platform/db";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { appUrl, billingConfigured, priceIdForPlan, stripe } from "@/lib/stripe";
+import { appUrl, billingConfigured, priceIdForPlan, setupPriceIdForPlan, stripe } from "@/lib/stripe";
 import { requireWorkspace, unauthorized } from "@/lib/workspace";
 
 const bodySchema = z.object({ plan: z.enum(["starter", "pro"]) });
@@ -31,14 +31,22 @@ export async function POST(req: Request) {
     .where(eq(subscriptions.workspaceId, ctx.workspace.id))
     .limit(1);
 
+  // One-time AI-implementation setup fee → added to the subscription's FIRST
+  // invoice via add_invoice_items (the canonical Stripe setup-fee pattern).
+  // Charged once at signup; renewals bill the subscription only.
+  const setupPriceId = setupPriceIdForPlan(parsed.data.plan);
+
   const session = await stripe().checkout.sessions.create({
     mode: "subscription",
     ...(existing[0]?.customerId
       ? { customer: existing[0].customerId }
       : { customer_email: ctx.user.email }),
     line_items: [{ price: priceId, quantity: 1 }],
-    subscription_data: { metadata: { workspaceId: ctx.workspace.id } },
-    metadata: { workspaceId: ctx.workspace.id },
+    subscription_data: {
+      metadata: { workspaceId: ctx.workspace.id },
+      ...(setupPriceId ? { add_invoice_items: [{ price: setupPriceId, quantity: 1 }] } : {}),
+    },
+    metadata: { workspaceId: ctx.workspace.id, plan: parsed.data.plan },
     success_url: `${appUrl()}/billing?upgraded=1`,
     cancel_url: `${appUrl()}/billing`,
     allow_promotion_codes: true,

@@ -39,6 +39,16 @@ export async function POST(req: Request) {
       }
       break;
     }
+    case "invoice.payment_failed": {
+      // A renewal/first charge failed → re-sync the subscription (Stripe marks
+      // it past_due/unpaid); credit access reflects the new status immediately.
+      const invoice = event.data.object as { subscription?: string | null };
+      if (invoice.subscription) {
+        const sub = await stripe().subscriptions.retrieve(invoice.subscription);
+        await applyFromSubscription(sub);
+      }
+      break;
+    }
     default:
       break; // ignore unrelated events
   }

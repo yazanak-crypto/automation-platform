@@ -7,6 +7,7 @@ interface Plan {
   name: string;
   monthlyCredits: number;
   priceMonthlyUsd: number;
+  setupFeeUsd: number;
   purchasable: boolean;
 }
 interface Data {
@@ -144,6 +145,11 @@ export default function BillingPage() {
                   ${p.priceMonthlyUsd}
                   <span className="text-sm font-normal text-ink-3">/mo</span>
                 </p>
+                {p.setupFeeUsd > 0 && (
+                  <p className="mt-0.5 text-[12.5px] text-brass">
+                    + ${p.setupFeeUsd} one-time AI setup
+                  </p>
+                )}
                 <p className="mt-2 text-sm text-ink-2">
                   {p.id === "trial" ? "7 days free · full product" : `${p.monthlyCredits.toLocaleString()} AI credits / month`}
                 </p>

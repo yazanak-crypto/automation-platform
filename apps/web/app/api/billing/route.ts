@@ -14,6 +14,7 @@ export async function GET() {
       name: p.name,
       monthlyCredits: p.monthlyCredits,
       priceMonthlyUsd: p.priceMonthlyUsd,
+      setupFeeUsd: p.setupFeeUsd,
       purchasable: id !== "trial" && billingConfigured() && !!priceIdForPlan(id as "starter" | "pro"),
     })),
     billingConfigured: billingConfigured(),
