@@ -312,3 +312,11 @@ body {
   .glass-panel:hover { transform: none; }
   .narrative-step { opacity: 1; transition: none; }
 }
+
+/* AI Core breathing halo (Overview hero). */
+@keyframes core-breathe {
+  0%, 100% { transform: scale(1); opacity: 0.9; }
+  50% { transform: scale(1.06); opacity: 1; }
+}
+.core-breathe { animation: core-breathe 3.4s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .core-breathe { animation: none; } }
