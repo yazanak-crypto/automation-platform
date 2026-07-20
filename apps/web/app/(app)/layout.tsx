@@ -1,6 +1,6 @@
-import { UserButton } from "@clerk/nextjs";
 import { getOnboardingStatus } from "@platform/brain";
 import { redirect } from "next/navigation";
+import { AccountMenu } from "@/components/account-menu";
 import { Orbit } from "@/components/orbit";
 import { Wordmark } from "@/components/wordmark";
 import NavLinks, { MobileTabBar } from "./nav-links";
@@ -37,14 +37,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <aside className="fixed inset-y-0 z-30 hidden w-56 flex-col border-r border-line px-5 py-6 md:flex">
         <Wordmark />
         <NavLinks />
-        <div className="mt-auto flex items-center gap-2.5 border-t border-line pt-4">
-          <UserButton />
-          <div className="min-w-0">
-            <p className="truncate text-[13px] font-medium leading-tight">
-              {ctx?.workspace.name ?? "Workspace"}
-            </p>
-            <p className="text-[11px] capitalize text-ink-3">{ctx?.workspace.plan ?? "trial"} plan</p>
-          </div>
+        <div className="mt-auto border-t border-line pt-4">
+          <AccountMenu showDetails name={ctx?.workspace.name} plan={ctx?.workspace.plan} />
         </div>
       </aside>
 
@@ -52,7 +46,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         {/* Mobile top bar: identity + account. Navigation lives in the tab bar. */}
         <header className="sticky top-0 z-30 flex items-center justify-between border-b border-line bg-bg/95 px-5 py-3 backdrop-blur md:hidden">
           <Wordmark />
-          <UserButton />
+          <AccountMenu />
         </header>
         {children}
       </div>
