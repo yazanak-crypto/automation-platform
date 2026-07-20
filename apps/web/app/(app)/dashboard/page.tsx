@@ -4,6 +4,7 @@ import { listActivations } from "@platform/core";
 import { channels, db, messages } from "@platform/db";
 import { and, eq, sql } from "drizzle-orm";
 import { Notice, Page, PageHeader } from "@/components/ui";
+import { Orbit } from "@/components/orbit";
 import { requireWorkspace } from "@/lib/workspace";
 import ActiveAutomations from "./ActiveAutomations";
 import AttentionQueue from "./AttentionQueue";
@@ -67,6 +68,15 @@ export default async function DashboardPage({
 
   return (
     <Page wide>
+      {/* The AI, alive — orbit of channels + activity behind the interface.
+          Low opacity, pointer-safe, sits behind cards; never touches readability. */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-y-0 left-0 right-0 -z-10 opacity-[0.32] md:left-56"
+      >
+        <Orbit className="h-full w-full" />
+      </div>
+
       <PageHeader title={`Good ${daypart()}`} subtitle={status} />
 
       {/* The go-live moment (Design Direction, moment #1). */}

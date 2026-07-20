@@ -1,8 +1,8 @@
 import { SignedIn, SignedOut, SignInButton } from "@clerk/nextjs";
 import Link from "next/link";
-import { Magnetic, Tilt } from "@/components/motion";
-import { Orbit } from "@/components/orbit";
+import { Tilt } from "@/components/motion";
 import { Reveal } from "@/components/reveal";
+import { RingField } from "@/components/ring-field";
 import { TransitionLink } from "@/components/transition-link";
 import { Wordmark } from "@/components/wordmark";
 import { BRAND } from "@/lib/brand";
@@ -53,8 +53,11 @@ export default function Home() {
       </header>
 
       {/* Hero: cathedral composition over the brass horizon. */}
-      <section className="horizon relative mx-auto flex w-full max-w-3xl flex-col items-center px-6 pt-24 text-center sm:pt-32">
-        <Orbit className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[520px] w-full opacity-70" />
+      <section className="relative flex w-full flex-col items-center px-6 pt-24 text-center sm:pt-32">
+        {/* The stage: cinematic brass rings, full-bleed, dimmed so the headline
+            is always the brightest element. */}
+        <RingField className="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-[130vh] w-[130vw] -translate-x-1/2 -translate-y-1/2 opacity-60" />
+        <div className="mx-auto flex w-full max-w-3xl flex-col items-center">
         <span className="rise inline-flex items-center gap-2 rounded-full border border-line bg-raised px-3.5 py-1.5 text-[12px] text-ink-2">
           <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: "var(--brass)" }} />
           Early access — the first AI employee for customer conversations
@@ -73,13 +76,11 @@ export default function Home() {
         </p>
         <div className="rise mt-9 flex flex-col items-center gap-3">
           <SignedOut>
-            <Magnetic>
-              <SignInButton>
-                <button className="rounded-lg bg-white px-7 py-3 text-sm font-medium text-black transition-all duration-150 hover:bg-white/90 active:scale-[0.98]">
-                  Start free
-                </button>
-              </SignInButton>
-            </Magnetic>
+            <SignInButton>
+              <button className="press-glow rounded-lg bg-white px-7 py-3 text-sm font-medium text-black transition-all duration-150 hover:bg-white/90 active:scale-[0.97]">
+                Start your free trial
+              </button>
+            </SignInButton>
           </SignedOut>
           <SignedIn>
             <TransitionLink
@@ -122,6 +123,7 @@ export default function Home() {
           </div>
           </Tilt>
         </Reveal>
+        </div>
       </section>
 
       {/* Feature beats: reveal on scroll, brass checks, no boxes. */}
