@@ -14,14 +14,27 @@ const FAVICON =
   );
 
 export const metadata: Metadata = {
-  title: { default: BRAND, template: `%s · ${BRAND}` },
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"),
+  title: { default: `${BRAND} — AI that runs your business conversations`, template: `%s · ${BRAND}` },
   description: BRAND_TAGLINE,
   icons: { icon: FAVICON },
+  openGraph: {
+    title: `${BRAND} — AI that runs your business conversations`,
+    description: BRAND_TAGLINE,
+    siteName: BRAND,
+    type: "website",
+  },
+  twitter: { card: "summary_large_image", title: BRAND, description: BRAND_TAGLINE },
+  robots: { index: true, follow: true },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <ClerkProvider
+      // After sign-up/in, land in the app — the (app) layout routes new users
+      // to onboarding automatically. Avoids the dead hop back to marketing.
+      signInFallbackRedirectUrl="/dashboard"
+      signUpFallbackRedirectUrl="/dashboard"
       appearance={{
         variables: {
           colorBackground: "#131315",
