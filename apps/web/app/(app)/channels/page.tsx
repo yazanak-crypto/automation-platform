@@ -286,21 +286,29 @@ function Ecosystem() {
         {ECOSYSTEM.map((c) => (
           <div
             key={c.name}
-            className={`flex items-center justify-between rounded-[10px] border border-line p-3.5 ${c.live ? "bg-raised" : "opacity-55"}`}
+            className={`flex items-center justify-between rounded-[10px] border border-line p-3.5 ${c.live ? "bg-raised" : ""}`}
           >
-            <span className="text-[13px] font-medium">{c.name}</span>
+            <span className={`text-[13px] font-medium ${c.live ? "" : "text-ink-2"}`}>{c.name}</span>
             {c.live ? (
               <span className="inline-flex items-center gap-1 rounded-full bg-ok-dim px-2 py-0.5 text-[10.5px] font-medium text-ok">
                 <span className="h-1.5 w-1.5 rounded-full bg-current" /> live
               </span>
             ) : (
-              <span className="rounded-full bg-hover px-1.5 py-px text-[9.5px] uppercase tracking-wide text-ink-3">
-                soon
-              </span>
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new CustomEvent("otto:help-open"))}
+                className="press-glow rounded-full border border-line px-2.5 py-0.5 text-[10.5px] text-ink-3 transition-colors hover:border-line-strong hover:text-ink-2"
+              >
+                Request
+              </button>
             )}
           </div>
         ))}
       </div>
+      <p className="mt-3 text-[12px] text-ink-3">
+        Website chat and email are live today. Tell us which integration you need next — we
+        prioritize the roadmap by demand.
+      </p>
     </section>
   );
 }

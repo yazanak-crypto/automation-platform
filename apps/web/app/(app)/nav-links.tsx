@@ -51,7 +51,7 @@ const GROUPS: { label: string; links: { href: string; label: string; icon: strin
       { href: "/marketplace", label: "Automations", icon: "marketplace" },
       { href: "/brain", label: "Knowledge", icon: "brain" },
       { href: "/channels", label: "Channels", icon: "channels" },
-      { href: "/analytics", label: "Analytics", icon: "analytics", soon: true },
+      { href: "/analytics", label: "Analytics", icon: "analytics" },
       { href: "/billing", label: "Billing", icon: "billing" },
     ],
   },

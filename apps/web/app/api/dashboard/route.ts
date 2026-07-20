@@ -30,6 +30,7 @@ export async function GET() {
     await Promise.all([
       db()
         .select({
+          executed: sql<number>`count(*)::int`,
           autoHandled: sql<number>`count(*) FILTER (WHERE ${runs.action} = 'auto_sent')::int`,
           approved: sql<number>`count(*) FILTER (WHERE ${runs.outcomeMetrics} ->> 'resolution' IN ('approved','approved_edited'))::int`,
           escalated: sql<number>`count(*) FILTER (WHERE ${runs.action} = 'escalated')::int`,
@@ -85,7 +86,23 @@ export async function GET() {
         .limit(6),
     ]);
 
-  const mm = metricRows[0] ?? { autoHandled: 0, approved: 0, escalated: 0, avgConfidence: null };
+  const mm = metricRows[0] ?? { executed: 0, autoHandled: 0, approved: 0, escalated: 0, avgConfidence: null };
+  const handled = mm.autoHandled + mm.approved;
+  const successRate = mm.executed > 0 ? Math.round((handled / mm.executed) * 100) : null;
+
+  // Real avg first-response time: first inbound → first delivered outbound.
+  const respRow = await db().execute(sql`
+    SELECT avg(secs)::int AS avg_secs FROM (
+      SELECT extract(epoch FROM (
+        min(created_at) FILTER (WHERE direction = 'outbound' AND delivery_state = 'visible')
+        - min(created_at) FILTER (WHERE direction = 'inbound')
+      )) AS secs
+      FROM messages WHERE workspace_id = ${wsId}
+      GROUP BY conversation_id
+    ) t WHERE secs IS NOT NULL AND secs > 0
+  `);
+  const avgResponseSeconds =
+    (respRow as unknown as { rows?: { avg_secs: number | null }[] }).rows?.[0]?.avg_secs ?? null;
 
   // Attention items — pending drafts + conversations needing a human.
   const [drafts, needsHuman] = await Promise.all([
@@ -153,6 +170,8 @@ export async function GET() {
       avgConfidence: mm.avgConfidence,
       escalated: mm.escalated,
       timeSavedMinutes: mm.autoHandled * 4 + mm.approved * 2,
+      avgResponseSeconds,
+      successRate,
     },
     attention: { drafts, needsHuman },
     activity: activity.slice(0, 18),

@@ -10,6 +10,8 @@ export interface DashboardData {
     avgConfidence: number | null;
     escalated: number;
     timeSavedMinutes: number;
+    avgResponseSeconds: number | null;
+    successRate: number | null;
   };
   attention: {
     drafts: {
