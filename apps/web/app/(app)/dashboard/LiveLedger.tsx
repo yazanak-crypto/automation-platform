@@ -45,7 +45,7 @@ export default function LiveLedger() {
         </div>
       ) : events.length === 0 ? (
         <p className="py-6 text-center text-[13px] text-ink-3">
-          Quiet right now. Activity appears here the moment Otto acts.
+          Quiet right now. Activity appears here the moment Ovanth acts.
         </p>
       ) : (
         <ul className="space-y-0.5">

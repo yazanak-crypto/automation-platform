@@ -13,6 +13,14 @@ process.on("unhandledRejection", (err) => {
   console.error("[worker] unhandled rejection:", err);
   Sentry.captureException(err);
 });
+// An uncaught exception leaves the process in an undefined state. Report it, then
+// exit so the process supervisor (systemd / PM2 / Docker `restart: always`)
+// restarts a clean worker. Flush Sentry first so the error isn't lost.
+process.on("uncaughtException", (err) => {
+  console.error("[worker] uncaught exception — exiting for restart:", err);
+  Sentry.captureException(err);
+  void Sentry.close(2000).finally(() => process.exit(1));
+});
 import { startBrainWorkers } from "./brainJobs";
 import { startEmailPolling } from "./emailPoll";
 import { startWebchatWorker } from "./webchatDraft";

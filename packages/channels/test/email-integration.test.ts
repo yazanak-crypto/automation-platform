@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { channels, db, workspaces } from "@platform/db";
 import { getOrCreateEmailConversation, upsertEmailContact } from "../src/email";
 
-const hasDb = !!process.env.DATABASE_URL;
+const hasDb = !!process.env.TEST_DATABASE_URL;
 const uuid = () => crypto.randomUUID();
 
 describe.skipIf(!hasDb)("email channel integration", () => {

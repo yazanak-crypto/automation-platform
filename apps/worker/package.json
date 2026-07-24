@@ -5,11 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc -p tsconfig.build.json",
+    "build": "echo 'worker runs from TS source via tsx (like the web app via Next transpile) — no compile step'",
     "typecheck": "tsc --noEmit",
-    "start": "node dist/index.js"
+    "start": "tsx src/index.ts"
   },
   "dependencies": {
+    "tsx": "^4.19.2",
     "@platform/ai": "workspace:^",
     "@platform/brain": "workspace:^",
     "@platform/catalog": "workspace:^",
@@ -26,7 +27,6 @@
   },
   "devDependencies": {
     "@types/node": "^22",
-    "tsx": "^4.19.2",
     "typescript": "^5.7.3"
   }
 }

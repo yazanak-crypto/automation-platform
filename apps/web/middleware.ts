@@ -6,11 +6,19 @@ import { NextResponse } from "next/server";
 const isPublicRoute = createRouteMatcher([
   "/",
   "/demo(.*)",
+  "/privacy",
+  "/terms",
+  "/refunds",
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/api/webchat(.*)",
+  "/api/health",
   "/widget.js",
   "/api/webhooks/stripe",
+  // Meta (Instagram/WhatsApp/Facebook) webhooks: GET verification handshake +
+  // POST events. Auth can't apply — Meta has no Clerk session. The route
+  // handler still verifies every POST via X-Hub-Signature-256/META_APP_SECRET.
+  "/api/webhooks/meta",
 ]);
 
 const isDashboardRoute = createRouteMatcher(["/dashboard(.*)"]);

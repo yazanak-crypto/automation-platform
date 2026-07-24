@@ -50,6 +50,34 @@
       "when": 1784413621604,
       "tag": "0006_typical_wendell_rand",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1784577119872,
+      "tag": "0007_bright_dark_phoenix",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1784647944288,
+      "tag": "0008_overjoyed_tomorrow_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1784843964090,
+      "tag": "0009_groovy_gabe_jones",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1784892269672,
+      "tag": "0010_wide_arclight",
+      "breakpoints": true
     }
   ]
 }

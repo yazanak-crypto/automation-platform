@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 
 /**
- * The Otto orbit: a living 3D scene of automations at work. Channel nodes
+ * The Ovanth orbit: a living 3D scene of automations at work. Channel nodes
  * orbit a brass core; message pulses travel the connection beams. Canvas 2D
  * with depth-faked 3D (scale/opacity by z), mouse parallax, 60fps, zero deps.
  * Pauses off-screen and honors prefers-reduced-motion (renders one static frame).

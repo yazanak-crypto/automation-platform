@@ -136,9 +136,9 @@ export async function GET() {
   const activity: { id: string; at: string; title: string; tone: string }[] = [];
   for (const r of runRows) {
     const resolution = (r.metrics as { resolution?: string } | null)?.resolution;
-    let title = "Otto handled a message";
+    let title = "Ovanth handled a message";
     let tone = "neutral";
-    if (r.action === "auto_sent") { title = "Otto replied automatically"; tone = "ok"; }
+    if (r.action === "auto_sent") { title = "Ovanth replied automatically"; tone = "ok"; }
     else if (r.action === "escalated") { title = "Escalated to you"; tone = "wait"; }
     else if (resolution) { title = "You approved a reply"; tone = "ok"; }
     else if (r.category === "lead_inquiry") { title = "Lead qualified"; tone = "brass"; }

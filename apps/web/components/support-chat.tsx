@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { BRAND } from "@/lib/brand";
 
-// AI support assistant panel. Opens on the `otto:help-open` window event
+// AI support assistant panel. Opens on the `ovanth:help-open` window event
 // (dispatched by the Help nav item). Talks to /api/support — no keys client
 // side; the server falls back to canned answers if AI is unavailable.
 
@@ -24,8 +24,8 @@ export function SupportChat() {
 
   useEffect(() => {
     const onOpen = () => setOpen(true);
-    window.addEventListener("otto:help-open", onOpen);
-    return () => window.removeEventListener("otto:help-open", onOpen);
+    window.addEventListener("ovanth:help-open", onOpen);
+    return () => window.removeEventListener("ovanth:help-open", onOpen);
   }, []);
 
   useEffect(() => {

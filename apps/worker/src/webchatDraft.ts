@@ -35,6 +35,7 @@ import {
 import {
   decideAction,
   getCreditStatus,
+  notifyDraftAwaitingApproval,
   resolvePolicy,
   shouldSendHoldingLine,
   takeLimit,
@@ -421,6 +422,18 @@ async function processDraftLocked(job: WebchatDraftJob) {
     await finishRun(run.id, "waiting_approval", {
       outcomeMetrics: { drafted: true, wouldAutoSend: decision.wouldAutoSend },
       ...telemetry,
+    });
+    // Tell the owner a reply is waiting (Priority 2). Idempotent on the trigger
+    // message; never lets a notification failure fail the run.
+    await notifyDraftAwaitingApproval({
+      workspaceId: job.workspaceId,
+      conversationId: job.conversationId,
+      triggerMessageId: job.messageId,
+      customerMessage: trigger.body,
+      suggestedReply: draft.reply,
+    }).catch((err) => {
+      console.error("[notify] draft-approval email failed:", err);
+      Sentry.captureException(err);
     });
     return { outcome: "drafted" };
   } catch (err) {

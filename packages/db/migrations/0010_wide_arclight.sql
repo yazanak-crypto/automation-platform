@@ -1,0 +1,2 @@
+CREATE INDEX "messages_workspace_draft_idx" ON "messages" USING btree ("workspace_id","draft_status");--> statement-breakpoint
+CREATE INDEX "messages_workspace_client_idx" ON "messages" USING btree ("workspace_id","client_message_id");

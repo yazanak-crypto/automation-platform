@@ -9,7 +9,7 @@ Decision 002 (roadmap), 003/005 (architecture), 009 (this repo's structure),
 
 - `apps/web` — Next.js: marketing, marketplace, activation, dashboard, `/internal` founder admin
 - `apps/worker` — BullMQ workers + ExecutionAdapter host
-- `packages/db` — Drizzle schema + migrations (source of truth: our ledger, never the engine)
+- `packages/db` — Drizzle schema + migrations (source of truth: our ledger, never the engine). **After any schema change, run `pnpm --filter @platform/db db:migrate` — see [docs/DATABASE-MIGRATIONS.md](docs/DATABASE-MIGRATIONS.md).**
 - `packages/ai` — AI gateway: **every** LLM call goes through `callAi` and is cost-logged
 - `packages/brain` — Business Profile primitive
 - `packages/channels` — ChannelAdapter interface + adapters

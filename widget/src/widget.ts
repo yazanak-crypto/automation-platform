@@ -61,7 +61,7 @@
   send.textContent = "Send";
 
   const powered = el("div", { textAlign: "center", fontSize: "11px", color: "#999", padding: "4px 0 8px", background: "#fff" }, panel);
-  powered.textContent = "Powered by Otto";
+  powered.textContent = "Powered by Ovanth";
 
   function render() {
     list.textContent = "";
@@ -89,8 +89,8 @@
     if (status === 403 && !warnedBlocked) {
       warnedBlocked = true;
       console.warn(
-        `Otto chat: this site (${location.origin}) isn't on the allowed list for this widget key. ` +
-          "Add it under Channels → Website chat → Allowed sites in your Otto dashboard.",
+        `Ovanth chat: this site (${location.origin}) isn't on the allowed list for this widget key. ` +
+          "Add it under Channels → Website chat → Allowed sites in your Ovanth dashboard.",
       );
     }
   }

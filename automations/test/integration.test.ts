@@ -6,7 +6,7 @@ import { seedCatalog } from "../seed";
 // dev-only import for the gating helper (core is not a runtime dep of catalog)
 import { findActiveActivation } from "@platform/core";
 
-const hasDb = !!process.env.DATABASE_URL;
+const hasDb = !!process.env.TEST_DATABASE_URL;
 const uuid = () => crypto.randomUUID();
 
 describe.skipIf(!hasDb)("catalog seed + activation gating", () => {

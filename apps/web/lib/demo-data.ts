@@ -1,5 +1,5 @@
 // Static showroom data (spec §5: no API calls). A fictional Dubai real-estate
-// agency, expressed entirely through Otto's REAL capabilities — website chat +
+// agency, expressed entirely through Ovanth's REAL capabilities — website chat +
 // email inbox, AI classification, autonomy (auto-handle vs escalate), the run
 // ledger. Nothing here implies a feature we don't ship.
 
@@ -15,7 +15,7 @@ export const DEMO = {
     { name: "Website chat", detail: "on daraliya.ae", live: true },
     { name: "Email", detail: "hello@daraliya.ae", live: true },
   ],
-  // The auto-play narrative, told through real Otto behavior.
+  // The auto-play narrative, told through real Ovanth behavior.
   narrative: [
     {
       k: "arrive",
@@ -26,7 +26,7 @@ export const DEMO = {
     },
     {
       k: "read",
-      title: "Otto reads and understands",
+      title: "Ovanth reads and understands",
       body: "Classified: property inquiry · grounded in listings · confidence 0.93",
       label: "Understanding",
     },

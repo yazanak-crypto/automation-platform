@@ -62,7 +62,7 @@ export default function ChannelOrbit() {
       {/* core */}
       <div className="absolute left-1/2 top-1/2 flex h-[104px] w-[104px] -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-full">
         <div className="core-breathe absolute inset-0 rounded-full" style={{ boxShadow: "0 0 60px 8px rgba(212,184,114,0.35)", border: "1.5px solid rgba(212,184,114,0.6)" }} />
-        <p className="relative text-[15px] font-semibold" style={{ color: "var(--brass)" }}>Otto</p>
+        <p className="relative text-[15px] font-semibold" style={{ color: "var(--brass)" }}>Ovanth</p>
         <p className="relative text-[10px] text-ink-3">Always working</p>
       </div>
 

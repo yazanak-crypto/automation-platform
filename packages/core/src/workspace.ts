@@ -1,5 +1,5 @@
-import { db, users, workspaceMembers, workspaces } from "@platform/db";
-import { eq } from "drizzle-orm";
+import { db, users, workspaceInvites, workspaceMembers, workspaces } from "@platform/db";
+import { and, eq, gt } from "drizzle-orm";
 
 // Workspace bootstrap + resolution (AC-1.2). Framework-agnostic: the web app
 // passes the authenticated Clerk identity; this must never be called with
@@ -31,7 +31,8 @@ export async function resolveWorkspace(identity: AuthedIdentity) {
   const found = await findWorkspaceByClerkId(identity.clerkUserId);
   if (found) return found;
 
-  // First login: create user + personal workspace + owner membership.
+  // First login: create the user, then either JOIN a workspace they were
+  // invited to (Users & Permissions) or create a fresh personal workspace.
   return db().transaction(async (tx) => {
     const existingUser = await tx
       .select()
@@ -52,6 +53,35 @@ export async function resolveWorkspace(identity: AuthedIdentity) {
           .returning()
       )[0];
     if (!user) throw new Error("Failed to create user");
+
+    // Pending, non-expired invite for this email → join that team instead.
+    const invite = (
+      await tx
+        .select()
+        .from(workspaceInvites)
+        .where(
+          and(
+            eq(workspaceInvites.email, identity.email.toLowerCase()),
+            eq(workspaceInvites.status, "pending"),
+            gt(workspaceInvites.expiresAt, new Date()),
+          ),
+        )
+        .limit(1)
+    )[0];
+    if (invite) {
+      await tx
+        .insert(workspaceMembers)
+        .values({ workspaceId: invite.workspaceId, userId: user.id, role: invite.role })
+        .onConflictDoNothing();
+      await tx
+        .update(workspaceInvites)
+        .set({ status: "accepted" })
+        .where(eq(workspaceInvites.id, invite.id));
+      const ws = (
+        await tx.select().from(workspaces).where(eq(workspaces.id, invite.workspaceId)).limit(1)
+      )[0]!;
+      return { user, workspace: ws };
+    }
 
     const slug = `ws-${crypto.randomUUID().slice(0, 8)}`;
     const workspace = (

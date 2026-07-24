@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { getBrain } from "@platform/brain";
 import { listActivations } from "@platform/core";
 import { channels, db, messages } from "@platform/db";
@@ -12,6 +11,7 @@ import { DashboardProvider } from "./DashboardProvider";
 import LiveLedger from "./LiveLedger";
 import MetricCards from "./MetricCards";
 import RecentConversations from "./RecentConversations";
+import SetupChecklist from "./SetupChecklist";
 import SystemBanners from "./SystemBanners";
 
 export const dynamic = "force-dynamic";
@@ -52,20 +52,15 @@ export default async function DashboardPage({
   const suggested = brain?.knowledge.filter((k) => k.status === "suggested").length ?? 0;
   const firstName = ctx?.user.name?.trim().split(/\s+/)[0];
 
-  // Setup progress — shown as a small corner card, not a full-page takeover.
-  const setupSteps = [
-    { done: brainConfirmed, label: "Confirm your Business Brain", href: "/onboarding" },
-    { done: hasChannel, label: "Connect a channel", href: "/channels" },
-    { done: hasActivation, label: "Activate an automation", href: "/marketplace" },
-  ];
-  const setupDone = setupSteps.filter((s) => s.done).length;
-  const nextStep = setupSteps.find((s) => !s.done);
+  // Until channels + an activation exist, guide the owner with a prominent
+  // checklist (their clear "what do I do next" — see SetupChecklist).
+  const setupComplete = brainConfirmed && hasChannel && hasActivation;
 
   return (
     <Page wide>
       <PageHeader
         title="Overview"
-        subtitle={`Here's what Otto is working on for you${firstName ? `, ${firstName}` : ""}.`}
+        subtitle={`Here's what Ovanth is working on for you${firstName ? `, ${firstName}` : ""}.`}
         action={
           <span className="rounded-lg border border-line bg-raised px-3 py-1.5 text-[12.5px] text-ink-2">
             Last 30 days
@@ -86,6 +81,15 @@ export default async function DashboardPage({
       )}
 
       {ctx && <SystemBanners workspaceId={ctx.workspace.id} />}
+
+      {!setupComplete && (
+        <SetupChecklist
+          brainConfirmed={brainConfirmed}
+          hasChannel={hasChannel}
+          hasActivation={hasActivation}
+        />
+      )}
+
       {suggested > 0 && (
         <div className="mb-6">
           <Notice
@@ -107,23 +111,6 @@ export default async function DashboardPage({
         <div className="grid gap-6 lg:grid-cols-[1.55fr_1fr]">
           <ChannelOrbit />
           <div className="space-y-2.5">
-            {/* Setup checklist — compact corner card, only until fully live. */}
-            {nextStep && (
-              <div className="lit rounded-[12px] border border-l-2 border-line border-l-brass bg-raised p-4">
-                <div className="flex items-center justify-between">
-                  <p className="text-[13px] font-medium">Finish setup</p>
-                  <span className="tnum text-[11px] text-ink-3">{setupDone}/3</span>
-                </div>
-                <p className="mt-1 text-[12.5px] text-ink-2">{nextStep.label}</p>
-                <Link
-                  href={nextStep.href}
-                  prefetch
-                  className="press-glow mt-3 inline-block rounded-lg bg-white px-3 py-1.5 text-[12.5px] font-medium text-black active:scale-[0.97]"
-                >
-                  Continue →
-                </Link>
-              </div>
-            )}
             <MetricCards />
           </div>
         </div>

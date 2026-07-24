@@ -37,7 +37,7 @@ Copy `.env.example` to `.env` in `platform/`, then fill as you go.
 ```sh
 cd platform
 pnpm preflight                          # validates every key/service with fix hints
-pnpm --filter @platform/db db:migrate   # apply all 6 migrations
+pnpm --filter @platform/db db:migrate   # apply all migrations (see docs/DATABASE-MIGRATIONS.md)
 pnpm --filter @platform/catalog seed    # Lead Concierge into the catalog
 pnpm preflight                          # should be all ✅
 pnpm dev                                # web :3000 + worker

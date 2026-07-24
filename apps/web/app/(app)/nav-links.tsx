@@ -103,7 +103,7 @@ export default function NavLinks() {
                   <button
                     key={l.href}
                     type="button"
-                    onClick={() => window.dispatchEvent(new CustomEvent("otto:help-open"))}
+                    onClick={() => window.dispatchEvent(new CustomEvent("ovanth:help-open"))}
                     className={`${cls} w-full text-left`}
                   >
                     {inner}

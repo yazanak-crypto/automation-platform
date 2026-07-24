@@ -5,7 +5,12 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireWorkspace, unauthorized } from "@/lib/workspace";
 
-const patchSchema = z.object({ autonomySettings: workspaceAutonomySchema }).strict();
+const patchSchema = z
+  .object({
+    autonomySettings: workspaceAutonomySchema.optional(),
+    name: z.string().trim().min(1).max(80).optional(),
+  })
+  .strict();
 
 export async function GET() {
   const ctx = await requireWorkspace();
@@ -27,8 +32,13 @@ export async function PATCH(req: Request) {
   }
   const rows = await db()
     .update(workspaces)
-    .set({ autonomySettings: parsed.data.autonomySettings })
+    .set({
+      ...(parsed.data.autonomySettings !== undefined
+        ? { autonomySettings: parsed.data.autonomySettings }
+        : {}),
+      ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}),
+    })
     .where(eq(workspaces.id, ctx.workspace.id))
-    .returning({ autonomySettings: workspaces.autonomySettings });
+    .returning({ name: workspaces.name, autonomySettings: workspaces.autonomySettings });
   return NextResponse.json(rows[0]);
 }

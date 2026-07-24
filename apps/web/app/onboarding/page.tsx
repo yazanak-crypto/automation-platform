@@ -43,7 +43,7 @@ export default function OnboardingPage() {
   // restarts. Only the safe pre-review fields; never resume mid-"reading".
   useEffect(() => {
     try {
-      const saved = JSON.parse(localStorage.getItem("otto.onboarding") ?? "null");
+      const saved = JSON.parse(localStorage.getItem("ovanth.onboarding") ?? "null");
       if (saved) {
         setName(saved.name ?? "");
         setUrl(saved.url ?? "");
@@ -53,7 +53,7 @@ export default function OnboardingPage() {
   }, []);
   useEffect(() => {
     const s = step === "reading" ? "start" : step; // never persist a transient state
-    localStorage.setItem("otto.onboarding", JSON.stringify({ name, url, step: s }));
+    localStorage.setItem("ovanth.onboarding", JSON.stringify({ name, url, step: s }));
   }, [name, url, step]);
 
   async function start() {
@@ -109,7 +109,7 @@ export default function OnboardingPage() {
   // Spec §4: after onboarding completes, a full-screen "assembling" moment
   // (never a raw swap) then into the seeded dashboard.
   function finish() {
-    localStorage.removeItem("otto.onboarding");
+    localStorage.removeItem("ovanth.onboarding");
     setAssembling(true);
     setTimeout(() => router.push("/dashboard?activated=1"), 1900);
   }
@@ -277,6 +277,8 @@ export default function OnboardingPage() {
         </section>
       )}
 
+      <TryYourAI />
+
       <div className="flex items-center gap-4">
         <button disabled={saving} onClick={confirm} className="rounded-lg bg-white px-5 py-2.5 font-medium text-black disabled:opacity-50">
           {saving ? "Saving…" : "Looks right →"}
@@ -286,6 +288,75 @@ export default function OnboardingPage() {
         </button>
       </div>
     </main>
+  );
+}
+
+/**
+ * The wow moment (Priority 4): let the owner ask their AI a question right now,
+ * using the same brain-grounded engine production uses — before they connect a
+ * single channel. Turns "I hope this works" into "it understands my business."
+ */
+function TryYourAI() {
+  const [q, setQ] = useState("Do you deliver internationally?");
+  const [reply, setReply] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function ask() {
+    setLoading(true);
+    setErr(null);
+    setReply(null);
+    try {
+      const res = await fetch("/api/marketplace/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug: "lead-concierge", config: {}, sampleMessage: q }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Couldn't generate a reply.");
+      setReply(data.reply || "(Your AI would bring this one to you rather than answer automatically.)");
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Couldn't generate a reply.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <section className="rounded-xl border border-line bg-raised p-5">
+      <h2 className="font-medium">Try your AI employee</h2>
+      <p className="mt-1 text-sm text-ink-2">
+        Ask a question the way a customer would. Your AI answers using what it just learned about
+        your business — no setup needed.
+      </p>
+      <div className="mt-3 flex gap-2">
+        <input
+          className={inputCls}
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="e.g. Do you offer refunds?"
+          onKeyDown={(e) => e.key === "Enter" && !loading && ask()}
+        />
+        <button
+          onClick={ask}
+          disabled={loading || !q.trim()}
+          className="press-glow shrink-0 rounded-lg bg-white px-4 py-2 text-sm font-medium text-black transition-transform active:scale-[0.97] disabled:opacity-50"
+        >
+          {loading ? "Thinking…" : "Ask"}
+        </button>
+      </div>
+      {err && <p className="mt-2 text-sm text-stop">{err}</p>}
+      {reply && (
+        <div className="mt-3 rounded-lg border border-line bg-bg p-3">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-brass">Your AI replies</p>
+          <p className="mt-1 text-sm leading-relaxed">{reply}</p>
+          <p className="mt-2 text-xs text-ink-3">
+            That&apos;s your AI using your business info. The more you confirm below, the sharper it
+            gets.
+          </p>
+        </div>
+      )}
+    </section>
   );
 }
 

@@ -6,11 +6,12 @@ import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
 
-// Favicon: brass operator dot — self-contained SVG, no asset pipeline.
+// Favicon: the Ovanth mark — self-contained SVG, no asset pipeline. Kept in sync
+// with app/icon.svg and the LogoMark component.
 const FAVICON =
   "data:image/svg+xml," +
   encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#0B0B0D"/><circle cx="16" cy="16" r="6.5" fill="none" stroke="#D4B872" stroke-width="2.5"/><circle cx="16" cy="16" r="2" fill="#D4B872"/></svg>`,
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#0B0B0D"/><g stroke="#D4B872" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M8 16 H25"/><path d="M18.5 16 L9 9"/><path d="M18.5 16 L9 23"/></g></svg>`,
   );
 
 export const metadata: Metadata = {

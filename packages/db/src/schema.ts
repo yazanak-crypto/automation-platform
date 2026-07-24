@@ -32,6 +32,12 @@ export const workspaces = pgTable("workspaces", {
   trialEndsAt: timestamp("trial_ends_at", { withTimezone: true }),
   // Workspace-level risk tolerance (Decision 012): { maxAutoRisk, categoryOverrides }
   autonomySettings: jsonb("autonomy_settings").$type<Record<string, unknown>>(),
+  // Owner notification preferences. Null = defaults (draft emails on, sent to
+  // the workspace owner). `email` overrides the recipient.
+  notificationSettings: jsonb("notification_settings").$type<{
+    draftEmails?: boolean;
+    email?: string;
+  }>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -159,10 +165,14 @@ export const connections = pgTable(
     workspaceId: uuid("workspace_id")
       .notNull()
       .references(() => workspaces.id),
-    provider: text("provider").notNull(), // e.g. "google-mail"
+    provider: text("provider").notNull(), // e.g. "google-mail", "instagram"
     nangoConnectionId: text("nango_connection_id").notNull().unique(),
     // Display only (e.g. the connected email address) — never credentials.
     externalAccountLabel: text("external_account_label"),
+    // Stable provider-side account id used to route inbound webhooks back to
+    // this connection (e.g. Instagram business account id / WA phone number id
+    // / FB page id). Null for poll-based providers like Gmail.
+    providerAccountId: text("provider_account_id"),
     status: text("status", { enum: ["active", "needs_reconnect", "revoked"] })
       .notNull()
       .default("active"),
@@ -180,14 +190,23 @@ export const channels = pgTable(
     workspaceId: uuid("workspace_id")
       .notNull()
       .references(() => workspaces.id),
-    type: text("type", { enum: ["web_chat", "email"] }).notNull(),
-    // Email channels ride an OAuth connection; web_chat needs none.
+    type: text("type", {
+      enum: ["web_chat", "email", "instagram", "whatsapp", "facebook"],
+    }).notNull(),
+    // Email/Meta channels ride an OAuth connection; web_chat needs none.
     connectionId: uuid("connection_id").references(() => connections.id),
     displayName: text("display_name").notNull(),
     // Public, unguessable identifier for the widget; origin check is the real gate.
     widgetKey: uuid("widget_key").notNull().unique().defaultRandom(),
     config: jsonb("config")
-      .$type<{ allowedOrigins?: string[]; accentColor?: string; connectedAt?: string }>()
+      .$type<{
+        allowedOrigins?: string[];
+        accentColor?: string;
+        connectedAt?: string;
+        // Meta channels: whether the account is subscribed to our webhooks.
+        // Until true, Meta delivers no inbound events for the account.
+        webhookSubscribed?: boolean;
+      }>()
       .notNull()
       .default({}),
     capabilities: jsonb("capabilities").$type<Record<string, unknown>>(),
@@ -207,7 +226,10 @@ export const contacts = pgTable(
     displayName: text("display_name"),
     // Anonymous continuity only (plan §1b): opaque visitor token, no CRM.
     webchatVisitorId: text("webchat_visitor_id"),
-    identities: jsonb("identities").$type<{ email?: string }>().notNull().default({}),
+    identities: jsonb("identities")
+      .$type<{ email?: string; instagram?: string }>()
+      .notNull()
+      .default({}),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -273,6 +295,10 @@ export const messages = pgTable(
   (t) => [
     index("messages_conversation_idx").on(t.conversationId),
     uniqueIndex("messages_conversation_client_idx").on(t.conversationId, t.clientMessageId),
+    // Hot paths: pending-draft counts (dashboard/analytics) and webhook/poll
+    // ingestion dedupe, both filtered by workspace.
+    index("messages_workspace_draft_idx").on(t.workspaceId, t.draftStatus),
+    index("messages_workspace_client_idx").on(t.workspaceId, t.clientMessageId),
   ],
 );
 
@@ -439,3 +465,46 @@ export const aiCalls = pgTable("ai_calls", {
   errorSummary: text("error_summary"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// Team invitations (Users & Permissions). A pending invite is consumed on the
+// invitee's first sign-in with the matching email — they join THIS workspace
+// with the given role instead of getting a fresh personal one.
+export const workspaceInvites = pgTable(
+  "workspace_invites",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id),
+    email: text("email").notNull(), // lowercased
+    role: text("role", { enum: ["admin", "member"] }).notNull().default("member"),
+    token: text("token").notNull().unique(),
+    status: text("status", { enum: ["pending", "accepted", "revoked"] })
+      .notNull()
+      .default("pending"),
+    invitedBy: text("invited_by").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [uniqueIndex("workspace_invites_ws_email_idx").on(t.workspaceId, t.email)],
+);
+
+// Outbound owner notifications (e.g. "a reply needs your approval"). Doubles as
+// the idempotency ledger: the unique (workspace, type, dedupe_key) index is what
+// stops a retried job from emailing the owner twice.
+export const notifications = pgTable(
+  "notifications",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id),
+    type: text("type").notNull(), // "draft_approval" | "escalation"
+    dedupeKey: text("dedupe_key").notNull(), // triggering message id
+    channel: text("channel").notNull().default("email"),
+    status: text("status", { enum: ["sent", "failed", "skipped"] }).notNull(),
+    detail: text("detail"), // recipient on success, reason on skip/failure
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("notifications_dedupe_idx").on(t.workspaceId, t.type, t.dedupeKey)],
+);

@@ -4,8 +4,8 @@ import { BRAND } from "@/lib/brand";
 
 const CARDS = [
   { title: "Getting started", body: `Set up your Business Brain, connect a channel, and put ${BRAND} on duty.`, href: "/dashboard" },
-  { title: "How autonomy works", body: "Supervised vs Smart mode, and how Otto earns its autonomy.", href: "/marketplace" },
-  { title: "Your Business Brain", body: "Teach Otto your voice, policies, and boundaries.", href: "/brain" },
+  { title: "How autonomy works", body: "Supervised vs Smart mode, and how Ovanth earns its autonomy.", href: "/marketplace" },
+  { title: "Your Business Brain", body: "Teach Ovanth your voice, policies, and boundaries.", href: "/brain" },
   { title: "Billing & plans", body: "Trials, credits, and upgrades.", href: "/billing" },
 ];
 

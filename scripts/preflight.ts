@@ -108,6 +108,10 @@ function checkOptional() {
   add("Voyage (embeddings)", process.env.VOYAGE_API_KEY ? "PASS" : "SKIP", process.env.VOYAGE_API_KEY ? "set" : "unset — knowledge retrieval uses recency fallback");
   add("Founder emails", process.env.FOUNDER_EMAILS ? "PASS" : "SKIP", process.env.FOUNDER_EMAILS ?? "unset — /internal will be inaccessible");
   add("Stripe", process.env.STRIPE_SECRET_KEY ? "PASS" : "SKIP", process.env.STRIPE_SECRET_KEY ? "configured" : "unset — trial credits enforced, upgrades disabled");
+  const emailReady = process.env.RESEND_API_KEY && process.env.NOTIFICATIONS_FROM_EMAIL;
+  add("Email (Resend)", emailReady ? "PASS" : "SKIP", emailReady ? "configured" : "unset — approval/invite emails skipped (drafts still queue in-app)");
+  const metaReady = process.env.META_APP_SECRET && process.env.META_WEBHOOK_VERIFY_TOKEN;
+  add("Meta webhooks", metaReady ? "PASS" : "SKIP", metaReady ? "configured" : "unset — Instagram/Messenger inbound disabled");
 }
 
 const ICONS = { PASS: "✅", FAIL: "❌", SKIP: "⏭️ " };

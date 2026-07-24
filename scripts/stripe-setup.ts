@@ -32,10 +32,10 @@ interface Spec {
 }
 
 const SPECS: Spec[] = [
-  { env: "STRIPE_PRICE_STARTER_SETUP", lookup: "otto_starter_setup", product: "Otto Starter — First payment (setup + month 1)", amount: 11900, recurring: false },
-  { env: "STRIPE_PRICE_STARTER", lookup: "otto_starter_sub", product: "Otto Starter — Subscription", amount: 4900, recurring: true },
-  { env: "STRIPE_PRICE_PRO_SETUP", lookup: "otto_premium_setup", product: "Otto Premium — First payment (setup + month 1)", amount: 21900, recurring: false },
-  { env: "STRIPE_PRICE_PRO", lookup: "otto_premium_sub", product: "Otto Premium — Subscription", amount: 14900, recurring: true },
+  { env: "STRIPE_PRICE_STARTER_SETUP", lookup: "otto_starter_setup", product: "Ovanth Starter — First payment (setup + month 1)", amount: 11900, recurring: false },
+  { env: "STRIPE_PRICE_STARTER", lookup: "otto_starter_sub", product: "Ovanth Starter — Subscription", amount: 4900, recurring: true },
+  { env: "STRIPE_PRICE_PRO_SETUP", lookup: "otto_premium_setup", product: "Ovanth Premium — First payment (setup + month 1)", amount: 21900, recurring: false },
+  { env: "STRIPE_PRICE_PRO", lookup: "otto_premium_sub", product: "Ovanth Premium — Subscription", amount: 14900, recurring: true },
 ];
 
 async function ensurePrice(s: Spec): Promise<string> {
@@ -54,7 +54,7 @@ async function ensurePrice(s: Spec): Promise<string> {
 }
 
 (async () => {
-  console.log("\nCreating Otto prices in Stripe TEST mode…\n");
+  console.log("\nCreating Ovanth prices in Stripe TEST mode…\n");
   const lines: string[] = [];
   for (const s of SPECS) {
     const id = await ensurePrice(s);

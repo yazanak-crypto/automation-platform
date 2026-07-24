@@ -19,7 +19,7 @@ import {
   patchProfile,
 } from "../src";
 
-const hasDb = !!process.env.DATABASE_URL;
+const hasDb = !!process.env.TEST_DATABASE_URL;
 
 describe.skipIf(!hasDb)("brain integration", () => {
   let wsA: string;

@@ -4,7 +4,7 @@ import { db, runs, workspaces } from "@platform/db";
 import { eq } from "drizzle-orm";
 import { computeGraduation, createRun, finishRun } from "../src";
 
-const hasDb = !!process.env.DATABASE_URL;
+const hasDb = !!process.env.TEST_DATABASE_URL;
 const uuid = () => crypto.randomUUID();
 
 describe.skipIf(!hasDb)("graduation + run telemetry", () => {

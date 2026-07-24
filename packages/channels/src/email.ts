@@ -8,6 +8,7 @@ import {
 } from "@platform/db";
 import { and, desc, eq, sql } from "drizzle-orm";
 import type { ChannelAdapter } from "./adapter";
+import { deliverInstagram } from "./instagram";
 import {
   extractBody,
   getMessage,
@@ -188,7 +189,23 @@ export async function deliverOutbound(messageId: string): Promise<void> {
     .limit(1);
   const row = rows[0];
   if (!row) return;
-  if (row.channel.type !== "email") return; // web_chat delivers via widget poll
+  if (row.channel.type === "web_chat") return; // web_chat delivers via widget poll
+
+  if (row.channel.type === "instagram") {
+    try {
+      await deliverInstagram(row);
+      await db().update(messages).set({ deliveryState: "sent" }).where(eq(messages.id, messageId));
+    } catch (err) {
+      await db()
+        .update(messages)
+        .set({ deliveryState: "failed" })
+        .where(eq(messages.id, messageId));
+      throw err;
+    }
+    return;
+  }
+
+  if (row.channel.type !== "email") return;
 
   try {
     if (!row.channel.connectionId || !row.conversation.providerThreadRef) {

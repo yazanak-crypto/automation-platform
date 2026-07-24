@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { EmptyState, Page, PageHeader, Section } from "@/components/ui";
 
 // Real analytics from our own ledger. Every number derives from actual runs
@@ -49,17 +49,41 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 export default function AnalyticsPage() {
   const [d, setD] = useState<Data | null>(null);
-  useEffect(() => {
+  const [error, setError] = useState(false);
+
+  const load = useCallback(() => {
+    setError(false);
     fetch("/api/analytics")
-      .then((r) => (r.ok ? r.json() : null))
+      .then((r) => {
+        if (!r.ok) throw new Error(`analytics ${r.status}`);
+        return r.json();
+      })
       .then(setD)
-      .catch(() => setD(null));
+      .catch(() => setError(true));
   }, []);
+  useEffect(() => load(), [load]);
+
+  if (error) {
+    return (
+      <Page wide>
+        <PageHeader title="Analytics" subtitle="How Ovanth is performing for your business." />
+        <div className="mt-8 rounded-xl border border-line bg-raised p-8 text-center">
+          <p className="text-sm text-ink-2">We couldn&apos;t load your analytics just now.</p>
+          <button
+            onClick={load}
+            className="press-glow mt-4 rounded-lg bg-white px-4 py-2 text-sm font-medium text-black transition-transform active:scale-[0.97]"
+          >
+            Try again
+          </button>
+        </div>
+      </Page>
+    );
+  }
 
   if (!d) {
     return (
       <Page wide>
-        <PageHeader title="Analytics" subtitle="How Otto is performing for your business." />
+        <PageHeader title="Analytics" subtitle="How Ovanth is performing for your business." />
         <div className="grid gap-3 sm:grid-cols-4" role="status" aria-label="Loading">
           {[0, 1, 2, 3].map((i) => <div key={i} className="skeleton h-24 w-full" />)}
         </div>
@@ -68,15 +92,20 @@ export default function AnalyticsPage() {
     );
   }
 
-  const stats = [
-    { label: "Conversations handled", value: d.conversations.toLocaleString(), accent: true },
-    { label: "Automations executed (30d)", value: d.automationsExecuted.toLocaleString() },
+  // The five metrics that show the value of the AI employee — lead with these.
+  const hero = [
+    { label: "Conversations handled", value: d.conversations.toLocaleString(), sub: "in the last 30 days" },
+    { label: "Time saved", value: d.hoursSaved > 0 ? `~${d.hoursSaved}h` : "—", sub: "vs. answering by hand" },
+    { label: "Leads captured", value: d.leads.toLocaleString(), sub: "qualified by your AI" },
+    { label: "Avg. first response", value: fmtSecs(d.avgResponseSeconds), sub: "time to first reply" },
+    { label: "AI success rate", value: d.successRate != null ? `${d.successRate}%` : "—", sub: "handled without you" },
+  ];
+  // Operational detail — secondary.
+  const secondary = [
+    { label: "Automations executed", value: d.automationsExecuted.toLocaleString() },
     { label: "Handled automatically", value: d.handledAutomatically.toLocaleString() },
-    { label: "Human interventions", value: d.humanInterventions.toLocaleString() },
-    { label: "Avg. first response", value: fmtSecs(d.avgResponseSeconds) },
-    { label: "AI success rate", value: d.successRate != null ? `${d.successRate}%` : "—" },
-    { label: "Leads captured", value: d.leads.toLocaleString() },
-    { label: "Hours saved (est.)", value: d.hoursSaved > 0 ? `~${d.hoursSaved}h` : "—" },
+    { label: "Your approvals & replies", value: d.humanInterventions.toLocaleString() },
+    { label: "Escalated to you", value: d.escalated.toLocaleString() },
   ];
 
   const max = Math.max(1, ...d.daily.map((x) => x.n));
@@ -87,7 +116,7 @@ export default function AnalyticsPage() {
     <Page wide>
       <PageHeader
         title="Analytics"
-        subtitle="How Otto is performing for your business."
+        subtitle="How Ovanth is performing for your business."
         action={
           <span className="rounded-lg border border-line bg-raised px-3 py-1.5 text-[12.5px] text-ink-2">
             Last 30 days
@@ -95,13 +124,25 @@ export default function AnalyticsPage() {
         }
       />
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {stats.map((s) => (
-          <div key={s.label} className="lit rounded-[12px] border border-line bg-raised p-4">
-            <p className="tnum text-2xl font-semibold" style={s.accent ? { color: "var(--brass)" } : undefined}>
+      {/* Hero — the metrics that show what the AI employee is worth. */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        {hero.map((s, i) => (
+          <div key={s.label} className="lit rounded-[14px] border border-line bg-raised p-5">
+            <p className="tnum text-3xl font-semibold" style={i === 0 ? { color: "var(--brass)" } : undefined}>
               {s.value}
             </p>
-            <p className="mt-0.5 text-[12px] text-ink-3">{s.label}</p>
+            <p className="mt-1 text-[13px] font-medium">{s.label}</p>
+            <p className="mt-0.5 text-[11.5px] text-ink-3">{s.sub}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Operational detail. */}
+      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {secondary.map((s) => (
+          <div key={s.label} className="rounded-[12px] border border-line px-4 py-3">
+            <p className="tnum text-lg font-semibold">{s.value}</p>
+            <p className="mt-0.5 text-[11.5px] text-ink-3">{s.label}</p>
           </div>
         ))}
       </div>
@@ -109,7 +150,7 @@ export default function AnalyticsPage() {
       {empty ? (
         <div className="mt-8">
           <EmptyState title="No activity yet">
-            Once Otto starts handling conversations, your usage trends and topic breakdown appear
+            Once Ovanth starts handling conversations, your usage trends and topic breakdown appear
             here — computed from real activity, never estimated.
           </EmptyState>
         </div>

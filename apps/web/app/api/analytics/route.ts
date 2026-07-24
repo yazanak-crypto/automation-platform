@@ -41,7 +41,7 @@ export async function GET() {
     // Daily automations executed, last 14 days.
     db().execute(sql`
       SELECT to_char(date_trunc('day', started_at), 'YYYY-MM-DD') AS day, count(*)::int AS n
-      FROM runs WHERE workspace_id = ${wsId} AND started_at >= ${since14}
+      FROM runs WHERE workspace_id = ${wsId} AND started_at >= ${since14.toISOString()}
       GROUP BY 1 ORDER BY 1
     `),
     db()

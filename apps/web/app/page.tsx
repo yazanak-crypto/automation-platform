@@ -5,6 +5,7 @@ import { Reveal } from "@/components/reveal";
 import { RingField } from "@/components/ring-field";
 import { TransitionLink } from "@/components/transition-link";
 import { Wordmark } from "@/components/wordmark";
+import { PLANS } from "@platform/core";
 import { BRAND } from "@/lib/brand";
 import { COPY } from "@/lib/tokens";
 
@@ -171,6 +172,46 @@ export default function Home() {
         </Reveal>
 
         <Reveal>
+          <div id="pricing" className="border-t border-line pt-16">
+            <div className="text-center">
+              <h2 className="text-xl font-semibold tracking-[-0.01em]">Simple, honest pricing.</h2>
+              <p className="mt-2 text-sm text-ink-2">
+                Start free for 7 days — no card. Every plan is priced by the customer conversations
+                it covers, not confusing usage units.
+              </p>
+            </div>
+            <div className="mt-8 grid gap-4 sm:grid-cols-3">
+              {(["trial", "starter", "pro"] as const).map((id) => {
+                const p = PLANS[id];
+                const convos = Math.round(p.monthlyCredits / 4);
+                return (
+                  <div key={id} className="rounded-xl border border-line bg-raised p-5">
+                    <p className="text-sm font-medium">{p.name}</p>
+                    <p className="mt-1 text-2xl font-semibold">
+                      {id === "trial" ? "Free" : `$${p.priceMonthlyUsd}`}
+                      {id !== "trial" && <span className="text-sm font-normal text-ink-3">/mo</span>}
+                    </p>
+                    <p className="mt-2 text-[13px] text-ink-2">
+                      {id === "trial"
+                        ? "Full product for 7 days"
+                        : `About ${convos.toLocaleString()} customer conversations / month`}
+                    </p>
+                    {id !== "trial" && p.setupFeeUsd > 0 && (
+                      <p className="mt-1 text-[12px] text-ink-3">
+                        One-time ${p.setupFeeUsd} setup (covers your first month)
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <p className="mt-4 text-center text-[12px] text-ink-3">
+              Cancel anytime. Your AI pauses if you run out — it never charges you by surprise.
+            </p>
+          </div>
+        </Reveal>
+
+        <Reveal>
           <div className="flex flex-col items-center border-t border-line pt-16 text-center">
             <p className="text-xl font-semibold tracking-[-0.01em]">Put {BRAND} on duty.</p>
             <div className="mt-6">
@@ -194,8 +235,13 @@ export default function Home() {
         </Reveal>
       </section>
 
-      <footer className="mx-auto w-full max-w-5xl px-6 py-6 text-center text-[12px] text-ink-3">
-        © {new Date().getFullYear()} {BRAND}
+      <footer className="mx-auto flex w-full max-w-5xl flex-col items-center gap-2 px-6 py-6 text-center text-[12px] text-ink-3 sm:flex-row sm:justify-between">
+        <span>© {new Date().getFullYear()} {BRAND}</span>
+        <nav className="flex items-center gap-4">
+          <Link href="/privacy" className="hover:text-ink-2">Privacy</Link>
+          <Link href="/terms" className="hover:text-ink-2">Terms</Link>
+          <Link href="/refunds" className="hover:text-ink-2">Refunds</Link>
+        </nav>
       </footer>
     </main>
   );

@@ -22,7 +22,7 @@ import {
   supersedePendingDrafts,
 } from "../src";
 
-const hasDb = !!process.env.DATABASE_URL;
+const hasDb = !!process.env.TEST_DATABASE_URL;
 const uuid = () => crypto.randomUUID();
 
 describe.skipIf(!hasDb)("lifecycle regressions (audit wave 1)", () => {

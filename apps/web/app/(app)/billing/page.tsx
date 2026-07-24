@@ -70,8 +70,8 @@ export default function BillingPage() {
     <main className="mx-auto max-w-2xl p-8">
       <h1 className="text-2xl font-semibold">Billing</h1>
       <p className="mt-1 text-sm text-ink-2">
-        Start with 7 days free. Paid plans include monthly AI credits — one credit ≈ one cent of
-        AI work; most replies use a few.
+        Start with 7 days free. Each plan covers a set number of customer conversations per month —
+        upgrade anytime as you grow.
       </p>
       {error && <p className="mt-4 text-sm text-stop">{error}</p>}
 
@@ -154,8 +154,15 @@ export default function BillingPage() {
                   <p className="mt-1 text-2xl font-semibold">Free</p>
                 )}
                 <p className="mt-2 text-sm text-ink-2">
-                  {p.id === "trial" ? "7 days free · full product" : `${p.monthlyCredits.toLocaleString()} AI credits / month`}
+                  {p.id === "trial"
+                    ? "7 days free · full product"
+                    : `About ${Math.round(p.monthlyCredits / 4).toLocaleString()} customer conversations / month`}
                 </p>
+                {p.id !== "trial" && (
+                  <p className="mt-0.5 text-[12px] text-ink-3">
+                    {p.monthlyCredits.toLocaleString()} AI credits included
+                  </p>
+                )}
                 {isCurrent ? (
                   <p className="mt-4 text-xs text-ink-3">Current plan</p>
                 ) : p.purchasable ? (
@@ -167,15 +174,26 @@ export default function BillingPage() {
                     {busy === p.id ? "Redirecting…" : "Upgrade"}
                   </button>
                 ) : p.id !== "trial" ? (
-                  <p className="mt-4 text-xs text-ink-3">
-                    {data.billingConfigured ? "Not available yet" : "Billing not configured yet"}
-                  </p>
+                  <a
+                    href={`mailto:${process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "hello@ovanth.ai"}?subject=Upgrade%20my%20plan`}
+                    className="mt-4 block text-center text-xs text-ink-3 underline underline-offset-2 hover:text-ink-2"
+                  >
+                    Contact us to upgrade
+                  </a>
                 ) : null}
               </div>
             );
           })}
         </div>
       </section>
+
+      <p className="mt-6 text-[12px] leading-relaxed text-ink-3">
+        Plans that show a setup fee charge that one-time amount now, which covers your first month;
+        the monthly price then recurs after 30 days. You can cancel anytime and your plan stays active
+        until the end of the period. By subscribing you agree to our{" "}
+        <a href="/terms" className="underline hover:text-ink-2">Terms</a> and{" "}
+        <a href="/refunds" className="underline hover:text-ink-2">Refund Policy</a>.
+      </p>
     </main>
   );
 }

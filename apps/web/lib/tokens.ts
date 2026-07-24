@@ -11,7 +11,7 @@ export const COPY = {
   },
   overlay: {
     // Honest microcopy — these describe what actually happens at boot.
-    lines: ["opening your workspace…", "checking what needs you…", "counting what Otto handled…"],
+    lines: ["opening your workspace…", "checking what needs you…", "counting what Ovanth handled…"],
   },
   demo: {
     badge: "Interactive demo — fictional business, real product",

@@ -9,7 +9,7 @@ import {
   PLANS,
 } from "../src/billing";
 
-const hasDb = !!(process.env.DATABASE_URL && process.env.REDIS_URL);
+const hasDb = !!(process.env.TEST_DATABASE_URL && process.env.REDIS_URL);
 const uuid = () => crypto.randomUUID();
 
 describe("credit math (unit)", () => {

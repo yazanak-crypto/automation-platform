@@ -18,7 +18,7 @@ export default function SetupChecklist({
     {
       done: brainConfirmed,
       title: "Teach it your business",
-      body: "Confirm what Otto learned from your website — its voice, policies, and FAQs.",
+      body: "Confirm what Ovanth learned from your website — its voice, policies, and FAQs.",
       href: "/onboarding",
       cta: "Review the brain",
     },

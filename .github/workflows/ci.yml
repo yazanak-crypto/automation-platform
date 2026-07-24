@@ -30,7 +30,11 @@ jobs:
           --health-timeout 3s
           --health-retries 10
     env:
-      DATABASE_URL: postgres://platform:platform@localhost:5432/platform
+      # Tests read ONLY TEST_DATABASE_URL (points at the throwaway CI Postgres —
+      # never a real database). DATABASE_URL is intentionally NOT set job-wide:
+      # it's provided only to the migrate step below, so the prod-DB safety guard
+      # (which refuses TEST_DATABASE_URL === DATABASE_URL) stays inert during tests.
+      TEST_DATABASE_URL: postgres://platform:platform@localhost:5432/platform
       REDIS_URL: redis://localhost:6379
     steps:
       - uses: actions/checkout@v4
@@ -52,6 +56,8 @@ jobs:
 
       - name: Migrate test database
         run: pnpm --filter @platform/db db:migrate
+        env:
+          DATABASE_URL: postgres://platform:platform@localhost:5432/platform
 
       - name: Test
         run: pnpm test
