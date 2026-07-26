@@ -115,18 +115,28 @@ export default function OnboardingPage() {
   }
 
   async function skip() {
-    await fetch("/api/brain/profile", {
+    setSaving(true);
+    setError(null);
+    const res = await fetch("/api/brain/profile", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ onboardingStatus: "skipped" }),
-    });
+    }).catch(() => null);
+    setSaving(false);
+    // Only leave onboarding once the status is actually saved — navigating on a
+    // failed save is what sends the user straight back here in a loop.
+    if (!res?.ok) {
+      setError("We couldn't save your setup just now. Please try again.");
+      return;
+    }
     finish();
   }
 
   async function confirm() {
     if (!brain) return;
     setSaving(true);
-    await fetch("/api/brain/profile", {
+    setError(null);
+    const res = await fetch("/api/brain/profile", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -135,7 +145,12 @@ export default function OnboardingPage() {
         policies: brain.profile.policies ?? {},
         onboardingStatus: "confirmed",
       }),
-    });
+    }).catch(() => null);
+    setSaving(false);
+    if (!res?.ok) {
+      setError("We couldn't save your setup just now. Please try again.");
+      return;
+    }
     finish();
   }
 
@@ -279,11 +294,13 @@ export default function OnboardingPage() {
 
       <TryYourAI />
 
+      {error && <p className="text-sm text-stop">{error}</p>}
+
       <div className="flex items-center gap-4">
         <button disabled={saving} onClick={confirm} className="rounded-lg bg-white px-5 py-2.5 font-medium text-black disabled:opacity-50">
           {saving ? "Saving…" : "Looks right →"}
         </button>
-        <button onClick={skip} className="text-sm text-ink-3 hover:text-ink-2">
+        <button disabled={saving} onClick={skip} className="text-sm text-ink-3 hover:text-ink-2 disabled:opacity-50">
           Finish later
         </button>
       </div>

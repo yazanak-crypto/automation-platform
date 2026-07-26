@@ -1,7 +1,7 @@
 import { aiConfigured, callAi } from "@platform/ai";
 import { businessProfiles, db, knowledgeItems } from "@platform/db";
 import { draftProfileOutputSchema, type DraftProfileOutput } from "@platform/schemas";
-import { eq } from "drizzle-orm";
+import { and, eq, notInArray } from "drizzle-orm";
 import {
   DRAFT_PROFILE_PROMPT_REF,
   DRAFT_PROFILE_PROMPT_VERSION,
@@ -17,6 +17,20 @@ export interface IngestResult {
   pagesRead: number;
   faqsSuggested: number;
   productsSuggested: number;
+}
+
+/**
+ * Scope EVERY profile write in this job to a workspace whose onboarding is still
+ * in progress. Ingest runs asynchronously and can finish AFTER the user has
+ * already reviewed and confirmed (or skipped) — without this guard it would
+ * overwrite their `confirmed` status back to `draft_ready`, and the app layout
+ * would bounce them to /onboarding forever. The user's decision always wins.
+ */
+function stillOnboarding(workspaceId: string) {
+  return and(
+    eq(businessProfiles.workspaceId, workspaceId),
+    notInArray(businessProfiles.onboardingStatus, ["confirmed", "skipped"]),
+  );
 }
 
 function parseModelJson(text: string): DraftProfileOutput | null {
@@ -42,7 +56,7 @@ export async function runIngest(workspaceId: string, url: string): Promise<Inges
     await db()
       .update(businessProfiles)
       .set({ identity: { url }, onboardingStatus: "draft_ready", updatedAt: new Date() })
-      .where(eq(businessProfiles.workspaceId, workspaceId));
+      .where(stillOnboarding(workspaceId));
     return { outcome: "nothing_found", pagesRead: 0, faqsSuggested: 0, productsSuggested: 0 };
   }
 
@@ -58,7 +72,7 @@ export async function runIngest(workspaceId: string, url: string): Promise<Inges
         onboardingStatus: "draft_ready",
         updatedAt: new Date(),
       })
-      .where(eq(businessProfiles.workspaceId, workspaceId));
+      .where(stillOnboarding(workspaceId));
     return { outcome: "nothing_found", pagesRead: 0, faqsSuggested: 0, productsSuggested: 0 };
   }
 
@@ -104,7 +118,7 @@ export async function runIngest(workspaceId: string, url: string): Promise<Inges
         onboardingStatus: "draft_ready",
         updatedAt: new Date(),
       })
-      .where(eq(businessProfiles.workspaceId, workspaceId));
+      .where(stillOnboarding(workspaceId));
 
     const items = [
       ...parsed.faqs.map((f) => ({
