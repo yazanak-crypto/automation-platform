@@ -1,5 +1,5 @@
 import { db, users, workspaceInvites, workspaceMembers, workspaces } from "@platform/db";
-import { and, eq, gt } from "drizzle-orm";
+import { and, eq, gt, sql } from "drizzle-orm";
 
 // Workspace bootstrap + resolution (AC-1.2). Framework-agnostic: the web app
 // passes the authenticated Clerk identity; this must never be called with
@@ -23,6 +23,11 @@ export async function findWorkspaceByClerkId(clerkUserId: string) {
     .innerJoin(workspaceMembers, eq(workspaceMembers.userId, users.id))
     .innerJoin(workspaces, eq(workspaces.id, workspaceMembers.workspaceId))
     .where(eq(users.clerkId, clerkUserId))
+    // MUST be deterministic. `limit(1)` without an ORDER BY lets Postgres return
+    // a different membership per call, so a user with more than one workspace
+    // would write onboarding state to one and have the guard read the other —
+    // an infinite /onboarding redirect loop. Oldest membership always wins.
+    .orderBy(workspaceMembers.createdAt, workspaceMembers.id)
     .limit(1);
   return found[0] ?? null;
 }
@@ -34,6 +39,25 @@ export async function resolveWorkspace(identity: AuthedIdentity) {
   // First login: create the user, then either JOIN a workspace they were
   // invited to (Users & Permissions) or create a fresh personal workspace.
   return db().transaction(async (tx) => {
+    // On first login several server requests run concurrently (layout, page,
+    // prefetches). Without this lock each one sees "no workspace yet" and
+    // creates its own, leaving the user owning two workspaces. React `cache()`
+    // dedupes within a request but not across them. The lock is held for the
+    // transaction and released automatically on commit/rollback.
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${identity.clerkUserId}))`);
+
+    // Re-check inside the lock: a concurrent request may have just finished
+    // creating everything while we were waiting.
+    const alreadyResolved = await tx
+      .select({ user: users, workspace: workspaces })
+      .from(users)
+      .innerJoin(workspaceMembers, eq(workspaceMembers.userId, users.id))
+      .innerJoin(workspaces, eq(workspaces.id, workspaceMembers.workspaceId))
+      .where(eq(users.clerkId, identity.clerkUserId))
+      .orderBy(workspaceMembers.createdAt, workspaceMembers.id)
+      .limit(1);
+    if (alreadyResolved[0]) return alreadyResolved[0];
+
     const existingUser = await tx
       .select()
       .from(users)
