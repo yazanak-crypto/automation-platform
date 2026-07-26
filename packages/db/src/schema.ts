@@ -20,6 +20,9 @@ export const users = pgTable("users", {
   clerkId: text("clerk_id").notNull().unique(),
   email: text("email").notNull(),
   name: text("name"),
+  // Manual activation gate (pre-billing): new signups land inactive and see a
+  // holding page until an admin flips this in /admin.
+  isActive: boolean("is_active").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

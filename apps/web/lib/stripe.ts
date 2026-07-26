@@ -1,8 +1,14 @@
 import Stripe from "stripe";
-import type { PlanId } from "@platform/core";
+import { billingEnabled, type PlanId } from "@platform/core";
 
+/**
+ * Billing is live only when it's explicitly enabled AND keys are present.
+ * With BILLING_ENABLED unset, every Stripe entry point (checkout, portal,
+ * webhook) stays in the codebase but reports "not configured" and does nothing
+ * — so test keys can never strand a customer mid-checkout.
+ */
 export function billingConfigured(): boolean {
-  return !!process.env.STRIPE_SECRET_KEY;
+  return billingEnabled() && !!process.env.STRIPE_SECRET_KEY;
 }
 
 let _stripe: Stripe | undefined;

@@ -78,6 +78,13 @@
       "when": 1784892269672,
       "tag": "0010_wide_arclight",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1785019615413,
+      "tag": "0011_burly_paibok",
+      "breakpoints": true
     }
   ]
 }

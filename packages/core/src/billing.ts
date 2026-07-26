@@ -20,6 +20,26 @@ export function isPlanId(v: string): v is PlanId {
   return v in PLANS;
 }
 
+/**
+ * Master switch for paid billing. While false (the default), all Stripe code
+ * stays in place but is inert: nothing expires, nothing is blocked for payment,
+ * and no checkout is offered. Flip BILLING_ENABLED=true once a registered
+ * company + live Stripe keys exist.
+ */
+export function billingEnabled(): boolean {
+  return process.env.BILLING_ENABLED === "true";
+}
+
+/**
+ * When billing is off, no workspace is ever payment-blocked. Applied at the one
+ * chokepoint every downstream gate reads (worker drafting, AI previews,
+ * dashboard banners), so none of them need their own flag check.
+ */
+function withBillingFlag(status: CreditStatus): CreditStatus {
+  if (billingEnabled()) return status;
+  return { ...status, exhausted: false, trialEnded: false };
+}
+
 export function creditsFromMicrocents(microcents: number): number {
   return Math.ceil(microcents / MICROCENTS_PER_CREDIT);
 }
@@ -54,7 +74,11 @@ export async function getCreditStatus(
     const cached = await redis().get(cacheKey).catch(() => null);
     if (cached) {
       const parsed = JSON.parse(cached) as CreditStatus & { periodStart: string; periodEnd: string };
-      return { ...parsed, periodStart: new Date(parsed.periodStart), periodEnd: new Date(parsed.periodEnd) };
+      return withBillingFlag({
+        ...parsed,
+        periodStart: new Date(parsed.periodStart),
+        periodEnd: new Date(parsed.periodEnd),
+      });
     }
   }
 
@@ -104,7 +128,7 @@ export async function getCreditStatus(
   };
 
   await redis().set(cacheKey, JSON.stringify(status), "EX", 60).catch(() => {});
-  return status;
+  return withBillingFlag(status);
 }
 
 export async function invalidateCreditCache(workspaceId: string) {

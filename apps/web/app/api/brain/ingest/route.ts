@@ -3,10 +3,12 @@ import { brainIngestQueue, takeDailyLimit } from "@platform/core";
 import { ingestRequestSchema } from "@platform/schemas";
 import { NextResponse } from "next/server";
 import { requireWorkspace, unauthorized } from "@/lib/workspace";
+import { accountInactive } from "@/lib/activation";
 
 export async function POST(req: Request) {
   const ctx = await requireWorkspace();
   if (!ctx) return unauthorized();
+  if (!ctx.user.isActive) return accountInactive();
   const parsed = ingestRequestSchema.safeParse(await req.json());
   if (!parsed.success) {
     return NextResponse.json({ error: "Enter a valid URL" }, { status: 400 });

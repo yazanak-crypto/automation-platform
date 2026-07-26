@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { BRAND } from "@/lib/brand";
 import { requireWorkspace, unauthorized } from "@/lib/workspace";
+import { accountInactive } from "@/lib/activation";
 
 // In-product AI support assistant. Runs entirely server-side (the AI key never
 // leaves the server) and falls back to canned answers when AI is unavailable.
@@ -54,6 +55,7 @@ function fallback(question: string): string {
 export async function POST(req: Request) {
   const ctx = await requireWorkspace();
   if (!ctx) return unauthorized();
+  if (!ctx.user.isActive) return accountInactive();
   const parsed = bodySchema.safeParse(await req.json());
   if (!parsed.success) return NextResponse.json({ error: "Invalid request" }, { status: 400 });
 

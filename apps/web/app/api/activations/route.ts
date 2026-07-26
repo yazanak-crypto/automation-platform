@@ -5,10 +5,12 @@ import { and, eq, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireWorkspace, unauthorized } from "@/lib/workspace";
+import { accountInactive } from "@/lib/activation";
 
 export async function GET() {
   const ctx = await requireWorkspace();
   if (!ctx) return unauthorized();
+  if (!ctx.user.isActive) return accountInactive();
   return NextResponse.json(await listActivations(ctx.workspace.id));
 }
 
@@ -22,6 +24,7 @@ const createSchema = z.object({
 export async function POST(req: Request) {
   const ctx = await requireWorkspace();
   if (!ctx) return unauthorized();
+  if (!ctx.user.isActive) return accountInactive();
   const parsed = createSchema.safeParse(await req.json());
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
