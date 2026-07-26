@@ -8,8 +8,8 @@ export const LEGAL = {
   /** Registered legal entity, e.g. "Ovanth, Inc.". */
   entity: process.env.NEXT_PUBLIC_LEGAL_ENTITY ?? `${BRAND}`,
   /** Support/legal contact. */
-  contactEmail: process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "hello@ovanth.ai",
-  privacyEmail: process.env.NEXT_PUBLIC_PRIVACY_EMAIL ?? process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "privacy@ovanth.ai",
+  contactEmail: process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "hello@ovanth.com",
+  privacyEmail: process.env.NEXT_PUBLIC_PRIVACY_EMAIL ?? process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "privacy@ovanth.com",
   /** Governing law / jurisdiction for the Terms. */
   governingLaw: process.env.NEXT_PUBLIC_GOVERNING_LAW ?? "the State of Delaware, USA",
   /** Shown as "Last updated". Set at deploy or leave to the build date. */

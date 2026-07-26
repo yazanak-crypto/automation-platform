@@ -15,11 +15,27 @@ The "Development mode" badge only appears on Clerk *development* instances.
 Clerk Dashboard → **switch the instance to Production** (or create a production
 instance) and complete DNS verification for your domain.
 
-## 3. Custom domain
-Set the Clerk **Frontend API** to a subdomain you own, e.g. `clerk.ovanth.ai`, and
-add the CNAME records Clerk gives you. Then add that origin to the CSP in
-`apps/web/next.config.ts` (`script-src` / `connect-src` / `frame-src`) — search
-for the `clerk` array and append `https://clerk.ovanth.ai`.
+## 3. Custom domain (REQUIRED for production instances)
+A production Clerk instance serves `clerk-js` from `clerk.<your-domain>` (e.g.
+`clerk.ovanth.com`) instead of `*.clerk.accounts.dev`. Two things must be true or
+auth breaks silently — buttons render, clicking does nothing, no request fires:
+
+**a) DNS.** Add every CNAME Clerk lists under **Domains**: `clerk`, `accounts`,
+`clkmail`, `clk._domainkey`, `clk2._domainkey`. On Cloudflare these MUST be
+**DNS only (grey cloud)** — proxying breaks Clerk's TLS. Wait for "Verified".
+Symptom if missing: `ERR_NAME_NOT_RESOLVED` on `clerk.<your-domain>`.
+
+**b) CSP.** Set in Vercel (Production + Preview):
+```
+CLERK_FRONTEND_API_DOMAIN=clerk.ovanth.com
+```
+`apps/web/next.config.ts` injects it into `script-src` / `connect-src` /
+`frame-src` automatically — nothing is hardcoded. Leave it unset on a
+development instance. Symptom if missing: a CSP violation in the console
+("Refused to load the script … violates Content Security Policy").
+
+**Redeploy after changing it** — the CSP is baked into the response headers at
+build time, so an env change alone does not take effect.
 
 ## 4. Production keys (env)
 Replace the dev keys with the production ones from the Clerk Dashboard:

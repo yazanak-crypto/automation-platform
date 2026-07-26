@@ -17,9 +17,20 @@ const isDev = process.env.NODE_ENV !== "production";
 //   • Nango        — client SDK posts to api.nango.dev during channel connect
 //   • Stripe       — checkout/billing (defensive: covers Elements if added)
 //   • Sentry       — client error reporting (no-op if DSN unset)
-// NOTE for prod: if you use a custom Clerk domain (clerk.yourdomain.com), add it
-// to scriptSrc/connectSrc/frameSrc below.
-const clerk = ["https://*.clerk.accounts.dev", "https://*.clerk.com"];
+// Custom Clerk domain: a PRODUCTION Clerk instance serves clerk-js from
+// clerk.<your-domain>, which `*.clerk.com` does NOT match. Without this the
+// script is CSP-blocked and every Clerk button silently does nothing.
+// Set CLERK_FRONTEND_API_DOMAIN=clerk.ovanth.com (bare host). Leave unset on a
+// development instance, which already resolves under *.clerk.accounts.dev.
+const clerkCustomDomain = process.env.CLERK_FRONTEND_API_DOMAIN
+  ?.trim()
+  .replace(/^https?:\/\//, "")
+  .replace(/\/+$/, "");
+const clerk = [
+  "https://*.clerk.accounts.dev",
+  "https://*.clerk.com",
+  ...(clerkCustomDomain ? [`https://${clerkCustomDomain}`] : []),
+];
 const csp = [
   `default-src 'self'`,
   `base-uri 'self'`,

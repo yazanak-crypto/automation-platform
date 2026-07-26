@@ -5,7 +5,7 @@ describe("renderDraftApprovalEmail", () => {
   const email = renderDraftApprovalEmail({
     customerMessage: "Do you ship to Canada?",
     suggestedReply: "Yes — we ship worldwide, usually 3–5 days.",
-    reviewUrl: "https://app.ovanth.ai/conversations/abc",
+    reviewUrl: "https://app.ovanth.com/conversations/abc",
   });
 
   it("uses the approval subject", () => {
@@ -16,7 +16,7 @@ describe("renderDraftApprovalEmail", () => {
     for (const part of [email.text, email.html]) {
       expect(part).toContain("Do you ship to Canada?");
       expect(part).toContain("we ship worldwide");
-      expect(part).toContain("https://app.ovanth.ai/conversations/abc");
+      expect(part).toContain("https://app.ovanth.com/conversations/abc");
     }
   });
 

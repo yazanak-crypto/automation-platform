@@ -175,7 +175,7 @@ export default function BillingPage() {
                   </button>
                 ) : p.id !== "trial" ? (
                   <a
-                    href={`mailto:${process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "hello@ovanth.ai"}?subject=Upgrade%20my%20plan`}
+                    href={`mailto:${process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "hello@ovanth.com"}?subject=Upgrade%20my%20plan`}
                     className="mt-4 block text-center text-xs text-ink-3 underline underline-offset-2 hover:text-ink-2"
                   >
                     Contact us to upgrade
