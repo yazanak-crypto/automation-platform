@@ -191,6 +191,26 @@ export async function applySubscriptionState(args: {
       currentPeriodEnd: args.currentPeriodEnd,
     });
   }
+  // ⚠️ COLLISION RISK WITH MANUAL PAYMENTS — read before enabling BILLING_ENABLED.
+  //
+  // This writes workspaces.plan unconditionally, but manual bank/Whish payments
+  // (packages/core/src/payments.ts) write the SAME column plus paid_through, and
+  // this function never looks at paid_through. Once Stripe is live, one webhook
+  // can silently undo a paid manual customer:
+  //
+  //   • A non-active Stripe status forces plan back to "trial" while
+  //     paid_through is still in the future. getCreditStatus() then reads
+  //     manualActive === true with plan "trial" (isPlanId("trial") is true), so
+  //     the customer keeps access but drops to the 300-credit trial allowance —
+  //     a silent downgrade of someone who paid.
+  //   • An active Stripe status overwrites a manually-set plan, leaving a
+  //     paid_through that belongs to a different plan than the one now stored.
+  //
+  // Today this cannot fire: billingConfigured() requires BILLING_ENABLED, so the
+  // Stripe webhook returns 503 and never reaches here. Before turning that flag
+  // on, decide which source of truth wins and enforce it here — e.g. skip this
+  // update while paid_through is in the future, or clear paid_through when a
+  // Stripe subscription takes over. See docs/DEPLOYMENT.md.
   await db()
     .update(workspaces)
     .set({ plan: args.status === "active" || args.status === "trialing" ? args.plan : "trial" })

@@ -59,3 +59,37 @@ locking beyond the existing per-conversation Redis lock.
 
 ## 8. Data-subject requests
 Export: in-app (Settings → Data). Deletion: follow `docs/GDPR-DELETION.md`.
+
+## 9. Before enabling BILLING_ENABLED (Stripe)
+Billing currently runs on manual bank/Whish payments (`/checkout` → `payments` table →
+`/admin` review). All Stripe code is present but inert: `billingConfigured()` requires
+`BILLING_ENABLED=true`, so checkout, the portal, and the Stripe webhook all return
+"not configured" today.
+
+**Blocker — resolve before flipping the flag.** `applySubscriptionState()` in
+`packages/core/src/billing.ts` writes `workspaces.plan` unconditionally and never reads
+`workspaces.paid_through`. Manual payments write *both* columns. Once the Stripe webhook
+is live, a single event can silently undo a paying manual customer:
+
+- A **non-active** Stripe status forces `plan` back to `"trial"` while `paid_through` is
+  still in the future. `getCreditStatus()` then sees `manualActive === true` with plan
+  `"trial"` (`isPlanId("trial")` is true), so the customer keeps access but silently drops
+  to the 300-credit trial allowance — after paying for Starter or Premium.
+- An **active** Stripe status overwrites a manually-set plan, leaving a `paid_through`
+  that belongs to a different plan than the one now stored.
+
+Decide which source of truth wins and enforce it in `applySubscriptionState()`. Either:
+- skip the `workspaces.plan` write while `paid_through` is in the future (manual wins until
+  it lapses), or
+- clear `paid_through` when a Stripe subscription becomes active (Stripe takes over).
+
+Checklist:
+- [ ] Resolve the `applySubscriptionState()` / `paid_through` collision above.
+- [ ] Registered company + LIVE Stripe keys (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`).
+- [ ] Create live prices and set `STRIPE_PRICE_*` (see `scripts/stripe-setup.ts`; its
+      `lookup` keys are still the legacy `otto_*` values — do not rename them if prices
+      already exist).
+- [ ] Point the Stripe webhook at `/api/webhooks/stripe` and verify the signing secret.
+- [ ] Decide what happens to workspaces already on a manual `paid_through` at cutover.
+- [ ] Set `BILLING_ENABLED=true` and redeploy (the flag is read at runtime, but redeploy
+      so nothing is served from a stale build).
