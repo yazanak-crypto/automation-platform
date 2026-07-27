@@ -31,7 +31,9 @@ function CopyRow({ label, value }: { label: string; value: string }) {
 
 export default function CheckoutForm({
   plan,
-  amountUsd,
+  monthlyUsd,
+  setupFeeUsd,
+  totalUsd,
   referenceCode,
   bankName,
   bankAccountName,
@@ -41,7 +43,9 @@ export default function CheckoutForm({
   provisionalDays,
 }: {
   plan: string;
-  amountUsd: number;
+  monthlyUsd: number;
+  setupFeeUsd: number;
+  totalUsd: number;
   referenceCode: string;
   bankName: string;
   bankAccountName: string;
@@ -99,7 +103,17 @@ export default function CheckoutForm({
   return (
     <>
       <section className="mt-6 rounded-xl border border-line p-5">
-        <p className="font-medium">Send ${amountUsd} fresh USD</p>
+        <p className="font-medium">Send ${totalUsd} fresh USD</p>
+        {setupFeeUsd > 0 ? (
+          <p className="mt-1 text-[13px] text-ink-2">
+            ${monthlyUsd} monthly + ${setupFeeUsd} setup = <strong className="text-ink">${totalUsd}</strong>.
+            The setup fee is one time — future months are ${monthlyUsd}.
+          </p>
+        ) : (
+          <p className="mt-1 text-[13px] text-ink-2">
+            ${monthlyUsd} for the month. Your setup fee was already paid.
+          </p>
+        )}
         <p className="mt-1 text-[13px] text-ink-2">
           Include the reference code below so we can match your transfer to your account.
         </p>
@@ -139,7 +153,7 @@ export default function CheckoutForm({
           ) : (
             <CopyRow label="Whish number" value={whishNumber} />
           )}
-          <CopyRow label="Amount" value={`${amountUsd} USD`} />
+          <CopyRow label="Amount" value={`${totalUsd} USD`} />
           <CopyRow label="Reference code" value={referenceCode} />
         </div>
       </section>

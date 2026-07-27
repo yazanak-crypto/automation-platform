@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
+  amountDueFor,
   claimEligibility,
   isPayablePlan,
   latestPayment,
@@ -33,9 +34,11 @@ export default async function CheckoutPage({
   const plan = planParam;
   const details = PLANS[plan];
 
-  const [eligibility, last] = await Promise.all([
+  const [eligibility, last, due] = await Promise.all([
     claimEligibility(ctx.workspace.id),
     latestPayment(ctx.workspace.id),
+    // Server-side: monthly, plus the one-time setup fee on the first paid month.
+    amountDueFor(ctx.workspace.id, plan),
   ]);
   const pay = paymentDetails();
   const referenceCode = referenceCodeFor(ctx.user.id);
@@ -63,8 +66,12 @@ export default async function CheckoutPage({
           </div>
           <div className="text-right">
             <p className="tnum text-2xl font-semibold">${details.priceMonthlyUsd}</p>
-            {/* "fresh USD" is the operative term for a Lebanese transfer. */}
-            <p className="text-[12px] font-medium text-brass">fresh USD</p>
+            <p className="text-[12px] text-ink-3">per month</p>
+            {due.includesSetupFee && (
+              <p className="mt-1 text-[12.5px] text-ink-2">
+                + ${due.setupFeeUsd} one-time setup
+              </p>
+            )}
           </div>
         </div>
       </section>
@@ -113,7 +120,9 @@ export default async function CheckoutPage({
       ) : (
         <CheckoutForm
           plan={plan}
-          amountUsd={details.priceMonthlyUsd}
+          monthlyUsd={due.monthlyUsd}
+          setupFeeUsd={due.setupFeeUsd}
+          totalUsd={due.totalUsd}
           referenceCode={referenceCode}
           bankName={pay.bankName}
           bankAccountName={pay.bankAccountName}

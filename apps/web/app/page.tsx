@@ -198,7 +198,7 @@ export default function Home() {
                     </p>
                     {id !== "trial" && p.setupFeeUsd > 0 && (
                       <p className="mt-1 text-[12px] text-ink-3">
-                        One-time ${p.setupFeeUsd} setup (covers your first month)
+                        + ${p.setupFeeUsd} one-time setup
                       </p>
                     )}
                   </div>

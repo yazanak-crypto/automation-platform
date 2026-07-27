@@ -7,7 +7,7 @@ import { BRAND } from "@/lib/brand";
 const SECTIONS: { label: string; body: string; href?: string }[] = [
   { label: "Business Brain", body: "Your voice, policies, FAQs, and boundaries.", href: "/brain" },
   { label: "Channels", body: "Website chat, email, and more.", href: "/channels" },
-  { label: "Billing", body: "Plan, credits, and invoices.", href: "/billing" },
+  { label: "Billing", body: "Plan, usage, and invoices.", href: "/billing" },
   { label: "Workspace", body: "Your business name and workspace details.", href: "/settings/workspace" },
   { label: "Notifications", body: "Get an email when a reply needs your approval.", href: "/settings/notifications" },
   { label: "Security", body: "Password, two-factor, and active sessions.", href: "/settings/security" },

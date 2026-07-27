@@ -8,11 +8,14 @@ import { redis } from "./queues";
 
 export const MICROCENTS_PER_CREDIT = 10_000;
 
+// Credits are an INTERNAL limit only — never shown to customers. Pricing is
+// quoted as a monthly price plus a visible one-time setup fee, charged once on
+// a workspace's first confirmed payment.
 export const PLANS = {
   // 7-day free trial; the credit ceiling is a quiet anti-abuse cap, not the gate.
   trial: { name: "Free trial", monthlyCredits: 300, priceMonthlyUsd: 0, setupFeeUsd: 0 },
-  starter: { name: "Starter", monthlyCredits: 2_000, priceMonthlyUsd: 49, setupFeeUsd: 119 },
-  pro: { name: "Premium", monthlyCredits: 10_000, priceMonthlyUsd: 149, setupFeeUsd: 219 },
+  starter: { name: "Starter", monthlyCredits: 2_000, priceMonthlyUsd: 49, setupFeeUsd: 70 },
+  pro: { name: "Premium", monthlyCredits: 10_000, priceMonthlyUsd: 149, setupFeeUsd: 120 },
 } as const;
 export type PlanId = keyof typeof PLANS;
 

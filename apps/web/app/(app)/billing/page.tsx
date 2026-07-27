@@ -109,7 +109,7 @@ export default function BillingPage() {
         <div className="mt-4">
           <div className="flex justify-between text-sm">
             <span className={status.exhausted ? "text-stop" : "text-ink-2"}>
-              {status.used.toLocaleString()} of {status.allowance.toLocaleString()} credits used
+              {Math.round(status.used / 4).toLocaleString()} of {Math.round(status.allowance / 4).toLocaleString()} conversations used
             </span>
             <span className="text-ink-3">
               resets {new Date(status.periodEnd).toLocaleDateString()}
@@ -125,7 +125,7 @@ export default function BillingPage() {
             <p className="mt-2 text-sm text-stop">
               {status.trialEnded
                 ? "Your free trial has ended — pick a plan to put your AI back on duty."
-                : "Credits are used up — the AI has paused. New messages wait in Conversations for your own reply until you upgrade or the month resets."}
+                : "You've used this month's conversations — the AI has paused. New messages wait in Conversations for your own reply until you upgrade or the month resets."}
             </p>
           )}
         </div>
@@ -142,14 +142,17 @@ export default function BillingPage() {
                 className={`rounded-xl border p-5 ${isCurrent ? "border-line-strong" : "border-line"}`}
               >
                 <p className="font-medium">{p.name}</p>
-                {p.setupFeeUsd > 0 ? (
+                {p.priceMonthlyUsd > 0 ? (
                   <>
                     <p className="mt-1 text-2xl font-semibold">
-                      Starting at ${p.setupFeeUsd}
+                      ${p.priceMonthlyUsd}
+                      <span className="text-sm font-normal text-ink-3">/month</span>
                     </p>
-                    <p className="mt-0.5 text-[12.5px] text-ink-2">
-                      then ${p.priceMonthlyUsd}/month after the first month
-                    </p>
+                    {p.setupFeeUsd > 0 && (
+                      <p className="mt-0.5 text-[12.5px] text-ink-2">
+                        + ${p.setupFeeUsd} one-time setup
+                      </p>
+                    )}
                   </>
                 ) : (
                   <p className="mt-1 text-2xl font-semibold">Free</p>
@@ -159,11 +162,6 @@ export default function BillingPage() {
                     ? "7 days free · full product"
                     : `About ${Math.round(p.monthlyCredits / 4).toLocaleString()} customer conversations / month`}
                 </p>
-                {p.id !== "trial" && (
-                  <p className="mt-0.5 text-[12px] text-ink-3">
-                    {p.monthlyCredits.toLocaleString()} AI credits included
-                  </p>
-                )}
                 {isCurrent ? (
                   <p className="mt-4 text-xs text-ink-3">Current plan</p>
                 ) : p.purchasable ? (

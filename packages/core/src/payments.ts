@@ -43,6 +43,39 @@ export function paymentDetailsConfigured(): boolean {
   return !!(d.bankIban || d.whishNumber);
 }
 
+export interface AmountDue {
+  monthlyUsd: number;
+  /** 0 once the workspace has a CONFIRMED payment — the setup fee is charged once. */
+  setupFeeUsd: number;
+  totalUsd: number;
+  /** True when the setup fee is included, i.e. this is their first paid month. */
+  includesSetupFee: boolean;
+}
+
+/**
+ * What this workspace owes for a plan, computed from the plan catalog and their
+ * payment history. The setup fee is charged once — on the first payment we
+ * actually CONFIRM. A claim that was rejected, or one still awaiting review,
+ * doesn't count, so nobody skips the fee by claiming and being refused.
+ *
+ * Always call this server-side; the amount must never come from the client.
+ */
+export async function amountDueFor(
+  workspaceId: string,
+  plan: PayablePlan,
+): Promise<AmountDue> {
+  const confirmed = await db()
+    .select({ id: payments.id })
+    .from(payments)
+    .where(and(eq(payments.workspaceId, workspaceId), eq(payments.status, "CONFIRMED")))
+    .limit(1);
+
+  const monthlyUsd = PLANS[plan].priceMonthlyUsd;
+  const includesSetupFee = confirmed.length === 0;
+  const setupFeeUsd = includesSetupFee ? PLANS[plan].setupFeeUsd : 0;
+  return { monthlyUsd, setupFeeUsd, totalUsd: monthlyUsd + setupFeeUsd, includesSetupFee };
+}
+
 export interface ClaimEligibility {
   /** False when an open claim already exists — one at a time per workspace. */
   canClaim: boolean;
@@ -98,7 +131,10 @@ export async function recordClaim(args: RecordClaimArgs) {
     return { ok: false as const, error: eligibility.reason ?? "Cannot claim right now." };
   }
 
-  const amountUsd = PLANS[args.plan].priceMonthlyUsd;
+  // Recomputed here from the catalog + payment history, never trusted from the
+  // request body: monthly, plus the one-time setup fee on the first paid month.
+  const due = await amountDueFor(args.workspaceId, args.plan);
+  const amountUsd = due.totalUsd;
   const referenceCode = referenceCodeFor(args.userId);
 
   const payment = await db().transaction(async (tx) => {
