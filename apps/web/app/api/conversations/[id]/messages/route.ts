@@ -4,13 +4,11 @@ import { manualReplySchema } from "@platform/schemas";
 import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { requireWorkspace, unauthorized } from "@/lib/workspace";
-import { accountInactive } from "@/lib/activation";
 
 /** Owner types a manual reply — owner-authored, so it is approved by definition. */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const ctx = await requireWorkspace();
   if (!ctx) return unauthorized();
-  if (!ctx.user.isActive) return accountInactive();
   const { id } = await params;
   const parsed = manualReplySchema.safeParse(await req.json());
   if (!parsed.success) {

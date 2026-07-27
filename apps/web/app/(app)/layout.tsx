@@ -13,11 +13,6 @@ import { requireWorkspace } from "@/lib/workspace";
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const ctx = await requireWorkspace();
 
-  // Manual activation gate: an account that hasn't been activated yet never
-  // reaches the product — it sees the /pending holding page instead. /pending
-  // lives OUTSIDE this group, so this redirect can't loop.
-  if (ctx && ctx.user.isActive !== true) redirect("/pending");
-
   // Spec §2 (DB-aware gate): a fresh, un-onboarded workspace never lands on an
   // empty dashboard — it's routed through onboarding first. Onboarding lives
   // OUTSIDE this (app) group, so it's never caught by this redirect. Uses a

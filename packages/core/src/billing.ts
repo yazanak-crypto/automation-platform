@@ -83,7 +83,11 @@ export async function getCreditStatus(
   }
 
   const wsRows = await db()
-    .select({ trialEndsAt: workspaces.trialEndsAt })
+    .select({
+      trialEndsAt: workspaces.trialEndsAt,
+      wsPlan: workspaces.plan,
+      paidThrough: workspaces.paidThrough,
+    })
     .from(workspaces)
     .where(eq(workspaces.id, workspaceId))
     .limit(1);
@@ -95,10 +99,23 @@ export async function getCreditStatus(
     .limit(1);
   const sub = subRows[0];
 
-  const active = sub && (sub.status === "active" || sub.status === "trialing") && isPlanId(sub.plan);
-  const plan: PlanId = active ? (sub.plan as PlanId) : "trial";
-  const period =
-    active && sub.currentPeriodStart && sub.currentPeriodEnd
+  // Manual (bank/Whish) access runs alongside Stripe — whichever grants access
+  // wins. A confirmed or provisional manual payment sets workspaces.plan +
+  // paid_through; while paid_through is in the future that plan is live.
+  const paidThrough = wsRows[0]?.paidThrough ?? null;
+  const manualActive =
+    !!paidThrough && paidThrough.getTime() > Date.now() && isPlanId(wsRows[0]?.wsPlan ?? "");
+
+  const stripeActive =
+    sub && (sub.status === "active" || sub.status === "trialing") && isPlanId(sub.plan);
+  const plan: PlanId = manualActive
+    ? (wsRows[0]!.wsPlan as PlanId)
+    : stripeActive
+      ? (sub.plan as PlanId)
+      : "trial";
+  const period = manualActive
+    ? calendarPeriod()
+    : stripeActive && sub.currentPeriodStart && sub.currentPeriodEnd
       ? { start: sub.currentPeriodStart, end: sub.currentPeriodEnd }
       : calendarPeriod();
 

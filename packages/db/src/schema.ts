@@ -20,9 +20,10 @@ export const users = pgTable("users", {
   clerkId: text("clerk_id").notNull().unique(),
   email: text("email").notNull(),
   name: text("name"),
-  // Manual activation gate (pre-billing): new signups land inactive and see a
-  // holding page until an admin flips this in /admin.
-  isActive: boolean("is_active").notNull().default(false),
+  // Account status. NOT enforced anywhere in the request path — signups get
+  // access immediately. Kept so an admin can flag an account from /admin, and
+  // so enforcement can be reintroduced later without a schema change.
+  isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -33,6 +34,9 @@ export const workspaces = pgTable("workspaces", {
   clerkOrgId: text("clerk_org_id").unique(),
   plan: text("plan").notNull().default("trial"),
   trialEndsAt: timestamp("trial_ends_at", { withTimezone: true }),
+  // Manual (bank/Whish) payment access. Null = never paid manually. Independent
+  // of Stripe: whichever grants access wins.
+  paidThrough: timestamp("paid_through", { withTimezone: true }),
   // Workspace-level risk tolerance (Decision 012): { maxAutoRisk, categoryOverrides }
   autonomySettings: jsonb("autonomy_settings").$type<Record<string, unknown>>(),
   // Owner notification preferences. Null = defaults (draft emails on, sent to
@@ -490,6 +494,44 @@ export const workspaceInvites = pgTable(
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   },
   (t) => [uniqueIndex("workspace_invites_ws_email_idx").on(t.workspaceId, t.email)],
+);
+
+// Manual payments (bank transfer / Whish). The owner claims they paid; an admin
+// confirms or rejects in /admin. Stripe is untouched and stays behind
+// BILLING_ENABLED — this is the path used while there's no registered company.
+export const payments = pgTable(
+  "payments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    plan: text("plan", { enum: ["starter", "pro"] }).notNull(),
+    // Snapshotted from PLANS server-side at claim time — never client-supplied.
+    amountUsd: integer("amount_usd").notNull(),
+    // Stable per-user code the payer puts in the transfer memo (OV-XXXXXX).
+    referenceCode: text("reference_code").notNull(),
+    method: text("method", { enum: ["BANK", "WHISH"] }).notNull(),
+    // The reference/receipt number the payer typed from their own transfer.
+    claimedReference: text("claimed_reference").notNull(),
+    // Optional proof, stored as a data: URL. Capped at ~2MB decoded — at a few
+    // payments a month this isn't worth running blob storage for.
+    screenshot: text("screenshot"),
+    status: text("status", { enum: ["CLAIMED", "CONFIRMED", "REJECTED"] })
+      .notNull()
+      .default("CLAIMED"),
+    reviewNote: text("review_note"),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    reviewedBy: text("reviewed_by"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("payments_status_idx").on(t.status, t.createdAt),
+    index("payments_workspace_idx").on(t.workspaceId),
+  ],
 );
 
 // Outbound owner notifications (e.g. "a reply needs your approval"). Doubles as

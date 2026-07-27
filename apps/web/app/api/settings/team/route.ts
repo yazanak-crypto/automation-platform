@@ -4,7 +4,6 @@ import { and, desc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireWorkspace, unauthorized } from "@/lib/workspace";
-import { accountInactive } from "@/lib/activation";
 
 async function roleOf(workspaceId: string, userId: string): Promise<string | null> {
   const r = await db()
@@ -18,7 +17,6 @@ async function roleOf(workspaceId: string, userId: string): Promise<string | nul
 export async function GET() {
   const ctx = await requireWorkspace();
   if (!ctx) return unauthorized();
-  if (!ctx.user.isActive) return accountInactive();
   const wsId = ctx.workspace.id;
   const [members, invites, myRole] = await Promise.all([
     db()
@@ -44,7 +42,6 @@ const inviteSchema = z.object({
 export async function POST(req: Request) {
   const ctx = await requireWorkspace();
   if (!ctx) return unauthorized();
-  if (!ctx.user.isActive) return accountInactive();
   const wsId = ctx.workspace.id;
   const myRole = await roleOf(wsId, ctx.user.id);
   if (myRole !== "owner" && myRole !== "admin") {
@@ -110,7 +107,6 @@ export async function POST(req: Request) {
 export async function DELETE(req: Request) {
   const ctx = await requireWorkspace();
   if (!ctx) return unauthorized();
-  if (!ctx.user.isActive) return accountInactive();
   const wsId = ctx.workspace.id;
   const myRole = await roleOf(wsId, ctx.user.id);
   if (myRole !== "owner" && myRole !== "admin") {

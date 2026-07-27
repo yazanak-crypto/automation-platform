@@ -4,7 +4,6 @@ import { draftActionSchema } from "@platform/schemas";
 import { and, desc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { requireWorkspace, unauthorized } from "@/lib/workspace";
-import { accountInactive } from "@/lib/activation";
 
 /**
  * Approve / dismiss the pending draft. The ONLY way an AI reply becomes
@@ -13,7 +12,6 @@ import { accountInactive } from "@/lib/activation";
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const ctx = await requireWorkspace();
   if (!ctx) return unauthorized();
-  if (!ctx.user.isActive) return accountInactive();
   const { id } = await params;
   const parsed = draftActionSchema.safeParse(await req.json());
   if (!parsed.success) {

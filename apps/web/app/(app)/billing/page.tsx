@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 interface Plan {
@@ -166,6 +167,7 @@ export default function BillingPage() {
                 {isCurrent ? (
                   <p className="mt-4 text-xs text-ink-3">Current plan</p>
                 ) : p.purchasable ? (
+                  // Stripe path — only reachable when BILLING_ENABLED is on.
                   <button
                     onClick={() => go("/api/billing/checkout", { plan: p.id }, p.id)}
                     disabled={busy === p.id}
@@ -174,12 +176,13 @@ export default function BillingPage() {
                     {busy === p.id ? "Redirecting…" : "Upgrade"}
                   </button>
                 ) : p.id !== "trial" ? (
-                  <a
-                    href={`mailto:${process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "hello@ovanth.com"}?subject=Upgrade%20my%20plan`}
-                    className="mt-4 block text-center text-xs text-ink-3 underline underline-offset-2 hover:text-ink-2"
+                  // Default path: manual bank/Whish payment, never Stripe.
+                  <Link
+                    href={`/checkout?plan=${p.id}`}
+                    className="press-glow mt-4 block w-full rounded-lg bg-white py-2 text-center text-sm font-medium text-black transition-transform active:scale-[0.97]"
                   >
-                    Contact us to upgrade
-                  </a>
+                    Upgrade
+                  </Link>
                 ) : null}
               </div>
             );

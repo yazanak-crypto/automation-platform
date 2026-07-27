@@ -3,7 +3,6 @@ import { channels, connections, db } from "@platform/db";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireWorkspace, unauthorized } from "@/lib/workspace";
-import { accountInactive } from "@/lib/activation";
 
 const bodySchema = z.object({ nangoConnectionId: z.string().min(8).max(200) });
 
@@ -16,7 +15,6 @@ const bodySchema = z.object({ nangoConnectionId: z.string().min(8).max(200) });
 export async function POST(req: Request) {
   const ctx = await requireWorkspace();
   if (!ctx) return unauthorized();
-  if (!ctx.user.isActive) return accountInactive();
   const parsed = bodySchema.safeParse(await req.json());
   if (!parsed.success) return NextResponse.json({ error: "Invalid request" }, { status: 400 });
 

@@ -4,12 +4,10 @@ import { channelCreateSchema } from "@platform/schemas";
 import { desc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { requireWorkspace, unauthorized } from "@/lib/workspace";
-import { accountInactive } from "@/lib/activation";
 
 export async function GET() {
   const ctx = await requireWorkspace();
   if (!ctx) return unauthorized();
-  if (!ctx.user.isActive) return accountInactive();
   const rows = await db()
     .select()
     .from(channels)
@@ -27,7 +25,6 @@ export async function GET() {
 export async function POST(req: Request) {
   const ctx = await requireWorkspace();
   if (!ctx) return unauthorized();
-  if (!ctx.user.isActive) return accountInactive();
   const parsed = channelCreateSchema.safeParse(await req.json());
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });

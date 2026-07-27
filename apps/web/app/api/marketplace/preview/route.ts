@@ -11,7 +11,6 @@ import { getCreditStatus, takeLimit } from "@platform/core";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireWorkspace, unauthorized } from "@/lib/workspace";
-import { accountInactive } from "@/lib/activation";
 
 const previewSchema = z.object({
   slug: z.string().max(100),
@@ -27,7 +26,6 @@ const previewSchema = z.object({
 export async function POST(req: Request) {
   const ctx = await requireWorkspace();
   if (!ctx) return unauthorized();
-  if (!ctx.user.isActive) return accountInactive();
   const parsed = previewSchema.safeParse(await req.json());
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
