@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import {
   amountDueFor,
   claimEligibility,
+  conversationsFromCredits,
   isPayablePlan,
   latestPayment,
   paymentDetails,
@@ -60,7 +61,7 @@ export default async function CheckoutPage({
           <div>
             <p className="font-medium">{details.name}</p>
             <p className="mt-0.5 text-[13px] text-ink-2">
-              About {Math.round(details.monthlyCredits / 4).toLocaleString()} customer
+              About {conversationsFromCredits(details.monthlyCredits).toLocaleString()} customer
               conversations / month
             </p>
           </div>

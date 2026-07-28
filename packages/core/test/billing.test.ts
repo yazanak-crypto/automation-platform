@@ -12,12 +12,41 @@ import {
 const hasDb = !!(process.env.TEST_DATABASE_URL && process.env.REDIS_URL);
 const uuid = () => crypto.randomUUID();
 
+// Independent of billing.ts on purpose: a microcent is 1e-8 USD, so a dollar is
+// 1e8 microcents. Every assertion below is written in dollars and converted with
+// THIS constant, never with MICROCENTS_PER_CREDIT — otherwise the test cancels
+// the constant out on both sides and passes at any scale, which is exactly how
+// a credit sat at $0.0001 while this file claimed $0.01.
+const MICROCENTS_PER_USD = 100_000_000;
+const usd = (dollars: number) => Math.round(dollars * MICROCENTS_PER_USD);
+
 describe("credit math (unit)", () => {
-  it("1 credit = $0.01; partial credits round up", () => {
+  it("1 credit = $0.01 of AI spend", () => {
+    expect(MICROCENTS_PER_CREDIT).toBe(usd(0.01));
+    expect(creditsFromMicrocents(usd(0.01))).toBe(1);
+    expect(creditsFromMicrocents(usd(1))).toBe(100);
+    expect(creditsFromMicrocents(usd(20))).toBe(2_000);
+  });
+
+  it("prices a real Haiku call at its list cost", () => {
+    // Haiku 4.5 input is $1/MTok (packages/ai/src/pricing.ts: 100 microcents per
+    // token), so a million input tokens is $1.00 = 100 credits. Hardcoded rather
+    // than imported: @platform/ai is not a dependency of core, and pinning the
+    // number here makes a pricing-table edit show up as a billing failure.
+    expect(creditsFromMicrocents(1_000_000 * 100)).toBe(100);
+  });
+
+  it("partial credits round up", () => {
     expect(creditsFromMicrocents(0)).toBe(0);
-    expect(creditsFromMicrocents(MICROCENTS_PER_CREDIT)).toBe(1);
-    expect(creditsFromMicrocents(MICROCENTS_PER_CREDIT + 1)).toBe(2);
-    expect(creditsFromMicrocents(25_000)).toBe(3);
+    expect(creditsFromMicrocents(1)).toBe(1);
+    expect(creditsFromMicrocents(usd(0.01) + 1)).toBe(2);
+    expect(creditsFromMicrocents(usd(0.025))).toBe(3);
+  });
+
+  it("plan allowances map to their intended dollar ceilings", () => {
+    expect(PLANS.starter.monthlyCredits * MICROCENTS_PER_CREDIT).toBe(usd(20));
+    expect(PLANS.pro.monthlyCredits * MICROCENTS_PER_CREDIT).toBe(usd(50));
+    expect(PLANS.trial.monthlyCredits * MICROCENTS_PER_CREDIT).toBe(usd(3));
   });
 
   it("plan ids validate", () => {

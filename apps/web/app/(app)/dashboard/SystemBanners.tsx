@@ -1,5 +1,5 @@
 import { aiConfigured } from "@platform/ai";
-import { getCreditStatus } from "@platform/core";
+import { conversationsFromCredits, getCreditStatus } from "@platform/core";
 import { Notice } from "@/components/ui";
 
 /** Server-rendered system state: AI setup + credit posture. Owner language only. */
@@ -43,7 +43,7 @@ export default async function SystemBanners({ workspaceId }: { workspaceId: stri
       <div className="mt-6">
         <Notice
           tone="wait"
-          title={`About ${Math.round(credits.remaining / 4).toLocaleString()} conversations left this month`}
+          title={`About ${conversationsFromCredits(credits.remaining).toLocaleString()} conversations left this month`}
           href="/billing"
         >
           At the current pace your AI will pause soon. See plans →

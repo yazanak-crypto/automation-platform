@@ -156,7 +156,7 @@ async function processDraftLocked(job: WebchatDraftJob) {
         status: "waiting_approval",
         attentionReason: credits.trialEnded
           ? "Your free trial has ended — upgrade to put your AI back on duty"
-          : "AI credits for this month are used up — upgrade your plan or reply yourself",
+          : "You've used this month's conversations — upgrade your plan or reply yourself",
       })
       .where(eq(conversations.id, job.conversationId));
     return { outcome: "credits_exhausted" };
@@ -277,27 +277,40 @@ async function processDraftLocked(job: WebchatDraftJob) {
         bannedPhrases,
       });
       if (check.violates) {
-        await addRunEvent(run.id, ++seq, "decision", "Draft violated a boundary — regenerating", {
-          rule: check.rule,
-        });
-        const retry = await gen(check.rule);
-        const retryDraft = parseDraft(retry.text);
-        if (retryDraft?.reply.trim()) {
-          check = await violatesBoundaries({
-            workspaceId: job.workspaceId,
-            runId: run.id,
-            brainVersion,
-            reply: retryDraft.reply,
-            boundaries: pack.boundaries ?? [],
-            bannedPhrases,
+        // Re-check credits before regenerating. The gate above ran BEFORE the
+        // first draft; a workspace near its limit can cross it mid-message, and
+        // regeneration plus a second boundary check is two more calls. Skip the
+        // AI here rather than overshoot — the draft is unverified, so it fails
+        // closed and goes to the owner.
+        const now = await getCreditStatus(job.workspaceId, { skipCache: true });
+        if (now.exhausted) {
+          await addRunEvent(run.id, ++seq, "decision", "Out of conversations — not regenerating", {
+            rule: check.rule,
           });
-          if (!check.violates) {
-            draft = { ...retryDraft, category: draft.category };
+          boundaryCheckPassed = false;
+        } else {
+          await addRunEvent(run.id, ++seq, "decision", "Draft violated a boundary — regenerating", {
+            rule: check.rule,
+          });
+          const retry = await gen(check.rule);
+          const retryDraft = parseDraft(retry.text);
+          if (retryDraft?.reply.trim()) {
+            check = await violatesBoundaries({
+              workspaceId: job.workspaceId,
+              runId: run.id,
+              brainVersion,
+              reply: retryDraft.reply,
+              boundaries: pack.boundaries ?? [],
+              bannedPhrases,
+            });
+            if (!check.violates) {
+              draft = { ...retryDraft, category: draft.category };
+            } else {
+              boundaryCheckPassed = false;
+            }
           } else {
             boundaryCheckPassed = false;
           }
-        } else {
-          boundaryCheckPassed = false;
         }
       }
     }

@@ -14,7 +14,8 @@
     "@platform/db": "workspace:*",
     "@platform/schemas": "workspace:*",
     "drizzle-orm": "^0.38.3",
-    "zod": "^3.24.1"
+    "zod": "^3.24.1",
+    "@platform/core": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22",

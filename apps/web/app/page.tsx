@@ -5,7 +5,7 @@ import { Reveal } from "@/components/reveal";
 import { RingField } from "@/components/ring-field";
 import { TransitionLink } from "@/components/transition-link";
 import { Wordmark } from "@/components/wordmark";
-import { PLANS } from "@platform/core";
+import { conversationsFromCredits, PLANS } from "@platform/core";
 import { BRAND } from "@/lib/brand";
 import { COPY } from "@/lib/tokens";
 
@@ -183,7 +183,7 @@ export default function Home() {
             <div className="mt-8 grid gap-4 sm:grid-cols-3">
               {(["trial", "starter", "pro"] as const).map((id) => {
                 const p = PLANS[id];
-                const convos = Math.round(p.monthlyCredits / 4);
+                const convos = conversationsFromCredits(p.monthlyCredits);
                 return (
                   <div key={id} className="rounded-xl border border-line bg-raised p-5">
                     <p className="text-sm font-medium">{p.name}</p>

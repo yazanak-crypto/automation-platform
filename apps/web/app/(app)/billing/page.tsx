@@ -11,6 +11,14 @@ interface Plan {
   setupFeeUsd: number;
   purchasable: boolean;
 }
+
+// Mirrors CREDITS_PER_CONVERSATION in packages/core/src/billing.ts — kept local
+// because this is a client component and @platform/core pulls in the db driver
+// and redis. Keep the two in sync; core is the source of truth.
+const CREDITS_PER_CONVERSATION = 8;
+function conversationsFromCredits(credits: number): number {
+  return Math.round(credits / CREDITS_PER_CONVERSATION);
+}
 interface Data {
   status: {
     plan: string;
@@ -160,7 +168,7 @@ export default function BillingPage() {
                 <p className="mt-2 text-sm text-ink-2">
                   {p.id === "trial"
                     ? "7 days free · full product"
-                    : `About ${Math.round(p.monthlyCredits / 4).toLocaleString()} customer conversations / month`}
+                    : `About ${conversationsFromCredits(p.monthlyCredits).toLocaleString()} customer conversations / month`}
                 </p>
                 {isCurrent ? (
                   <p className="mt-4 text-xs text-ink-3">Current plan</p>

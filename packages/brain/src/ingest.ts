@@ -1,4 +1,5 @@
 import { aiConfigured, callAi } from "@platform/ai";
+import { getCreditStatus } from "@platform/core";
 import { businessProfiles, db, knowledgeItems } from "@platform/db";
 import { draftProfileOutputSchema, type DraftProfileOutput } from "@platform/schemas";
 import { and, eq, notInArray } from "drizzle-orm";
@@ -49,6 +50,16 @@ function parseModelJson(text: string): DraftProfileOutput | null {
  */
 export async function runIngest(workspaceId: string, url: string): Promise<IngestResult> {
   await ensureProfile(workspaceId);
+
+  // Credit gate. This is the most expensive operation in the product — up to two
+  // frontier calls at 4096 maxTokens — so it must never run for a workspace that
+  // is out of credits or past its trial. Checked here rather than only in the
+  // API route, because the job can be queued before the limit is reached and run
+  // after it.
+  const credits = await getCreditStatus(workspaceId);
+  if (credits.exhausted) {
+    return { outcome: "nothing_found", pagesRead: 0, faqsSuggested: 0, productsSuggested: 0 };
+  }
 
   // AI optional: without a provider we skip drafting entirely — the user
   // fills the brain manually (same soft path as an unreadable site).

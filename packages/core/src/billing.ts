@@ -3,10 +3,15 @@ import { and, eq, gte, sql } from "drizzle-orm";
 import { redis } from "./queues";
 
 // Usage-based billing (Decision 001 model, Step 9). One AI credit = $0.01 of
-// estimated AI cost (10,000 microcents), consumption computed straight from
-// the ai_calls ledger — the gateway's numbers ARE the billing numbers.
-
-export const MICROCENTS_PER_CREDIT = 10_000;
+// estimated AI cost, consumption computed straight from the ai_calls ledger —
+// the gateway's numbers ARE the billing numbers.
+//
+// A microcent is 1e-8 USD (see packages/ai/src/pricing.ts, which converts
+// $/MTok to microcents/token by multiplying by 100), so $0.01 = 1e6 microcents.
+// This was 10_000 until 2026-07-28, which made a credit worth $0.0001 — every
+// allowance was enforced 100x too early, capping a full Starter workspace at
+// $0.20 of Anthropic spend instead of $20.
+export const MICROCENTS_PER_CREDIT = 1_000_000;
 
 // Credits are an INTERNAL limit only — never shown to customers. Pricing is
 // quoted as a monthly price plus a visible one-time setup fee, charged once on
@@ -15,8 +20,25 @@ export const PLANS = {
   // 7-day free trial; the credit ceiling is a quiet anti-abuse cap, not the gate.
   trial: { name: "Free trial", monthlyCredits: 300, priceMonthlyUsd: 0, setupFeeUsd: 0 },
   starter: { name: "Starter", monthlyCredits: 2_000, priceMonthlyUsd: 49, setupFeeUsd: 70 },
-  pro: { name: "Premium", monthlyCredits: 10_000, priceMonthlyUsd: 149, setupFeeUsd: 120 },
+  pro: { name: "Premium", monthlyCredits: 5_000, priceMonthlyUsd: 149, setupFeeUsd: 120 },
 } as const;
+
+// The ONLY customer-facing unit is a conversation; credits never appear in the
+// UI. This is the single conversion used by every surface that quotes a count
+// (landing pricing grid, checkout, in-app billing, low-balance banner) — it was
+// duplicated as a bare `/ 4` in all four, which let the quoted numbers drift
+// apart from each other and from the plan table.
+//
+// One conversation ≈ one frontier draft + a fast boundary check, plus headroom
+// for a regeneration round. Raise the divisor when a conversation gets more
+// expensive, lower it when it gets cheaper (e.g. once prompt caching lands) —
+// the quoted counts follow automatically.
+export const CREDITS_PER_CONVERSATION = 8;
+
+/** Credits → the conversation count shown to customers. */
+export function conversationsFromCredits(credits: number): number {
+  return Math.round(credits / CREDITS_PER_CONVERSATION);
+}
 export type PlanId = keyof typeof PLANS;
 
 export function isPlanId(v: string): v is PlanId {
@@ -24,23 +46,17 @@ export function isPlanId(v: string): v is PlanId {
 }
 
 /**
- * Master switch for paid billing. While false (the default), all Stripe code
- * stays in place but is inert: nothing expires, nothing is blocked for payment,
- * and no checkout is offered. Flip BILLING_ENABLED=true once a registered
- * company + live Stripe keys exist.
+ * Master switch for the STRIPE code path only — checkout, the billing portal,
+ * and the Stripe webhook (see billingConfigured() in apps/web/lib/stripe.ts).
+ *
+ * It deliberately does NOT affect credit enforcement. Credits cap real Anthropic
+ * spend, so trial expiry and plan allowances apply whether or not Stripe is
+ * switched on; customers who run out have a working manual payment path at
+ * /checkout. Flip this to true once a registered company + live Stripe keys
+ * exist.
  */
 export function billingEnabled(): boolean {
   return process.env.BILLING_ENABLED === "true";
-}
-
-/**
- * When billing is off, no workspace is ever payment-blocked. Applied at the one
- * chokepoint every downstream gate reads (worker drafting, AI previews,
- * dashboard banners), so none of them need their own flag check.
- */
-function withBillingFlag(status: CreditStatus): CreditStatus {
-  if (billingEnabled()) return status;
-  return { ...status, exhausted: false, trialEnded: false };
 }
 
 export function creditsFromMicrocents(microcents: number): number {
@@ -77,11 +93,11 @@ export async function getCreditStatus(
     const cached = await redis().get(cacheKey).catch(() => null);
     if (cached) {
       const parsed = JSON.parse(cached) as CreditStatus & { periodStart: string; periodEnd: string };
-      return withBillingFlag({
+      return {
         ...parsed,
         periodStart: new Date(parsed.periodStart),
         periodEnd: new Date(parsed.periodEnd),
-      });
+      };
     }
   }
 
@@ -123,12 +139,19 @@ export async function getCreditStatus(
       : calendarPeriod();
 
   const usage = await db()
-    .select({ microcents: sql<number>`coalesce(sum(${aiCalls.estimatedCostMicrocents}), 0)::int` })
+    // ::bigint, not ::int — int4 tops out at 2_147_483_647 microcents ($21.47)
+    // of spend in a single period, which a Starter workspace reaches just shy of
+    // its cap and Premium ($100) blows straight past. Postgres sum() over int4
+    // already returns bigint; the old ::int narrowed it back down and threw.
+    // Values stay far inside Number.MAX_SAFE_INTEGER ($90bn), so the driver
+    // handing this back as a JS number is safe.
+    // postgres.js returns int8 as a string, hence sql<string> + Number() below.
+    .select({ microcents: sql<string>`coalesce(sum(${aiCalls.estimatedCostMicrocents}), 0)::bigint` })
     .from(aiCalls)
     .where(and(eq(aiCalls.workspaceId, workspaceId), gte(aiCalls.createdAt, period.start)));
 
   const allowance = PLANS[plan].monthlyCredits;
-  const used = creditsFromMicrocents(usage[0]?.microcents ?? 0);
+  const used = creditsFromMicrocents(Number(usage[0]?.microcents ?? 0));
 
   // Trial workspaces are time-gated (7 days). null trialEndsAt = legacy/no
   // expiry, treated as active for safety.
@@ -148,7 +171,7 @@ export async function getCreditStatus(
   };
 
   await redis().set(cacheKey, JSON.stringify(status), "EX", 60).catch(() => {});
-  return withBillingFlag(status);
+  return status;
 }
 
 export async function invalidateCreditCache(workspaceId: string) {

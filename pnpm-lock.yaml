@@ -232,6 +232,9 @@ importers:
       '@platform/ai':
         specifier: workspace:*
         version: link:../ai
+      '@platform/core':
+        specifier: workspace:*
+        version: link:../core
       '@platform/db':
         specifier: workspace:*
         version: link:../db

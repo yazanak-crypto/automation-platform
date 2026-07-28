@@ -45,7 +45,7 @@ export async function POST(req: Request) {
   const credits = await getCreditStatus(ctx.workspace.id);
   if (credits.exhausted) {
     return NextResponse.json(
-      { error: "You're out of AI credits this month — upgrade on the Billing page." },
+      { error: "You've used this month's conversations — upgrade on the Billing page." },
       { status: 402 },
     );
   }

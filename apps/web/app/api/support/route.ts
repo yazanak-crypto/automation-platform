@@ -1,5 +1,5 @@
 import { aiConfigured, callAi } from "@platform/ai";
-import { takeLimit } from "@platform/core";
+import { getCreditStatus, takeLimit } from "@platform/core";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { BRAND } from "@/lib/brand";
@@ -32,14 +32,14 @@ Channels: Website chat and Email (Gmail) work today. Add website chat on the Cha
 
 Autonomy: low-risk, well-grounded questions can be answered automatically in Smart mode; refunds, complaints, negotiations, and anything unclear always come to the owner. Boundaries (e.g. "never offer discounts") are always respected.
 
-Billing: 7-day free trial (no card). Then Starter — $119 for the first month, then $49/month; Premium — $219 for the first month, then $149/month. Plans include monthly AI credits. Manage or cancel anytime via the billing portal on the Billing page.
+Billing: 7-day free trial (no card). Then Starter — $49/month plus a one-time $70 setup fee; Premium — $149/month plus a one-time $120 setup fee. The setup fee is charged once, on the first payment. Each plan covers a set number of customer conversations per month. Payment is by bank transfer or Whish from the Billing page; amounts are quoted in fresh USD.
 
 Account: the avatar menu (bottom-left) has Account settings, Billing, Manage profile, and Sign out.`;
 
 function fallback(question: string): string {
   const q = question.toLowerCase();
   if (/bill|price|pay|charge|refund|credit|cancel|subscri|upgrade/.test(q))
-    return `Billing lives on the Billing page. You get a 7-day free trial (no card). Starter is $119 for the first month then $49/month; Premium is $219 then $149/month. You can upgrade, manage, or cancel anytime from there. For anything specific, email support@example.com.`;
+    return `Billing lives on the Billing page. You get a 7-day free trial (no card). Starter is $49/month plus a one-time $70 setup fee; Premium is $149/month plus a one-time $120 setup fee. You can upgrade from there anytime.`;
   if (/activate|automation|marketplace|lead|concierge/.test(q))
     return `To activate an automation: open Automations, pick one, connect a channel, configure it, preview it on a sample message, then go live. It starts in Supervised mode so you approve every reply until you trust it.`;
   if (/channel|website|chat|widget|email|gmail|whatsapp|instagram|integrat/.test(q))
@@ -59,7 +59,14 @@ export async function POST(req: Request) {
 
   const last = parsed.data.messages.filter((m) => m.role === "user").at(-1)?.content ?? "";
 
-  if (!aiConfigured() || !(await takeLimit(`support:${ctx.workspace.id}`, 40, 3600))) {
+  // Credit gate alongside the rate limit: an exhausted workspace still gets a
+  // helpful canned answer, but never spends AI budget.
+  const credits = await getCreditStatus(ctx.workspace.id);
+  if (
+    !aiConfigured() ||
+    credits.exhausted ||
+    !(await takeLimit(`support:${ctx.workspace.id}`, 40, 3600))
+  ) {
     return NextResponse.json({ reply: fallback(last), source: "fallback" });
   }
 
