@@ -20,10 +20,22 @@ export default function ChannelsPage() {
   const [channels, setChannels] = useState<Channel[] | null>(null);
   const [origins, setOrigins] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const res = await fetch("/api/channels");
-    if (res.ok) setChannels(await res.json());
+    const res = await fetch("/api/channels").catch(() => null);
+    if (res?.ok) {
+      setChannels(await res.json());
+      setLoadFailed(false);
+      return;
+    }
+    // Never leave the page on a permanent skeleton: if we have nothing to show,
+    // surface a retry instead. An already-loaded list stays on screen so a blip
+    // in the 5s poll doesn't wipe the page.
+    setChannels((prev) => prev ?? []);
+    setLoadFailed(true);
   }, []);
   useEffect(() => {
     void load();
@@ -32,7 +44,9 @@ export default function ChannelsPage() {
   }, [load]);
 
   async function createChannel() {
-    await fetch("/api/channels", {
+    setCreating(true);
+    setCreateError(null);
+    const res = await fetch("/api/channels", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -40,7 +54,12 @@ export default function ChannelsPage() {
         displayName: "Website chat",
         allowedOrigins: origins.split(",").map((s) => s.trim()).filter(Boolean),
       }),
-    });
+    }).catch(() => null);
+    setCreating(false);
+    if (!res?.ok) {
+      setCreateError("We couldn't set up website chat just now. Please try again.");
+      return;
+    }
     await load();
   }
 
@@ -65,12 +84,20 @@ export default function ChannelsPage() {
       <p className="mt-1 text-sm text-ink-2">Where customers reach you.</p>
       {notice && <p className="mt-3 text-sm text-ok">{notice}</p>}
 
-      <EmailSection channels={channels ?? []} reload={load} />
+      {loadFailed && (
+        <div className="mt-4 rounded-lg border border-line border-l-2 border-l-wait bg-raised p-4">
+          <p className="text-sm text-ink-2">We couldn&apos;t load your channels just now.</p>
+          <button
+            onClick={() => void load()}
+            className="press-glow mt-3 rounded-lg bg-white px-3.5 py-1.5 text-[13px] font-medium text-black transition-transform active:scale-[0.97]"
+          >
+            Try again
+          </button>
+        </div>
+      )}
 
-      <InstagramSection channels={channels ?? []} reload={load} />
-
-      <Ecosystem />
-
+      {/* Website chat first: it's the only channel that works with no external
+          account, so it must not sit below the roadmap grid. */}
       {channels === null ? (
         <div className="mt-8 space-y-4" role="status" aria-label="Loading"><div className="skeleton h-32 w-full" /></div>
       ) : !webchat ? (
@@ -78,7 +105,7 @@ export default function ChannelsPage() {
           <h2 className="font-medium">Website chat</h2>
           <p className="mt-1 text-sm text-ink-2">
             A chat bubble on your website. Visitors ask; AI drafts replies from your Business
-            Brain; nothing sends without your approval.
+            Brain; nothing sends without your approval. No other account needed.
           </p>
           <label className="mt-4 block text-sm text-ink-2">
             Your website (where the widget will live)
@@ -89,16 +116,24 @@ export default function ChannelsPage() {
             onChange={(e) => setOrigins(e.target.value)}
             placeholder="https://acme.com"
           />
+          {createError && <p className="mt-3 text-sm text-stop">{createError}</p>}
           <button
             onClick={createChannel}
-            className="press-glow mt-4 rounded-lg bg-white px-4 py-2 text-sm font-medium text-black transition-transform active:scale-[0.97]"
+            disabled={creating}
+            className="press-glow mt-4 rounded-lg bg-white px-4 py-2 text-sm font-medium text-black transition-transform active:scale-[0.97] disabled:opacity-50"
           >
-            Set up website chat
+            {creating ? "Setting up…" : "Set up website chat"}
           </button>
         </div>
       ) : (
         <WebchatCard channel={webchat} onSaveOrigins={saveOrigins} />
       )}
+
+      <EmailSection channels={channels ?? []} reload={load} />
+
+      <InstagramSection channels={channels ?? []} reload={load} />
+
+      <Ecosystem />
     </main>
   );
 }
