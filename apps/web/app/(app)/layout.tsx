@@ -18,7 +18,28 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // OUTSIDE this (app) group, so it's never caught by this redirect. Uses a
   // single-column read, not the full brain (perf).
   if (ctx) {
-    const status = await getOnboardingStatus(ctx.workspace.id).catch(() => "pending");
+    // TEMP DIAGNOSTIC (onboarding loop): log what the guard actually resolves
+    // and reads on every evaluation, and stop swallowing read failures
+    // silently — a thrown read currently degrades to "pending", which is
+    // indistinguishable from a genuinely un-onboarded workspace. Remove once
+    // the loop is root-caused.
+    let status: string;
+    try {
+      status = await getOnboardingStatus(ctx.workspace.id);
+    } catch (err) {
+      status = "pending";
+      console.error("[onboarding-guard] READ FAILED", {
+        clerkUserId: ctx.user.clerkId,
+        workspaceId: ctx.workspace.id,
+        error: err instanceof Error ? `${err.name}: ${err.message}` : String(err),
+      });
+    }
+    console.log("[onboarding-guard]", {
+      clerkUserId: ctx.user.clerkId,
+      workspaceId: ctx.workspace.id,
+      statusRead: status,
+      willRedirect: status !== "confirmed" && status !== "skipped",
+    });
     if (status !== "confirmed" && status !== "skipped") redirect("/onboarding");
   }
 
