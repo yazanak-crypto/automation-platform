@@ -48,13 +48,22 @@ export const workspaces = pgTable("workspaces", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const workspaceMembers = pgTable("workspace_members", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id),
-  userId: uuid("user_id").notNull().references(() => users.id),
-  role: text("role", { enum: ["owner", "admin", "member"] }).notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const workspaceMembers = pgTable(
+  "workspace_members",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id),
+    userId: uuid("user_id").notNull().references(() => users.id),
+    role: text("role", { enum: ["owner", "admin", "member"] }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    // DB-level guarantee behind the onboarding-loop fix: one membership row per
+    // user per workspace. Also makes the invite path's onConflictDoNothing real
+    // (without a unique constraint it silently never conflicts).
+    uniqueIndex("workspace_members_workspace_user_idx").on(t.workspaceId, t.userId),
+  ],
+);
 
 // ── Business Brain (Decision 008, M1 step 2) ────────────────────────────────
 
