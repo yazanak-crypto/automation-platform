@@ -16,7 +16,7 @@ import { db, users, workspaceMembers, workspaces } from "@platform/db";
 import { eq } from "drizzle-orm";
 import { findWorkspaceByClerkId, resolveWorkspace } from "../src/workspace";
 
-const hasDb = !!process.env.DATABASE_URL;
+const hasDb = !!process.env.TEST_DATABASE_URL;
 const uuid = () => crypto.randomUUID();
 
 describe.skipIf(!hasDb)("workspace resolution (onboarding-loop regressions)", () => {
