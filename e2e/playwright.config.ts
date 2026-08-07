@@ -14,10 +14,17 @@ export default defineConfig({
   webServer: process.env.E2E_BASE_URL
     ? undefined
     : {
-        command: "pnpm --filter @platform/web dev",
+        // E2E_BUILD=1 runs a real production build instead of `next dev`.
+        // This matters for the onboarding-loop regression test: the client
+        // Router Cache — where that bug lived — behaves differently under
+        // `next dev` (no prerender, different prefetch/stale semantics), so a
+        // dev server can pass while production is broken. CI sets E2E_BUILD=1.
+        command: process.env.E2E_BUILD === "1"
+          ? "pnpm --filter @platform/web build && pnpm --filter @platform/web start"
+          : "pnpm --filter @platform/web dev",
         url: "http://localhost:3000",
         reuseExistingServer: true,
-        timeout: 120_000,
+        timeout: process.env.E2E_BUILD === "1" ? 300_000 : 120_000,
         cwd: "..",
       },
 });
