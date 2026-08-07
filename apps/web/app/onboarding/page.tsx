@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Wordmark } from "@/components/wordmark";
 
@@ -31,6 +31,13 @@ export default function OnboardingPage() {
   const [saving, setSaving] = useState(false);
   const [assembling, setAssembling] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Leaving-onboarding handshake: the push must wait for the router cache
+  // invalidation AND the assembling beat. See finish().
+  const [isRefreshing, startRefresh] = useTransition();
+  const [leaving, setLeaving] = useState(false);
+  const [beatDone, setBeatDone] = useState(false);
+  const leaveTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const pushedRef = useRef(false);
 
   const loadBrain = useCallback(async () => {
     const res = await fetch("/api/brain");
@@ -108,11 +115,49 @@ export default function OnboardingPage() {
 
   // Spec §4: after onboarding completes, a full-screen "assembling" moment
   // (never a raw swap) then into the seeded dashboard.
+  //
+  // The push MUST be preceded by router.refresh(). While the user sat here,
+  // the client prefetched /dashboard and cached its RSC payload — and at that
+  // point onboarding was still "pending", so that payload IS a redirect back
+  // to /onboarding. A bare router.push replays it, bouncing the user even
+  // though the write succeeded and the server would now let them through.
+  // That was the redirect loop: it lived entirely in the browser, which is why
+  // the database always looked correct.
   function finish() {
     localStorage.removeItem("ovanth.onboarding");
     setAssembling(true);
-    setTimeout(() => router.push("/dashboard?activated=1"), 1900);
+    pushedRef.current = false;
+    setBeatDone(false);
+    setLeaving(true);
+    startRefresh(() => router.refresh());
+    leaveTimersRef.current.push(setTimeout(() => setBeatDone(true), 1900));
+    // Safety net: if the refresh never settles (dropped network mid-transition),
+    // don't strand the user on the assembling screen. A full document load
+    // bypasses the client router cache entirely, so it cannot replay the stale
+    // redirect the way router.push can.
+    leaveTimersRef.current.push(
+      setTimeout(() => {
+        if (pushedRef.current) return;
+        pushedRef.current = true;
+        window.location.assign("/dashboard?activated=1");
+      }, 8000),
+    );
   }
+
+  // Navigate only once the cache is actually invalidated (transition settled)
+  // and the assembling beat has played.
+  useEffect(() => {
+    if (!leaving || isRefreshing || !beatDone || pushedRef.current) return;
+    pushedRef.current = true;
+    router.push("/dashboard?activated=1");
+  }, [leaving, isRefreshing, beatDone, router]);
+
+  useEffect(
+    () => () => {
+      for (const t of leaveTimersRef.current) clearTimeout(t);
+    },
+    [],
+  );
 
   async function skip() {
     setSaving(true);

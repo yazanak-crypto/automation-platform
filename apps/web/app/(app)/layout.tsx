@@ -18,22 +18,23 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // OUTSIDE this (app) group, so it's never caught by this redirect. Uses a
   // single-column read, not the full brain (perf).
   if (ctx) {
-    // TEMP DIAGNOSTIC (onboarding loop): log what the guard actually resolves
-    // and reads on every evaluation, and stop swallowing read failures
-    // silently — a thrown read currently degrades to "pending", which is
-    // indistinguishable from a genuinely un-onboarded workspace. Remove once
-    // the loop is root-caused.
+    // A failed read must NOT degrade to "pending". Treating an unreachable
+    // database as "not onboarded" sends a fully onboarded user to /onboarding,
+    // where finishing writes a status nobody can read back — an unbreakable
+    // loop caused by an outage rather than by state. Let it throw instead: the
+    // error boundary offers a retry, which is honest and recoverable.
     let status: string;
     try {
       status = await getOnboardingStatus(ctx.workspace.id);
     } catch (err) {
-      status = "pending";
       console.error("[onboarding-guard] READ FAILED", {
         clerkUserId: ctx.user.clerkId,
         workspaceId: ctx.workspace.id,
         error: err instanceof Error ? `${err.name}: ${err.message}` : String(err),
       });
+      throw err;
     }
+    // TEMP DIAGNOSTIC (onboarding loop): kept for one more verification cycle.
     console.log("[onboarding-guard]", {
       clerkUserId: ctx.user.clerkId,
       workspaceId: ctx.workspace.id,
