@@ -16,6 +16,8 @@ export { ReconnectRequiredError };
 const NANGO_BASE = "https://api.nango.dev";
 // Graph API version is pinned so behavior can't shift under us; bump deliberately.
 const IG_GRAPH = "https://graph.instagram.com/v21.0";
+// WhatsApp Cloud API lives on the main Graph host, not graph.instagram.com.
+const WA_GRAPH = "https://graph.facebook.com/v21.0";
 
 /** Nango provider config keys. The user names these in the Nango dashboard. */
 export const META_PROVIDERS = {
@@ -213,4 +215,193 @@ export function parseInstagramWebhook(payload: unknown): InstagramInboundEvent[]
     }
   }
   return out;
+}
+
+// ── WhatsApp Cloud API ──────────────────────────────────────────────────────
+// Unlike Instagram, WhatsApp credentials do NOT come from Nango: the Cloud API
+// uses a long-lived System User token issued for one WhatsApp Business Account,
+// supplied via env. Everything Meta-specific still stays inside this file.
+
+export interface WhatsAppCredentials {
+  accessToken: string;
+  phoneNumberId: string;
+  businessAccountId?: string;
+}
+
+/**
+ * Read the WhatsApp Cloud API credentials from env. Returns null when the
+ * channel isn't configured, so callers degrade instead of throwing at import.
+ */
+export function whatsappCredentials(): WhatsAppCredentials | null {
+  const accessToken = process.env.WHATSAPP_ACCESS_TOKEN?.trim();
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID?.trim();
+  if (!accessToken || !phoneNumberId) return null;
+  return {
+    accessToken,
+    phoneNumberId,
+    businessAccountId: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID?.trim() || undefined,
+  };
+}
+
+export interface WhatsAppInboundEvent {
+  /** Business phone number id the message was sent TO — routes to a channel. */
+  phoneNumberId: string;
+  /** WhatsApp Business Account id (entry.id). Diagnostics/routing headroom. */
+  wabaId: string;
+  /** Sender's WhatsApp id (phone number, digits only) — identity + reply target. */
+  waId: string;
+  /** Provider message id (`wamid.…`) — the idempotency key. */
+  mid: string;
+  text: string;
+  senderName?: string;
+  receivedAt: Date;
+}
+
+/** A message we deliberately did not ingest, so the caller can log why. */
+export interface WhatsAppSkipped {
+  mid: string;
+  /** Message type we can't handle yet, or "text:empty". */
+  type: string;
+}
+
+/**
+ * Extract inbound text messages from a WhatsApp Cloud API webhook payload.
+ *
+ * The shape differs from Instagram's in every important way:
+ *   entry[].changes[].value.messages[]   (not entry[].messaging[])
+ *   metadata.phone_number_id             (routing key, not entry.id)
+ *   timestamp is UNIX SECONDS as a STRING (Instagram sends ms as a number) —
+ *   treating them alike dates every message to 1970.
+ *
+ * Non-text messages are reported in `skipped` rather than dropped silently or,
+ * worse, ingested as empty text — an image would otherwise become a blank
+ * customer message the AI then tries to answer.
+ */
+export function parseWhatsAppWebhook(payload: unknown): {
+  events: WhatsAppInboundEvent[];
+  skipped: WhatsAppSkipped[];
+} {
+  const p = payload as {
+    object?: string;
+    entry?: Array<{
+      id?: string;
+      changes?: Array<{
+        field?: string;
+        value?: {
+          metadata?: { phone_number_id?: string };
+          contacts?: Array<{ profile?: { name?: string }; wa_id?: string }>;
+          messages?: Array<{
+            from?: string;
+            id?: string;
+            timestamp?: string | number;
+            type?: string;
+            text?: { body?: string };
+          }>;
+        };
+      }>;
+    }>;
+  };
+  const events: WhatsAppInboundEvent[] = [];
+  const skipped: WhatsAppSkipped[] = [];
+  if (p?.object !== "whatsapp_business_account" || !Array.isArray(p.entry)) {
+    return { events, skipped };
+  }
+
+  for (const entry of p.entry) {
+    const wabaId = entry?.id ?? "";
+    for (const change of entry?.changes ?? []) {
+      const value = change?.value;
+      const phoneNumberId = value?.metadata?.phone_number_id;
+      // `statuses` payloads (delivered/read receipts) carry no `messages`.
+      if (!phoneNumberId || !Array.isArray(value?.messages)) continue;
+
+      // wa_id → profile name, so the contact gets a human label.
+      const names = new Map<string, string>();
+      for (const c of value.contacts ?? []) {
+        if (c?.wa_id && c.profile?.name) names.set(c.wa_id, c.profile.name);
+      }
+
+      for (const m of value.messages) {
+        if (!m?.id || !m.from) continue;
+        if (m.type !== "text") {
+          skipped.push({ mid: m.id, type: m.type ?? "unknown" });
+          continue;
+        }
+        const text = m.text?.body;
+        if (typeof text !== "string" || !text.trim()) {
+          skipped.push({ mid: m.id, type: "text:empty" });
+          continue;
+        }
+        const seconds = typeof m.timestamp === "string" ? Number(m.timestamp) : m.timestamp;
+        events.push({
+          phoneNumberId,
+          wabaId,
+          waId: m.from,
+          mid: m.id,
+          text,
+          senderName: names.get(m.from),
+          receivedAt:
+            Number.isFinite(seconds) && seconds ? new Date(Number(seconds) * 1000) : new Date(),
+        });
+      }
+    }
+  }
+  return { events, skipped };
+}
+
+/** Raised when Meta rejects a send because the 24-hour service window closed. */
+export class OutsideServiceWindowError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "OutsideServiceWindowError";
+  }
+}
+
+/**
+ * Send a plain-text WhatsApp message. `to` is the sender's wa_id from inbound.
+ *
+ * Meta only allows free-form replies within 24 hours of the customer's last
+ * message; outside that window a pre-approved template is required. We have no
+ * templates configured, so that failure is surfaced explicitly rather than
+ * looking like a generic network error.
+ */
+export async function sendWhatsAppMessage(
+  creds: WhatsAppCredentials,
+  to: string,
+  text: string,
+): Promise<{ mid: string }> {
+  const res = await fetch(`${WA_GRAPH}/${encodeURIComponent(creds.phoneNumberId)}/messages`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${creds.accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to,
+      type: "text",
+      text: { preview_url: false, body: text },
+    }),
+  });
+
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    // 131047 = "Message failed to send because more than 24 hours have passed".
+    if (detail.includes("131047") || detail.includes("re-engagement message")) {
+      throw new OutsideServiceWindowError(
+        "WhatsApp's 24-hour reply window has closed for this conversation; " +
+          "an approved message template is required to reply.",
+      );
+    }
+    if (res.status === 401 || res.status === 403) {
+      throw new ReconnectRequiredError(`WhatsApp auth failed: ${res.status}`);
+    }
+    throw new Error(`WhatsApp send failed: ${res.status} ${detail.slice(0, 200)}`);
+  }
+
+  const data = (await res.json()) as { messages?: Array<{ id?: string }> };
+  const mid = data.messages?.[0]?.id;
+  if (!mid) throw new Error("WhatsApp send returned no message id");
+  return { mid };
 }

@@ -6,3 +6,4 @@ export * from "./email";
 export * from "./gmail";
 export * from "./meta";
 export * from "./instagram";
+export * from "./whatsapp";

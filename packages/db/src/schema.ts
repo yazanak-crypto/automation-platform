@@ -243,7 +243,7 @@ export const contacts = pgTable(
     // Anonymous continuity only (plan §1b): opaque visitor token, no CRM.
     webchatVisitorId: text("webchat_visitor_id"),
     identities: jsonb("identities")
-      .$type<{ email?: string; instagram?: string }>()
+      .$type<{ email?: string; instagram?: string; whatsapp?: string }>()
       .notNull()
       .default({}),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

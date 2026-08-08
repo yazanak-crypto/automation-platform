@@ -112,6 +112,14 @@ function checkOptional() {
   add("Email (Resend)", emailReady ? "PASS" : "SKIP", emailReady ? "configured" : "unset — approval/invite emails skipped (drafts still queue in-app)");
   const metaReady = process.env.META_APP_SECRET && process.env.META_WEBHOOK_VERIFY_TOKEN;
   add("Meta webhooks", metaReady ? "PASS" : "SKIP", metaReady ? "configured" : "unset — Instagram/Messenger inbound disabled");
+  const waReady = process.env.WHATSAPP_ACCESS_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID;
+  add(
+    "WhatsApp",
+    waReady ? "PASS" : "SKIP",
+    waReady
+      ? `phone id ${process.env.WHATSAPP_PHONE_NUMBER_ID} — needs a channel row (scripts/whatsapp-setup.ts)`
+      : "unset — WhatsApp inbound/outbound disabled",
+  );
 }
 
 const ICONS = { PASS: "✅", FAIL: "❌", SKIP: "⏭️ " };
