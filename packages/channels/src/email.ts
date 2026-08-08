@@ -9,6 +9,7 @@ import {
 import { and, desc, eq, sql } from "drizzle-orm";
 import type { ChannelAdapter } from "./adapter";
 import { deliverInstagram } from "./instagram";
+import { deliverWhatsApp } from "./whatsapp";
 import {
   extractBody,
   getMessage,
@@ -194,6 +195,20 @@ export async function deliverOutbound(messageId: string): Promise<void> {
   if (row.channel.type === "instagram") {
     try {
       await deliverInstagram(row);
+      await db().update(messages).set({ deliveryState: "sent" }).where(eq(messages.id, messageId));
+    } catch (err) {
+      await db()
+        .update(messages)
+        .set({ deliveryState: "failed" })
+        .where(eq(messages.id, messageId));
+      throw err;
+    }
+    return;
+  }
+
+  if (row.channel.type === "whatsapp") {
+    try {
+      await deliverWhatsApp(row);
       await db().update(messages).set({ deliveryState: "sent" }).where(eq(messages.id, messageId));
     } catch (err) {
       await db()
