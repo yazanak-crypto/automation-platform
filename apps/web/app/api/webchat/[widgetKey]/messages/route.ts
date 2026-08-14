@@ -40,7 +40,7 @@ export async function POST(
 
   const parsed = webchatInboundSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return corsJson({ error: "Invalid message" }, origin, 400);
-  const { visitorId, body, clientMessageId, email } = parsed.data;
+  const { visitorId, body, clientMessageId, email, name } = parsed.data;
 
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
   const allowed =
@@ -49,7 +49,7 @@ export async function POST(
     (await takeLimit(`wc:ws:${channel.workspaceId}`, 500, 86400));
   if (!allowed) return corsJson({ error: "Too many messages" }, origin, 429);
 
-  const contact = await upsertVisitorContact(channel.workspaceId, visitorId, email);
+  const contact = await upsertVisitorContact(channel.workspaceId, visitorId, email, name);
   const conversation = await getOrCreateOpenConversation(
     channel.workspaceId,
     channel.id,
