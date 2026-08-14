@@ -15,6 +15,24 @@
     localStorage.setItem(LS_KEY, visitorId);
   }
 
+  // Optional identity. Sent once with the visitor's first message, then
+  // remembered so we never ask twice. "Skipped" is remembered too — a visitor
+  // who declined must not be re-prompted on every visit.
+  const ID_KEY = `platform_identity_${widgetKey}`;
+  let identity: { name?: string; email?: string; asked?: boolean } = {};
+  try {
+    identity = JSON.parse(localStorage.getItem(ID_KEY) ?? "{}");
+  } catch {
+    /* corrupt entry — treat as never asked */
+  }
+  const saveIdentity = () => {
+    try {
+      localStorage.setItem(ID_KEY, JSON.stringify(identity));
+    } catch {
+      /* private mode — identity just won't persist */
+    }
+  };
+
   interface Msg { id: string; direction: string; body: string }
   let msgs: Msg[] = [];
   let open = false;
@@ -59,6 +77,52 @@
   const send = el("button", { background: accent, color: "#fff", border: "none", borderRadius: "10px", padding: "0 16px", cursor: "pointer", fontSize: "14px" }, form) as HTMLButtonElement;
   send.type = "submit";
   send.textContent = "Send";
+
+  // ── Optional identity strip ───────────────────────────────────────────────
+  // Sits above the composer rather than in front of it: the message box stays
+  // usable the whole time, so this can never become a gate on asking a
+  // question. Shown only until answered or skipped once.
+  const idBar = el("div", {
+    display: "none", flexDirection: "column", gap: "6px",
+    padding: "10px", background: "#fff", borderTop: "1px solid #eee",
+  }, panel);
+  const idLabel = el("div", { fontSize: "12px", color: "#666" }, idBar);
+  idLabel.textContent = "Who are we speaking with? (optional)";
+  const idRow = el("div", { display: "flex", gap: "6px" }, idBar);
+  const nameInput = el("input", { flex: "1", minWidth: "0", border: "1px solid #ddd", borderRadius: "8px", padding: "7px 9px", fontSize: "13px", outline: "none" }, idRow) as HTMLInputElement;
+  nameInput.placeholder = "Name";
+  nameInput.maxLength = 120;
+  const emailInput = el("input", { flex: "1", minWidth: "0", border: "1px solid #ddd", borderRadius: "8px", padding: "7px 9px", fontSize: "13px", outline: "none" }, idRow) as HTMLInputElement;
+  emailInput.placeholder = "Email";
+  emailInput.type = "email";
+  emailInput.maxLength = 300;
+  const idActions = el("div", { display: "flex", gap: "8px", alignItems: "center" }, idBar);
+  const idSave = el("button", { background: accent, color: "#fff", border: "none", borderRadius: "8px", padding: "6px 12px", cursor: "pointer", fontSize: "12px" }, idActions) as HTMLButtonElement;
+  idSave.type = "button";
+  idSave.textContent = "Save";
+  const idSkip = el("button", { background: "none", border: "none", color: "#999", cursor: "pointer", fontSize: "12px", textDecoration: "underline" }, idActions) as HTMLButtonElement;
+  idSkip.type = "button";
+  idSkip.textContent = "Skip";
+
+  function showIdBar() {
+    idBar.style.display = identity.asked ? "none" : "flex";
+  }
+  idSave.addEventListener("click", () => {
+    const n = nameInput.value.trim();
+    const e = emailInput.value.trim();
+    // An invalid address is dropped rather than rejected — nagging a customer
+    // about a typo in an optional field is worse than not having the field.
+    identity = { name: n || undefined, email: /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e) ? e : undefined, asked: true };
+    saveIdentity();
+    showIdBar();
+    input.focus();
+  });
+  idSkip.addEventListener("click", () => {
+    identity.asked = true;
+    saveIdentity();
+    showIdBar();
+    input.focus();
+  });
 
   const powered = el("div", { textAlign: "center", fontSize: "11px", color: "#999", padding: "4px 0 8px", background: "#fff" }, panel);
   powered.textContent = "Powered by Ovanth";
@@ -124,7 +188,13 @@
       const res = await fetch(`${base}/api/webchat/${widgetKey}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ visitorId, body, clientMessageId }),
+        body: JSON.stringify({
+          visitorId,
+          body,
+          clientMessageId,
+          ...(identity.name ? { name: identity.name } : {}),
+          ...(identity.email ? { email: identity.email } : {}),
+        }),
       });
       warnIfBlocked(res.status);
       void poll();
@@ -146,6 +216,7 @@
     if (open) {
       void poll();
       pollTimer = window.setInterval(poll, 3000);
+      showIdBar();
       input.focus();
     }
   }

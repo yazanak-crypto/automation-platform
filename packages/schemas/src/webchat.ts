@@ -4,7 +4,21 @@ export const webchatInboundSchema = z.object({
   visitorId: z.string().uuid(),
   body: z.string().min(1).max(4000),
   clientMessageId: z.string().uuid(),
-  email: z.string().email().max(300).optional(),
+  // Optional identity, volunteered by the visitor in the widget. Both are
+  // skippable by design — a visitor who just wants to ask a question must
+  // never be blocked by a form. Empty strings are coerced away so a skipped
+  // form doesn't overwrite details we already have.
+  email: z
+    .string()
+    .email()
+    .max(300)
+    .optional()
+    .or(z.literal("").transform(() => undefined)),
+  name: z
+    .string()
+    .max(120)
+    .optional()
+    .or(z.literal("").transform(() => undefined)),
 });
 
 export const channelCreateSchema = z.object({

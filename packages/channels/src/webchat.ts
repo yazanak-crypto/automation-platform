@@ -62,12 +62,14 @@ export async function upsertVisitorContact(
   workspaceId: string,
   visitorId: string,
   email?: string,
+  name?: string,
 ) {
   const inserted = await db()
     .insert(contacts)
     .values({
       workspaceId,
       webchatVisitorId: visitorId,
+      displayName: name,
       identities: email ? { email } : {},
     })
     .onConflictDoNothing()
@@ -82,11 +84,20 @@ export async function upsertVisitorContact(
     .limit(1);
   const contact = existing[0];
   if (!contact) throw new Error("Failed to upsert contact");
+  // Only ever fill blanks. A visitor who submits the form once and later sends
+  // messages without it must not have their details erased.
+  const patch: Partial<typeof contacts.$inferInsert> = {};
   if (email && contact.identities.email !== email) {
-    await db()
+    patch.identities = { ...contact.identities, email };
+  }
+  if (name && !contact.displayName) patch.displayName = name;
+  if (Object.keys(patch).length > 0) {
+    const updated = await db()
       .update(contacts)
-      .set({ identities: { ...contact.identities, email } })
-      .where(eq(contacts.id, contact.id));
+      .set(patch)
+      .where(eq(contacts.id, contact.id))
+      .returning();
+    return updated[0] ?? contact;
   }
   return contact;
 }

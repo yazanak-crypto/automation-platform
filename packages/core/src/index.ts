@@ -7,3 +7,4 @@ export * from "./graduation";
 export * from "./billing";
 export * from "./notifications";
 export * from "./payments";
+export * from "./contacts";
