@@ -105,7 +105,8 @@ export default function ChannelsPage() {
           <h2 className="font-medium">Website chat</h2>
           <p className="mt-1 text-sm text-ink-2">
             A chat bubble on your website. Visitors ask; AI drafts replies from your Business
-            Brain; nothing sends without your approval. No other account needed.
+            Brain; nothing sends without your approval, until you enable Smart Automation. No
+            other account needed.
           </p>
           <label className="mt-4 block text-sm text-ink-2">
             Your website (where the widget will live)
@@ -173,8 +174,8 @@ function EmailSection({ channels, reload }: { channels: Channel[]; reload: () =>
         <div>
           <h2 className="font-medium">Email (Gmail)</h2>
           <p className="mt-1 text-sm text-ink-2">
-            Your AI reads incoming email and drafts replies — same approval flow, same autonomy
-            rules as website chat.
+            Your AI reads incoming email and drafts replies — nothing sends without your approval,
+            until you enable Smart Automation.
           </p>
         </div>
         {nangoKey ? (
@@ -284,8 +285,8 @@ function InstagramSection({
         <div>
           <h2 className="font-medium">Instagram (Business)</h2>
           <p className="mt-1 text-sm text-ink-2">
-            Your AI reads incoming Instagram DMs and drafts replies — same approval flow, same
-            autonomy rules as website chat and email.
+            Your AI reads incoming Instagram DMs and drafts replies — nothing sends without your
+            approval, until you enable Smart Automation.
           </p>
         </div>
         {nangoKey ? (
@@ -447,8 +448,8 @@ function WebchatCard({
       <div>
         <p className="text-sm text-ink-2">
           This adds a small chat bubble to your website. Visitors ask a question; your AI drafts a
-          reply from your Business Brain; nothing sends without your approval. Pick where your site
-          is built and follow the steps:
+          reply from your Business Brain; nothing sends without your approval, until you enable
+          Smart Automation. Pick where your site is built and follow the steps:
         </p>
 
         <div className="mt-3 flex flex-wrap gap-2">
