@@ -52,7 +52,7 @@ export default function ActiveAutomations() {
           }
         >
           Start with the Lead Concierge — it watches your channels and drafts replies in your
-          voice. Nothing sends without you.
+          voice. Nothing sends without your approval, until you enable Smart Automation.
         </EmptyState>
       ) : (
         <ul className="divide-y divide-line border-y border-line">

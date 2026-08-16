@@ -4,8 +4,15 @@ import { expect, test } from "@playwright/test";
 
 test("landing page renders the promise", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { level: 1 })).toContainText("AI that works");
-  await expect(page.getByText("Nothing sends without you.")).toBeVisible();
+  // Both assertions previously checked copy that no longer exists ("AI that
+  // works", "Nothing sends without you."). The test never ran in CI — the
+  // e2e job is gated behind E2E_ENABLED — so it rotted unnoticed while
+  // reporting nothing. Asserting the supervised-by-default promise, which is
+  // the claim that actually has to stay true.
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("It learns your business");
+  await expect(
+    page.getByText("Every reply waits for your approval while your AI is in training."),
+  ).toBeVisible();
 });
 
 test("widget bundle is served", async ({ request }) => {

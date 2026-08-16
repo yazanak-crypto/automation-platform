@@ -50,7 +50,7 @@ export const leadConcierge: AutomationDefinition = {
       "AI reads the message and understands what they need",
       "It qualifies the inquiry — intent, urgency, buying signals",
       "A reply is drafted in your voice, using only facts from your Business Brain",
-      "You approve, edit, or dismiss — nothing sends without you",
+      "You approve, edit, or dismiss — nothing sends without your approval, until you enable Smart Automation",
     ],
     requiredCapabilities: ["inbound-messages", "draft-replies"],
     contextNeeds: ["identity", "voice", "policies", "boundaries", "faq_retrieval"],
