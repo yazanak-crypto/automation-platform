@@ -1,0 +1,212 @@
+"use client";
+
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  VERTICALS,
+  answeredCount,
+  detectVertical,
+  visibleQuestions,
+  type AnswerValue,
+} from "@platform/brain";
+import { QuestionInput } from "@/components/brain-inputs";
+import { Page, PageHeader, SkeletonRows } from "@/components/ui";
+
+// Guided Brain setup: one question per screen, tailored to the business type.
+// The advanced Knowledge view at /brain is untouched — this is the front door,
+// not a replacement.
+
+type Values = Record<string, AnswerValue>;
+
+export default function BrainSetupPage() {
+  const [loaded, setLoaded] = useState(false);
+  const [vertical, setVertical] = useState<string | null>(null);
+  const [values, setValues] = useState<Values>({});
+  const [guessed, setGuessed] = useState<string[]>([]);
+  const [index, setIndex] = useState(0);
+  const [saving, setSaving] = useState<"idle" | "saving" | "failed">("idle");
+  const [done, setDone] = useState(false);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    void (async () => {
+      const res = await fetch("/api/brain/answers").catch(() => null);
+      if (res?.ok) {
+        const d = await res.json();
+        setValues((d.values ?? {}) as Values);
+        setGuessed(d.guessed ?? []);
+        // Pre-select from the scraped industry, but the picker still shows —
+        // a wrong guess costs one tap, never a wrong question set.
+        setVertical(d.vertical ?? (d.detectedIndustry ? detectVertical(d.detectedIndustry) : null));
+      }
+      setLoaded(true);
+    })();
+  }, []);
+
+  const save = useCallback(
+    (patch: { values?: Values; vertical?: string; completed?: boolean }) => {
+      setSaving("saving");
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      saveTimer.current = setTimeout(async () => {
+        const res = await fetch("/api/brain/answers", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(patch),
+        }).catch(() => null);
+        setSaving(res?.ok ? "idle" : "failed");
+      }, 500);
+    },
+    [],
+  );
+
+  const questions = useMemo(
+    () => (vertical ? visibleQuestions(vertical, values) : []),
+    [vertical, values],
+  );
+  const progress = useMemo(
+    () => (vertical ? answeredCount(vertical, values) : { answered: 0, total: 0 }),
+    [vertical, values],
+  );
+
+  function setAnswer(id: string, v: AnswerValue) {
+    const next = { ...values, [id]: v };
+    setValues(next);
+    setGuessed((g) => g.filter((x) => x !== id)); // now it's their answer
+    save({ values: { [id]: v } });
+  }
+
+  if (!loaded) {
+    return (
+      <Page>
+        <PageHeader title="Set up your Business Brain" />
+        <SkeletonRows rows={4} />
+      </Page>
+    );
+  }
+
+  // ── Step 1: which business are you? ───────────────────────────────────────
+  if (!vertical) {
+    return (
+      <Page>
+        <PageHeader
+          title="What kind of business are you?"
+          subtitle="We'll only ask the questions that matter for your type of business."
+        />
+        <div className="grid gap-2.5 sm:grid-cols-2">
+          {VERTICALS.map((v) => (
+            <button
+              key={v.id}
+              onClick={() => {
+                setVertical(v.id);
+                save({ vertical: v.id });
+              }}
+              className="rise rounded-xl border border-line p-4 text-left transition-colors hover:border-line-strong hover:bg-hover"
+            >
+              <p className="text-sm font-medium">{v.label}</p>
+              <p className="mt-1 text-[13px] leading-relaxed text-ink-2">{v.blurb}</p>
+            </button>
+          ))}
+        </div>
+      </Page>
+    );
+  }
+
+  // ── Done ──────────────────────────────────────────────────────────────────
+  if (done || index >= questions.length) {
+    return (
+      <Page>
+        <PageHeader
+          title="Your Brain is set up"
+          subtitle={`${progress.answered} of ${progress.total} questions answered — you can change any of it any time.`}
+        />
+        <div className="flex flex-wrap gap-3">
+          <Link
+            href="/brain"
+            className="rounded-lg bg-white px-5 py-2.5 text-sm font-medium text-black"
+          >
+            See everything your AI knows
+          </Link>
+          <button
+            onClick={() => {
+              setDone(false);
+              setIndex(0);
+            }}
+            className="rounded-lg border border-line px-5 py-2.5 text-sm"
+          >
+            Go through it again
+          </button>
+        </div>
+        <p className="mt-6 text-sm text-ink-2">
+          Anything you left blank simply won&apos;t be answered automatically — your AI brings
+          those to you instead of guessing.
+        </p>
+      </Page>
+    );
+  }
+
+  const q = questions[index]!;
+  const isGuess = guessed.includes(q.id);
+
+  return (
+    <Page>
+      <PageHeader
+        title="Set up your Business Brain"
+        subtitle={`Question ${index + 1} of ${questions.length}`}
+        back={{ href: "/brain", label: "Knowledge" }}
+      />
+
+      <div className="mb-6 h-1 w-full overflow-hidden rounded-full bg-hover">
+        <div
+          className="h-full rounded-full bg-brass transition-all duration-300"
+          style={{ width: `${((index + 1) / questions.length) * 100}%` }}
+        />
+      </div>
+
+      <div key={q.id} className="rise">
+        <h2 className="text-lg font-medium">{q.label}</h2>
+        {q.help && <p className="mt-1 text-sm leading-relaxed text-ink-2">{q.help}</p>}
+        {isGuess && (
+          <p className="mt-2 inline-block rounded-md bg-brass-dim px-2 py-1 text-[12px] text-brass">
+            We guessed this from your website — check it&apos;s right
+          </p>
+        )}
+
+        <div className="mt-4">
+          <QuestionInput question={q} value={values[q.id]} onChange={(v) => setAnswer(q.id, v)} />
+        </div>
+      </div>
+
+      <div className="mt-8 flex items-center gap-3">
+        <button
+          disabled={index === 0}
+          onClick={() => setIndex((i) => i - 1)}
+          className="text-sm text-ink-3 disabled:opacity-40"
+        >
+          ← Back
+        </button>
+        <button
+          onClick={() => {
+            if (index + 1 >= questions.length) {
+              save({ completed: true });
+              setDone(true);
+            } else setIndex((i) => i + 1);
+          }}
+          className="press-glow rounded-lg bg-white px-5 py-2.5 text-sm font-medium text-black transition-transform active:scale-[0.97]"
+        >
+          {index + 1 >= questions.length ? "Finish" : "Next"}
+        </button>
+        {/* Skipping is always available: a blank answer is honest, a guessed
+            one is not. */}
+        <button
+          onClick={() => setIndex((i) => i + 1)}
+          className="text-sm text-ink-3 hover:text-ink-2"
+        >
+          Skip
+        </button>
+        <span className="ml-auto text-[12px] text-ink-3">
+          {saving === "saving" ? "Saving…" : saving === "failed" ? "Not saved — retrying" : "Saved"}
+        </span>
+      </div>
+    </Page>
+  );
+}
