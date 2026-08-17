@@ -291,8 +291,10 @@ export default function ActivateWizard({
               <input type="radio" className="mr-2" checked={mode === "supervised"} onChange={() => setMode("supervised")} />
               <span className="text-sm font-medium">Supervised — recommended to start</span>
               <p className="mt-1 text-xs text-ink-3">
-                Every reply waits for your approval. Your AI earns autonomy as you approve its
-                work — we&apos;ll show you when it&apos;s ready for more.
+                Expect every early message to wait for your approval — that&apos;s how it learns
+                your business. Once you&apos;ve approved around 10 drafts without editing them,
+                we&apos;ll offer to let it answer routine questions itself. You can also switch
+                any time.
               </p>
             </label>
             <label className={`block cursor-pointer rounded-xl border p-4 ${mode === "smart" ? "border-line-strong" : "border-line"}`}>

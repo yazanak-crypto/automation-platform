@@ -10,13 +10,37 @@ export const GRADUATION = {
   minDaysActive: 7,
 } as const;
 
+/**
+ * The eligibility decision, pure and DB-free so it can be tested directly.
+ *
+ * This gates the one prompt that asks an owner to let the AI send without
+ * approval, so a false positive is a trust failure, not a UI glitch. All three
+ * criteria must hold; zero approvals can never qualify however the rate is
+ * computed.
+ */
+export function isGraduationEligible(input: {
+  approvals: number;
+  uneditedRate: number;
+  daysActive: number;
+}): boolean {
+  return (
+    input.approvals >= GRADUATION.minApprovals &&
+    input.uneditedRate >= GRADUATION.minUneditedRate &&
+    input.daysActive >= GRADUATION.minDaysActive
+  );
+}
+
 export interface GraduationStats {
   approvals: number;
   approvedUnedited: number;
   uneditedRate: number;
   currentUneditedStreak: number;
   wouldHaveAutoHandled: number;
+  /** Days since activation — exposed so the UI can show progress, not just a verdict. */
+  daysActive: number;
   eligible: boolean;
+  /** The bar being measured against, so no surface has to hardcode it in prose. */
+  thresholds: typeof GRADUATION;
 }
 
 export async function computeGraduation(
@@ -62,9 +86,8 @@ export async function computeGraduation(
     uneditedRate,
     currentUneditedStreak: streak,
     wouldHaveAutoHandled: rows.filter((r) => r.wouldAutoSend === true).length,
-    eligible:
-      approved.length >= GRADUATION.minApprovals &&
-      uneditedRate >= GRADUATION.minUneditedRate &&
-      daysActive >= GRADUATION.minDaysActive,
+    daysActive,
+    eligible: isGraduationEligible({ approvals: approved.length, uneditedRate, daysActive }),
+    thresholds: GRADUATION,
   };
 }
