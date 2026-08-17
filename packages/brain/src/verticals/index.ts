@@ -5,6 +5,7 @@ import { DAYS, type AnswerValue, type Question, type Vertical, type WeeklyHours 
 export * from "./types";
 export { CORE_QUESTIONS } from "./core";
 export { VERTICALS } from "./definitions";
+export * from "./facts";
 
 export function getVertical(id: string | undefined | null): Vertical {
   return VERTICALS.find((v) => v.id === id) ?? OTHER;

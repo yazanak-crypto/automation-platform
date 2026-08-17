@@ -51,6 +51,9 @@ export interface Question {
   placeholder?: string;
   /** Only show when another answer is set (switch true, or select equals). */
   showIf?: { question: string; equals?: string | boolean };
+  /** Prefix used when this answer is rendered as a fact for the AI. Falls
+   *  back to the label, which is phrased as a question and reads oddly. */
+  factLabel?: string;
   /** Marks the handful of questions worth nudging about if left empty. */
   important?: boolean;
   prefillFrom?: PrefillSource;

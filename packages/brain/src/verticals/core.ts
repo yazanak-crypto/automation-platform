@@ -7,6 +7,7 @@ import type { Question } from "./types";
 export const CORE_QUESTIONS: readonly Question[] = [
   {
     id: "what_you_do",
+    factLabel: "What the business does",
     label: "What do you do, in one sentence?",
     help: "How you'd explain it to someone at a party.",
     input: "long_text",
@@ -16,6 +17,7 @@ export const CORE_QUESTIONS: readonly Question[] = [
   },
   {
     id: "hours",
+    factLabel: "Opening hours",
     label: "When are you open?",
     help: "Your AI uses this to answer \"are you open now?\" without guessing.",
     input: "weekly_hours",
@@ -24,6 +26,7 @@ export const CORE_QUESTIONS: readonly Question[] = [
   },
   {
     id: "languages",
+    factLabel: "Languages replies should use",
     label: "Which languages should replies be written in?",
     input: "chips",
     options: ["Arabic", "English", "French", "Armenian"],
@@ -32,6 +35,7 @@ export const CORE_QUESTIONS: readonly Question[] = [
   },
   {
     id: "tone",
+    factLabel: "Tone of replies",
     label: "How should your replies sound?",
     input: "single_select",
     options: ["Warm and friendly", "Professional", "Short and direct", "Playful"],
@@ -39,6 +43,7 @@ export const CORE_QUESTIONS: readonly Question[] = [
   },
   {
     id: "payment_methods",
+    factLabel: "Accepted payment methods",
     label: "How can customers pay?",
     input: "chips",
     options: [
