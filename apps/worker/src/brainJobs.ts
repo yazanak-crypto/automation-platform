@@ -3,6 +3,7 @@ import { embed } from "@platform/ai";
 import { runIngest } from "@platform/brain";
 import {
   QUEUE_NAMES,
+  WORKER_TUNING,
   type BrainEmbedJob,
   type BrainIngestJob,
 } from "@platform/core";
@@ -17,7 +18,7 @@ export function startBrainWorkers(connection: ConnectionOptions) {
       console.log(`[brain.ingest] ${job.data.workspaceId} ← ${job.data.url}`);
       return runIngest(job.data.workspaceId, job.data.url);
     },
-    { connection, concurrency: 2 },
+    { connection, concurrency: 2, ...WORKER_TUNING },
   );
 
   const embedWorker = new Worker<BrainEmbedJob>(
@@ -45,7 +46,7 @@ export function startBrainWorkers(connection: ConnectionOptions) {
         .where(eq(knowledgeItems.id, item.id));
       return { embedded: true };
     },
-    { connection, concurrency: 4 },
+    { connection, concurrency: 4, ...WORKER_TUNING },
   );
 
   for (const w of [ingestWorker, embedWorker]) {

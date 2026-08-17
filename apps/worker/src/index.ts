@@ -1,5 +1,4 @@
 import "./env";
-import { Queue, Worker } from "bullmq";
 import IORedis from "ioredis";
 import * as Sentry from "@sentry/node";
 import { closeIdleConversations } from "@platform/channels";
@@ -25,28 +24,18 @@ import { startBrainWorkers } from "./brainJobs";
 import { startEmailPolling } from "./emailPoll";
 import { startWebchatWorker } from "./webchatDraft";
 
-// Worker skeleton: queue wiring + heartbeat only. Job processors land with
-// their M1 steps (activation provisioning, run finalization, metering).
-
 const connection = new IORedis(process.env.REDIS_URL ?? "redis://localhost:6379", {
   maxRetriesPerRequest: null,
 });
 
-export const QUEUES = {
-  system: "system",
-} as const;
-
-export const systemQueue = new Queue(QUEUES.system, { connection });
-
-const worker = new Worker(
-  QUEUES.system,
-  async (job) => {
-    console.log(`[worker] processed job ${job.name} (${job.id})`);
-  },
-  { connection },
-);
+// The `system` queue and its worker were removed: nothing ever enqueued to
+// them, but the worker still ran a blocking poll and a stalled-job sweep
+// around the clock — a quarter of all idle Redis traffic for zero function.
+// Add a real queue back here if a system job ever exists.
 
 const brainWorkers = [...startBrainWorkers(connection), startWebchatWorker(connection)];
+// The webchat worker is the one that matters, so it reports readiness.
+const [, , webchatWorker] = brainWorkers;
 const stopEmailPolling = startEmailPolling();
 
 // Audit P0-5: hourly sweep closes conversations idle >7 days (enables
@@ -68,18 +57,13 @@ const idleSweep = setInterval(
   60 * 60 * 1000,
 );
 
-worker.on("ready", () => console.log("[worker] ready — connected to Redis"));
-worker.on("failed", (job, err) =>
-  console.error(`[worker] job ${job?.id} failed:`, err.message),
-);
+webchatWorker?.on("ready", () => console.log("[worker] ready — connected to Redis"));
 
 async function shutdown() {
   clearInterval(heartbeat);
   stopEmailPolling();
   clearInterval(idleSweep);
   await Promise.all(brainWorkers.map((w) => w.close()));
-  await worker.close();
-  await systemQueue.close();
   connection.disconnect();
   process.exit(0);
 }

@@ -9,6 +9,29 @@ export const QUEUE_NAMES = {
   webchatDraft: "webchat.draft",
 } as const;
 
+/**
+ * Shared BullMQ worker tuning. Applied to every worker so idle cost can't
+ * drift back per-queue.
+ *
+ * An idle worker is not free: BullMQ long-polls the queue and periodically
+ * sweeps for stalled jobs. At the defaults (drainDelay 5s, stalledInterval
+ * 30s) three workers cost ~50k Redis commands a day doing nothing, which
+ * exhausted a 500k/day quota in a single day.
+ *
+ * `drainDelay` costs no latency. It only sets how long the blocking call
+ * waits WHEN THE QUEUE IS EMPTY — a newly enqueued job pushes to the list and
+ * wakes the blocking command immediately, so a customer message is still
+ * drafted in about a second.
+ *
+ * `stalledInterval` is a real trade: if the worker dies mid-job, that job now
+ * waits up to 5 minutes to be retried instead of 30 seconds. Acceptable for a
+ * single worker at low volume; revisit if jobs become latency-critical.
+ */
+export const WORKER_TUNING = {
+  drainDelay: 60,
+  stalledInterval: 300_000,
+} as const;
+
 export interface WebchatDraftJob {
   workspaceId: string;
   conversationId: string;

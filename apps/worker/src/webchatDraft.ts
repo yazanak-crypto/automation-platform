@@ -14,6 +14,7 @@ import {
   findActiveActivation,
   finishRun,
   QUEUE_NAMES,
+  WORKER_TUNING,
   type WebchatDraftJob,
 } from "@platform/core";
 import { conversations, db, messages, runs, workspaces } from "@platform/db";
@@ -506,7 +507,7 @@ export function startWebchatWorker(connection: ConnectionOptions) {
   const w = new Worker<WebchatDraftJob>(
     QUEUE_NAMES.webchatDraft,
     async (job) => processDraft(job.data),
-    { connection, concurrency: 3 },
+    { connection, concurrency: 3, ...WORKER_TUNING },
   );
   w.on("failed", (job, err) => {
     console.error(`[webchat.draft] job ${job?.id} failed:`, err.message);
