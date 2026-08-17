@@ -16,7 +16,9 @@ interface Data {
     uneditedRate: number;
     currentUneditedStreak: number;
     wouldHaveAutoHandled: number;
+    daysActive: number;
     eligible: boolean;
+    thresholds: { minApprovals: number; minUneditedRate: number; minDaysActive: number };
   };
 }
 
@@ -157,6 +159,45 @@ export default function AutonomyPage({ params }: { params: Promise<{ id: string 
           </div>
         </div>
 
+        {/* Progress toward graduation. Without this the promise made at
+            activation ("we'll show you when it's ready") looks unfulfilled for
+            the first week, because eligibility needs approvals AND days AND a
+            clean edit rate. Shown here rather than on the dashboard, which
+            should stay quiet until there is genuine news. */}
+        {activation.mode === "supervised" && !graduation.eligible && (
+          <div className="mt-4 border-t border-line pt-4">
+            <p className="text-xs text-ink-3">Progress toward Smart Automation</p>
+            <ul className="mt-2 space-y-1.5 text-sm text-ink-2">
+              <li className="flex items-center gap-2">
+                <Tick done={graduation.approvals >= graduation.thresholds.minApprovals} />
+                {graduation.approvals} of {graduation.thresholds.minApprovals} drafts approved
+              </li>
+              <li className="flex items-center gap-2">
+                <Tick done={graduation.daysActive >= graduation.thresholds.minDaysActive} />
+                {Math.floor(graduation.daysActive)} of {graduation.thresholds.minDaysActive} days
+                on duty
+              </li>
+              <li className="flex items-center gap-2">
+                <Tick
+                  done={
+                    graduation.approvals > 0 &&
+                    graduation.uneditedRate >= graduation.thresholds.minUneditedRate
+                  }
+                />
+                {graduation.approvals === 0
+                  ? "—"
+                  : `${Math.round(graduation.uneditedRate * 100)}%`}{" "}
+                approved unchanged (needs{" "}
+                {Math.round(graduation.thresholds.minUneditedRate * 100)}%)
+              </li>
+            </ul>
+            <p className="mt-2.5 text-xs leading-relaxed text-ink-3">
+              You can turn Smart Automation on before this — it&apos;s your call. These are just
+              the marks we look for before suggesting it.
+            </p>
+          </div>
+        )}
+
         {confirmSmart && (
           <div className="mt-4 rounded-lg border border-line bg-brass-dim p-4">
             <p className="text-sm">
@@ -167,8 +208,8 @@ export default function AutonomyPage({ params }: { params: Promise<{ id: string 
             </p>
             {!graduation.eligible && (
               <p className="mt-2 text-xs text-wait">
-                Heads up: we usually recommend waiting until ~10 approved drafts. You&apos;re at{" "}
-                {graduation.approvals}. Your call.
+                Heads up: we usually recommend waiting until {graduation.thresholds.minApprovals}{" "}
+                approved drafts. You&apos;re at {graduation.approvals}. Your call.
               </p>
             )}
             <div className="mt-3 flex gap-2">
@@ -255,5 +296,17 @@ export default function AutonomyPage({ params }: { params: Promise<{ id: string 
         </section>
       ))}
     </main>
+  );
+}
+
+/** Progress marker: filled when a graduation criterion is met. */
+function Tick({ done }: { done: boolean }) {
+  return (
+    <span
+      aria-hidden
+      className={`inline-block h-3.5 w-3.5 shrink-0 rounded-full border ${
+        done ? "border-ok bg-ok" : "border-line"
+      }`}
+    />
   );
 }
