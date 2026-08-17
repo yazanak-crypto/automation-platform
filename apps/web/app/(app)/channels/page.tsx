@@ -24,8 +24,13 @@ export default function ChannelsPage() {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    const res = await fetch("/api/channels").catch(() => null);
+  // `diagnostics` costs a Redis read per web-chat channel, so it's requested
+  // on the first load (and after saving allowed sites) rather than on every
+  // poll — the blocked-origin hint only matters while setting the widget up.
+  const load = useCallback(async (diagnostics = false) => {
+    const res = await fetch(`/api/channels${diagnostics ? "?diagnostics=1" : ""}`).catch(
+      () => null,
+    );
     if (res?.ok) {
       setChannels(await res.json());
       setLoadFailed(false);
@@ -38,8 +43,10 @@ export default function ChannelsPage() {
     setLoadFailed(true);
   }, []);
   useEffect(() => {
-    void load();
-    const t = setInterval(load, 5000); // live "connected ✓" check
+    void load(true); // first load carries setup diagnostics
+    // 15s, not 5s: this only powers the "connected ✓" indicator, and at 5s it
+    // was one of the largest sources of steady Redis and database traffic.
+    const t = setInterval(() => void load(), 15_000);
     return () => clearInterval(t);
   }, [load]);
 
@@ -71,7 +78,9 @@ export default function ChannelsPage() {
         allowedOrigins: value.split(",").map((s) => s.trim()).filter(Boolean),
       }),
     });
-    await load();
+    // Re-fetch diagnostics here specifically: saving the allowed list is the
+    // moment the owner wants to know whether the blocked origin is cleared.
+    await load(true);
     setNotice("Allowed sites saved.");
     setTimeout(() => setNotice(null), 2000);
   }

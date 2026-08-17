@@ -5,7 +5,7 @@ import { desc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { requireWorkspace, unauthorized } from "@/lib/workspace";
 
-export async function GET() {
+export async function GET(req: Request) {
   const ctx = await requireWorkspace();
   if (!ctx) return unauthorized();
   const rows = await db()
@@ -13,6 +13,16 @@ export async function GET() {
     .from(channels)
     .where(eq(channels.workspaceId, ctx.workspace.id))
     .orderBy(desc(channels.createdAt));
+
+  // Blocked-origin diagnostics are a Redis read per web-chat channel. The
+  // channels page polls this route continuously to show "connected ✓", so
+  // fetching them every time meant a Redis round-trip every few seconds,
+  // forever, for a hint that only matters during widget setup. Opt in with
+  // ?diagnostics=1 — the page asks once on mount, not on every poll.
+  if (new URL(req.url).searchParams.get("diagnostics") !== "1") {
+    return NextResponse.json(rows.map((r) => ({ ...r, lastBlockedOrigin: null })));
+  }
+
   const withDiag = await Promise.all(
     rows.map(async (r) => ({
       ...r,
