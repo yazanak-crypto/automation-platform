@@ -65,6 +65,28 @@ jobs:
       - name: Test
         run: pnpm test
 
+      # Typecheck does NOT catch bundling errors. A client component importing
+      # a server-only module type-checks perfectly and then fails the real
+      # build ("Can't resolve 'child_process'" from bullmq, which reached
+      # production). Only `next build` draws that boundary.
+      #
+      # Only the PUBLISHABLE key is needed, and it comes from the repository
+      # variable CI_CLERK_PUBLISHABLE_KEY so that NO key-shaped literal is ever
+      # committed. The value is a throwaway dummy, not a real Clerk key — but
+      # it is base64 and high-entropy, so a scanner cannot tell it apart from a
+      # real one, and it should not have to.
+      #
+      # CLERK_SECRET_KEY is deliberately absent: Clerk reads it at request time,
+      # not build time, and a build with it empty compiles successfully.
+      # DATABASE_URL and REDIS_URL point at the CI service containers; nothing
+      # reached during the build is static, so neither is actually queried.
+      - name: Build web app
+        run: pnpm --filter @platform/web build
+        env:
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ vars.CI_CLERK_PUBLISHABLE_KEY }}
+          DATABASE_URL: postgres://platform:platform@localhost:5432/platform
+          REDIS_URL: redis://localhost:6379
+
       - name: Secret scan
         uses: gitleaks/gitleaks-action@v2
         env:
