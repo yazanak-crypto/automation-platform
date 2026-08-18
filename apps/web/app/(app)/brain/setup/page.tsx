@@ -43,16 +43,39 @@ export default function BrainSetupPage() {
     })();
   }, []);
 
+  // Patches ACCUMULATE between flushes. The debounce clears its previous
+  // timer, so without this, tapping Next through several pre-filled answers
+  // would keep cancelling the pending save and only the last confirmation
+  // would ever reach the server.
+  const pending = useRef<{ values: Values; vertical?: string; completed?: boolean }>({
+    values: {},
+  });
+
   const save = useCallback(
     (patch: { values?: Values; vertical?: string; completed?: boolean }) => {
+      pending.current = {
+        values: { ...pending.current.values, ...(patch.values ?? {}) },
+        vertical: patch.vertical ?? pending.current.vertical,
+        completed: patch.completed || pending.current.completed,
+      };
       setSaving("saving");
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(async () => {
+        const body = pending.current;
+        pending.current = { values: {} };
         const res = await fetch("/api/brain/answers", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(patch),
+          body: JSON.stringify(body),
         }).catch(() => null);
+        if (!res?.ok) {
+          // Put it back so the next save retries it rather than losing it.
+          pending.current = {
+            values: { ...body.values, ...pending.current.values },
+            vertical: pending.current.vertical ?? body.vertical,
+            completed: pending.current.completed || body.completed,
+          };
+        }
         setSaving(res?.ok ? "idle" : "failed");
       }, 500);
     },
@@ -147,6 +170,25 @@ export default function BrainSetupPage() {
   const q = questions[index]!;
   const isGuess = guessed.includes(q.id);
 
+  /**
+   * Moving forward past a pre-filled answer IS the confirmation — requiring a
+   * separate tap would undo the point of pre-filling. Until confirmed, an
+   * answer stays in `guessed` and is excluded from the context pack, so it
+   * cannot ground a reply to a customer.
+   */
+  function advance() {
+    const last = index + 1 >= questions.length;
+    const confirming = isGuess && values[q.id] !== undefined;
+    const patch: { values?: Values; completed?: boolean } = {};
+    if (confirming) patch.values = { [q.id]: values[q.id]! };
+    if (last) patch.completed = true;
+
+    if (confirming) setGuessed((g) => g.filter((x) => x !== q.id));
+    if (Object.keys(patch).length > 0) save(patch);
+    if (last) setDone(true);
+    else setIndex((i) => i + 1);
+  }
+
   return (
     <Page>
       <PageHeader
@@ -167,7 +209,7 @@ export default function BrainSetupPage() {
         {q.help && <p className="mt-1 text-sm leading-relaxed text-ink-2">{q.help}</p>}
         {isGuess && (
           <p className="mt-2 inline-block rounded-md bg-brass-dim px-2 py-1 text-[12px] text-brass">
-            We guessed this from your website — check it&apos;s right
+            From your website — confirm it&apos;s right, or edit it
           </p>
         )}
 
@@ -185,18 +227,13 @@ export default function BrainSetupPage() {
           ← Back
         </button>
         <button
-          onClick={() => {
-            if (index + 1 >= questions.length) {
-              save({ completed: true });
-              setDone(true);
-            } else setIndex((i) => i + 1);
-          }}
+          onClick={advance}
           className="press-glow rounded-lg bg-white px-5 py-2.5 text-sm font-medium text-black transition-transform active:scale-[0.97]"
         >
-          {index + 1 >= questions.length ? "Finish" : "Next"}
+          {index + 1 >= questions.length ? "Finish" : isGuess ? "Looks right" : "Next"}
         </button>
-        {/* Skipping is always available: a blank answer is honest, a guessed
-            one is not. */}
+        {/* Skip does NOT confirm. A pre-filled answer the owner skipped past
+            stays a guess, and guesses never ground a customer-facing reply. */}
         <button
           onClick={() => setIndex((i) => i + 1)}
           className="text-sm text-ink-3 hover:text-ink-2"
