@@ -2,6 +2,15 @@
 
 /* ── The Operator System — design tokens (single source) ─────────────────── */
 :root {
+  /* The app paints a dark theme in CSS, but without this the browser still
+     believes the page is light. Native <option> popups are drawn by the OS,
+     not by our CSS, so they were rendered with a light-mode white background
+     while inheriting our near-white text: every dropdown in the app was
+     white-on-white and only readable on hover. This one line fixes all of
+     them — styling the <select> never could, because it styles the closed
+     control, not the popup. */
+  color-scheme: dark;
+
   --bg: #0b0b0d;
   --bg-raised: rgba(255, 255, 255, 0.03);
   --bg-hover: rgba(255, 255, 255, 0.055);
@@ -320,3 +329,14 @@ body {
 }
 .core-breathe { animation: core-breathe 3.4s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .core-breathe { animation: none; } }
+
+/* Belt and braces for the option popup. `color-scheme: dark` above is what
+   actually fixes it in Chrome/Edge/Safari, but some Linux GTK builds and
+   older Firefox still paint options from the page's inherited colours. An
+   explicit pair costs nothing and removes the last white-on-white case.
+   Uses a solid colour, not a token: the popup is an OS surface and cannot
+   render the translucent --bg-raised. */
+select option {
+  background-color: #16161a;
+  color: var(--text);
+}

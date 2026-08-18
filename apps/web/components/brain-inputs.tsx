@@ -202,16 +202,19 @@ function PriceRangeInput({
             onChange({ ...v, to: e.target.value === "" ? undefined : Number(e.target.value) })
           }
         />
-        <select
-          className={`${FIELD} max-w-[100px]`}
-          value={v.currency ?? "USD"}
+        {/* Free text, not a list. A fixed set locked out every currency we
+            failed to think of — AED, SAR, QAR, KWD were all unenterable — and
+            no list we write will be complete. Short and uppercased so it
+            still reads as a currency code. */}
+        <input
+          className={`${FIELD} max-w-[90px] uppercase`}
+          maxLength={4}
+          placeholder="USD"
+          value={v.currency ?? ""}
           disabled={v.varies}
-          onChange={(e) => onChange({ ...v, currency: e.target.value })}
-        >
-          <option value="USD">USD</option>
-          <option value="LBP">LBP</option>
-          <option value="EUR">EUR</option>
-        </select>
+          aria-label="Currency"
+          onChange={(e) => onChange({ ...v, currency: e.target.value.toUpperCase() })}
+        />
       </div>
       <button
         type="button"

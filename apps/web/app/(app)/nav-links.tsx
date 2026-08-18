@@ -11,6 +11,9 @@ const ICONS: Record<string, React.ReactNode> = {
   conversations: (
     <path d="M4 5h12v8H8l-4 3V5z" />
   ),
+  setup: (
+    <path d="M4 6h12M4 10h12M4 14h7M15.5 13.5l1.5 1.5 2.5-2.5" />
+  ),
   contacts: (
     <path d="M10 9.5a2.75 2.75 0 1 0 0-5.5 2.75 2.75 0 0 0 0 5.5zM4.5 16a5.5 5.5 0 0 1 11 0" />
   ),
@@ -54,6 +57,7 @@ const GROUPS: { label: string; links: { href: string; label: string; icon: strin
       { href: "/contacts", label: "Contacts", icon: "contacts" },
       { href: "/marketplace", label: "Automations", icon: "marketplace" },
       { href: "/brain", label: "Knowledge", icon: "brain" },
+      { href: "/brain/setup", label: "Guided setup", icon: "setup" },
       { href: "/channels", label: "Channels", icon: "channels" },
       { href: "/analytics", label: "Analytics", icon: "analytics" },
       { href: "/billing", label: "Billing", icon: "billing" },
@@ -68,7 +72,12 @@ const GROUPS: { label: string; links: { href: string; label: string; icon: strin
   },
 ];
 
+// Hrefs that have a more specific sibling in the nav must match exactly, or
+// both entries light up — /brain would stay active while on /brain/setup.
+const EXACT_ONLY = new Set(["/brain"]);
+
 function isActive(pathname: string, href: string) {
+  if (EXACT_ONLY.has(href)) return pathname === href;
   return pathname === href || pathname.startsWith(`${href}/`) || (href === "/dashboard" && pathname.startsWith("/automations"));
 }
 

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Page, PageHeader, Skeleton } from "@/components/ui";
 
@@ -114,7 +115,38 @@ export default function BrainPage() {
             <span className="tnum">{activeBoundaries}</span> boundar{activeBoundaries === 1 ? "y" : "ies"} guarding replies
           </>
         }
+        action={
+          <Link
+            href="/brain/setup"
+            className="press-glow rounded-lg border border-line px-3.5 py-2 text-[13px] font-medium transition-colors hover:bg-hover"
+          >
+            Guided setup
+          </Link>
+        }
       />
+
+      {/* The moment guided setup matters most is when there is nothing here.
+          An empty Brain is why replies escalate instead of drafting, so this
+          leads with the consequence rather than the feature. */}
+      {confirmedFacts === 0 && (
+        <div
+          className="rise moment-glow mb-6 rounded-[14px] border p-5"
+          style={{ borderColor: "var(--brass)", background: "var(--brass-dim)" }}
+        >
+          <p className="font-medium">Your AI doesn&apos;t know your business yet</p>
+          <p className="mt-1 text-sm leading-relaxed text-ink-2">
+            With nothing confirmed here, every question gets brought to you instead of answered.
+            The guided setup asks about a dozen questions tailored to your line of work — most
+            people finish in about two minutes.
+          </p>
+          <Link
+            href="/brain/setup"
+            className="press-glow mt-3.5 inline-block rounded-lg bg-white px-4 py-2 text-sm font-semibold text-black transition-transform active:scale-[0.97]"
+          >
+            Set up my Brain
+          </Link>
+        </div>
+      )}
 
       <nav className="mb-6 flex gap-5 border-b border-line">
         {(["profile", "boundaries", "knowledge"] as const).map((t) => (
