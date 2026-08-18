@@ -1,5 +1,5 @@
 import { redis } from "@platform/core";
-import { db } from "@platform/db";
+import { db, pendingMigrationCount } from "@platform/db";
 import { sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
@@ -14,11 +14,20 @@ export async function GET() {
     worker: "down",
   };
   let heartbeat: string | null = null;
+  // Schema drift is invisible until a request happens to touch the missing
+  // column, and then it surfaces as "Something went wrong" with no clue why.
+  // That cost a production outage, so it is reported here explicitly.
+  let pendingMigrations: number | null = null;
   await Promise.all([
     db()
       .execute(sql`select 1`)
       .then(() => {
         checks.db = "ok";
+      })
+      .catch(() => {}),
+    pendingMigrationCount()
+      .then((n) => {
+        pendingMigrations = n;
       })
       .catch(() => {}),
     (async () => {
@@ -39,9 +48,19 @@ export async function GET() {
   ]);
   // db + redis are hard failures (503). A stale/down worker is reported but does
   // not fail the web liveness check — it's surfaced for alerting.
+  // Pending migrations do NOT fail the probe: the app may be serving fine
+  // until a request reaches the new column. It is reported so a monitor can
+  // alert on it, and so this endpoint answers "why is the site broken?" in one
+  // call instead of a database session.
   const ok = checks.db === "ok" && checks.redis === "ok";
   return NextResponse.json(
-    { ok, checks, workerHeartbeat: heartbeat, time: new Date().toISOString() },
+    {
+      ok,
+      checks,
+      pendingMigrations,
+      workerHeartbeat: heartbeat,
+      time: new Date().toISOString(),
+    },
     { status: ok ? 200 : 503 },
   );
 }

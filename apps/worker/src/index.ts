@@ -2,6 +2,7 @@ import "./env";
 import IORedis from "ioredis";
 import * as Sentry from "@sentry/node";
 import { closeIdleConversations } from "@platform/channels";
+import { applyMigrations } from "@platform/db";
 import { redis } from "@platform/core";
 
 // Audit P1-10: error capture + heartbeat, both gated on env (no-op without).
@@ -23,6 +24,30 @@ process.on("uncaughtException", (err) => {
 import { startBrainWorkers } from "./brainJobs";
 import { startEmailPolling } from "./emailPoll";
 import { startWebchatWorker } from "./webchatDraft";
+
+// Apply schema migrations before anything reads the database.
+//
+// A merged migration nobody ran took production down: the deployed code
+// selected a column that did not exist. The worker is the right place for
+// this — one long-running process, so two migrations cannot race, and it
+// already holds the production credential. Failure exits loudly rather than
+// leaving a half-migrated database.
+//
+// Migrations must stay EXPAND-ONLY: web and worker deploy independently, so
+// old code briefly runs against the new schema.
+try {
+  const { applied } = await applyMigrations();
+  console.log(
+    applied > 0
+      ? `[worker] applied ${applied} pending migration(s)`
+      : "[worker] schema up to date",
+  );
+} catch (err) {
+  console.error("[worker] MIGRATION FAILED — refusing to start:", err);
+  Sentry.captureException(err);
+  await Sentry.close(2000).catch(() => {});
+  process.exit(1);
+}
 
 const connection = new IORedis(process.env.REDIS_URL ?? "redis://localhost:6379", {
   maxRetriesPerRequest: null,
