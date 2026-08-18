@@ -1,5 +1,6 @@
 import { boundaries, businessProfiles, db, knowledgeItems } from "@platform/db";
 import { and, desc, eq, sql } from "drizzle-orm";
+import { renderAnswerFacts } from "./verticals/facts";
 
 // Context assembly (Decision 008 read protocol). Consumers (the AI gateway
 // callers) request needs; we return the pack + the brain version it reflects.
@@ -11,6 +12,8 @@ export interface ContextPack {
   identity?: unknown;
   voice?: unknown;
   policies?: unknown;
+  /** Owner-stated facts from guided setup. Same standing as a confirmed FAQ. */
+  businessFacts?: string[];
   boundaries?: string[];
   knowledge?: { title: string; content: string; sourceRef?: string | null }[];
 }
@@ -33,12 +36,22 @@ export async function getContextPack(
   if (needs.includes("voice")) pack.voice = profile.voice ?? undefined;
   if (needs.includes("policies")) pack.policies = profile.policies ?? undefined;
 
+  // Guided-setup answers. Rendered once and split two ways: statements of fact
+  // ride with `policies` (an owner's stated hours are exactly that), while
+  // "what should your AI never do" becomes a boundary, because it is a rule to
+  // obey rather than information to quote. Attached to the EXISTING needs so
+  // every automation benefits without editing its contextNeeds.
+  const answerFacts = profile.answers ? renderAnswerFacts(profile.answers) : null;
+  if (answerFacts?.facts.length && needs.includes("policies")) {
+    pack.businessFacts = answerFacts.facts;
+  }
+
   if (needs.includes("boundaries")) {
     const rows = await db()
       .select({ ruleText: boundaries.ruleText })
       .from(boundaries)
       .where(and(eq(boundaries.workspaceId, workspaceId), eq(boundaries.active, true)));
-    pack.boundaries = rows.map((r) => r.ruleText);
+    pack.boundaries = [...rows.map((r) => r.ruleText), ...(answerFacts?.rules ?? [])];
   }
 
   if (needs.includes("faq_retrieval")) {

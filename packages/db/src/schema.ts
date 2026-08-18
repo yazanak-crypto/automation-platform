@@ -94,6 +94,17 @@ export const businessProfiles = pgTable("business_profiles", {
     hours?: string;
     custom?: { name: string; text: string }[];
   }>(),
+  // Guided setup answers, keyed by question id. Kept separate from the
+  // hand-curated `identity`/`voice`/`policies` fields so the advanced
+  // Knowledge view keeps working untouched, and so a question set can change
+  // without migrating anyone's existing profile.
+  answers: jsonb("answers").$type<{
+    vertical?: string;
+    values?: Record<string, unknown>;
+    /** Ids the AI pre-filled that the owner hasn't corrected yet. */
+    guessed?: string[];
+    completedAt?: string;
+  }>(),
   onboardingStatus: text("onboarding_status", {
     enum: ["pending", "draft_ready", "confirmed", "skipped"],
   })

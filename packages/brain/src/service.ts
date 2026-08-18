@@ -319,3 +319,80 @@ export async function getChangeLog(workspaceId: string, limit = 100) {
     .orderBy(desc(brainChangeLog.version))
     .limit(limit);
 }
+
+// ── Guided setup answers ────────────────────────────────────────────────────
+
+export interface ProfileAnswers {
+  vertical?: string;
+  values: Record<string, unknown>;
+  guessed: string[];
+  completedAt?: string;
+  /** Industry from the scrape, so the UI can pre-select a vertical. */
+  detectedIndustry?: string;
+}
+
+export async function getProfileAnswers(workspaceId: string): Promise<ProfileAnswers> {
+  const profile = await ensureProfile(workspaceId);
+  const a = profile.answers ?? {};
+  return {
+    vertical: a.vertical,
+    values: (a.values ?? {}) as Record<string, unknown>,
+    guessed: a.guessed ?? [],
+    completedAt: a.completedAt,
+    detectedIndustry: profile.identity?.industry,
+  };
+}
+
+/**
+ * Merge-save guided answers. Values merge key-by-key so an autosave of one
+ * question can never wipe the rest, and any id the owner has now answered
+ * drops out of `guessed` — it is their answer from that point, not the AI's.
+ */
+export async function saveProfileAnswers(
+  workspaceId: string,
+  patch: {
+    vertical?: string;
+    values?: Record<string, unknown>;
+    guessed?: string[];
+    completed?: boolean;
+  },
+  actor: string,
+): Promise<ProfileAnswers> {
+  const before = await ensureProfile(workspaceId);
+  const prev = before.answers ?? {};
+  const prevValues = (prev.values ?? {}) as Record<string, unknown>;
+  const values = { ...prevValues, ...(patch.values ?? {}) };
+  const touched = Object.keys(patch.values ?? {});
+  const guessed = (patch.guessed ?? prev.guessed ?? []).filter((id) => !touched.includes(id));
+
+  const merged = {
+    vertical: patch.vertical ?? prev.vertical,
+    values,
+    guessed,
+    completedAt: patch.completed ? new Date().toISOString() : prev.completedAt,
+  };
+
+  await withVersionRetry(() =>
+    db().transaction(async (tx) => {
+      await tx
+        .update(businessProfiles)
+        .set({ answers: merged })
+        .where(eq(businessProfiles.workspaceId, workspaceId));
+      await bumpBrainVersion(tx, workspaceId, {
+        entity: "profile",
+        entityId: before.id,
+        changeKind: "update",
+        diff: { new: { changed: touched.length ? touched : Object.keys(merged) } },
+        actor,
+      });
+    }),
+  );
+
+  return {
+    vertical: merged.vertical,
+    values: merged.values,
+    guessed: merged.guessed,
+    completedAt: merged.completedAt,
+    detectedIndustry: before.identity?.industry,
+  };
+}
