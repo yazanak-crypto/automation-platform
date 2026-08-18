@@ -292,3 +292,86 @@ describe("validatePrefill — output contract", () => {
     });
   });
 });
+
+// A second fixture from a different region. The Lebanese one above is a valid
+// case and stays; this proves the pipeline is not quietly shaped around it —
+// free-entry areas, a non-USD currency, and local insurers all have to survive.
+const GULF_PAGE = `
+Al Noor Medical Centre, Dubai Marina.
+We are open Saturday to Thursday, 8am to 8pm. Friday closed.
+Consultations start from 250 AED.
+We accept Daman, Thiqa and ADNIC insurance.
+We serve patients across Dubai Marina, JLT and Al Barsha.
+`;
+
+describe("validatePrefill — a Gulf business, not just a Levantine one", () => {
+  it("keeps free-entry areas the option list never contained", () => {
+    const r = validatePrefill(
+      "clinic",
+      [
+        {
+          questionId: "services",
+          value: ["General consultation"],
+          evidence: "Al Noor Medical Centre, Dubai Marina.",
+        },
+      ],
+      GULF_PAGE,
+    );
+    expect(r.values.services).toEqual(["General consultation"]);
+  });
+
+  it("accepts insurers that are not on any list we ship", () => {
+    const r = validatePrefill(
+      "clinic",
+      [
+        {
+          questionId: "insurers",
+          value: ["Daman", "Thiqa", "ADNIC"],
+          evidence: "We accept Daman, Thiqa and ADNIC insurance.",
+        },
+      ],
+      GULF_PAGE,
+    );
+    expect(r.values.insurers).toEqual(["Daman", "Thiqa", "ADNIC"]);
+  });
+
+  it("accepts a non-USD currency", () => {
+    // AED was literally unenterable before the currency list was removed.
+    const r = validatePrefill(
+      "clinic",
+      [
+        {
+          questionId: "consultation_fee",
+          value: { from: 250, currency: "AED" },
+          evidence: "Consultations start from 250 AED.",
+        },
+      ],
+      GULF_PAGE,
+    );
+    expect(r.values.consultation_fee).toEqual({ from: 250, currency: "AED" });
+  });
+
+  it("handles a Saturday-to-Thursday week without assuming a Mon-Fri shape", () => {
+    const r = validatePrefill(
+      "clinic",
+      [
+        {
+          questionId: "hours",
+          value: {
+            sat: { closed: false, open: "08:00", close: "20:00" },
+            sun: { closed: false, open: "08:00", close: "20:00" },
+            mon: { closed: false, open: "08:00", close: "20:00" },
+            fri: { closed: true },
+          },
+          evidence: "We are open Saturday to Thursday, 8am to 8pm.",
+        },
+      ],
+      GULF_PAGE,
+    );
+    const hours = r.values.hours as Record<string, { closed: boolean }>;
+    expect(hours.sat.closed).toBe(false);
+    expect(hours.fri.closed).toBe(true);
+    // Tuesday/Wednesday were not stated in this payload, so they stay unset.
+    expect(hours.tue).toBeUndefined();
+  });
+});

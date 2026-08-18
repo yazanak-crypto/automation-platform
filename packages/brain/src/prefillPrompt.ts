@@ -30,20 +30,29 @@ function valueSpec(q: Question): string {
       return "string";
     case "single_select":
       return `exactly one of: ${(q.options ?? []).map((o) => JSON.stringify(o)).join(", ")}`;
-    case "chips":
-      return `array of strings, preferring these where they fit: ${(q.options ?? [])
-        .map((o) => JSON.stringify(o))
-        .join(", ")}`;
-    case "chips_plus_text":
-      return `{"selected": string[], "text": string} using these where they fit: ${(q.options ?? [])
-        .map((o) => JSON.stringify(o))
-        .join(", ")}`;
+    case "chips": {
+      // Several chip questions ship NO options on purpose — delivery areas,
+      // insurers and payment methods differ by country, so the site's own
+      // wording is the only honest source.
+      const opts = q.options ?? [];
+      return opts.length
+        ? `array of strings, preferring these where they fit: ${opts.map((o) => JSON.stringify(o)).join(", ")}`
+        : "array of strings, in the site's own wording";
+    }
+    case "chips_plus_text": {
+      const opts = q.options ?? [];
+      return opts.length
+        ? `{"selected": string[], "text": string} using these where they fit: ${opts.map((o) => JSON.stringify(o)).join(", ")}`
+        : `{"selected": string[], "text": string}`;
+    }
     case "switch":
       return "true or false — ONLY if the site says so explicitly";
     case "weekly_hours":
       return `{"mon".."sun": {"closed": true} or {"closed": false, "open": "HH:MM", "close": "HH:MM"}} — include ONLY the days the site states`;
     case "price_range":
-      return `{"from": number, "to": number, "currency": "USD"|"LBP"|"EUR"} or {"varies": true}`;
+      // No currency whitelist: the site states its own currency, and any list
+      // we invent excludes somebody's.
+      return `{"from": number, "to": number, "currency": "the ISO code the site uses, e.g. USD, AED, SAR, EUR"} or {"varies": true}`;
     case "list":
       return "array of strings";
   }

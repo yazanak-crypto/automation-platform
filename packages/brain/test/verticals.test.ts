@@ -33,15 +33,52 @@ describe("vertical registry integrity", () => {
     }
   });
 
-  it("choice inputs always ship options, and free-text inputs never do", () => {
+  it("single_select always ships options; chips may be free-entry", () => {
     for (const v of VERTICALS) {
       for (const q of getQuestionSet(v.id)) {
-        if (CHIP_INPUTS.includes(q.input)) {
+        // A select with no options is an unanswerable question.
+        if (q.input === "single_select") {
           expect(q.options?.length, `${v.id}/${q.id} needs options`).toBeGreaterThan(0);
+        }
+        // Chips may legitimately ship none — delivery areas, insurers and
+        // payment methods differ by country — but then they MUST allow custom
+        // entry, or the question cannot be answered at all.
+        if (q.input === "chips" || q.input === "chips_plus_text") {
+          if (!q.options?.length) {
+            expect(q.allowCustom, `${v.id}/${q.id} has no options and no custom entry`).toBe(true);
+          }
         }
         if (q.input === "short_text" || q.input === "long_text") {
           expect(q.options, `${v.id}/${q.id} should not have options`).toBeUndefined();
         }
+      }
+    }
+  });
+
+  it("hardcodes no country, city or region anywhere in the question sets", () => {
+    // Ovant is international. A Gulf clinic opening the flow must not be shown
+    // Lebanese districts, and this regressed once already because the options
+    // read naturally to whoever wrote them.
+    const PLACES =
+      /\b(beirut|lebanon|lebanese|mount lebanon|bekaa|metn|baabda|keserwan|dubai|abu dhabi|riyadh|doha|kuwait|manama|uae|ksa|qatar)\b/i;
+    for (const v of VERTICALS) {
+      for (const q of getQuestionSet(v.id)) {
+        const text = [q.label, q.help, q.placeholder, ...(q.options ?? [])].join(" ");
+        expect(PLACES.test(text), `${v.id}/${q.id} mentions a specific place: "${text}"`).toBe(
+          false,
+        );
+      }
+    }
+  });
+
+  it("hardcodes no country-specific payment provider or insurer", () => {
+    const LOCAL_BRANDS = /\b(whish|omt|nssf|globemed|mednet|benefit|knet|mada|stc pay)\b/i;
+    for (const v of VERTICALS) {
+      for (const q of getQuestionSet(v.id)) {
+        const text = [q.label, q.help, ...(q.options ?? [])].join(" ");
+        expect(LOCAL_BRANDS.test(text), `${v.id}/${q.id} names a local brand: "${text}"`).toBe(
+          false,
+        );
       }
     }
   });
