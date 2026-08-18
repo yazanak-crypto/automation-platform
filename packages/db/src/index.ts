@@ -3,6 +3,7 @@ import postgres from "postgres";
 import * as schema from "./schema";
 
 export * from "./schema";
+export { applyMigrations, pendingMigrationCount, journalTags } from "./migrate";
 export { schema };
 
 let _db: ReturnType<typeof createDb> | undefined;
