@@ -17,10 +17,17 @@ export const MICROCENTS_PER_CREDIT = 1_000_000;
 // quoted as a monthly price plus a visible one-time setup fee, charged once on
 // a workspace's first confirmed payment.
 export const PLANS = {
-  // 7-day free trial; the credit ceiling is a quiet anti-abuse cap, not the gate.
+  // 7-day free trial, ONE TIME. The credit ceiling is a quiet anti-abuse cap,
+  // not the gate — see trialUsedAt in the workspaces table.
   trial: { name: "Free trial", monthlyCredits: 300, priceMonthlyUsd: 0, setupFeeUsd: 0 },
-  starter: { name: "Starter", monthlyCredits: 2_000, priceMonthlyUsd: 49, setupFeeUsd: 70 },
-  pro: { name: "Premium", monthlyCredits: 5_000, priceMonthlyUsd: 149, setupFeeUsd: 120 },
+  // The setup fee IS month one: it is charged today and covers the first 30
+  // days, then the monthly price starts on day 31. Every surface that quotes
+  // money reads these numbers, so they are the only place to change a price —
+  // EXCEPT the payment provider's own price objects, which are what actually
+  // gets charged. Keep them in step or the site quotes one figure and the card
+  // is charged another.
+  starter: { name: "Starter", monthlyCredits: 2_000, priceMonthlyUsd: 399, setupFeeUsd: 499 },
+  pro: { name: "Premium", monthlyCredits: 5_000, priceMonthlyUsd: 599, setupFeeUsd: 799 },
 } as const;
 
 // The ONLY customer-facing unit is a conversation; credits never appear in the
@@ -153,10 +160,16 @@ export async function getCreditStatus(
   const allowance = PLANS[plan].monthlyCredits;
   const used = creditsFromMicrocents(Number(usage[0]?.microcents ?? 0));
 
-  // Trial workspaces are time-gated (7 days). null trialEndsAt = legacy/no
-  // expiry, treated as active for safety.
+  // Trial workspaces are time-gated (7 days), once.
+  //
+  // A null trialEndsAt used to be treated as "no expiry, active for safety",
+  // which quietly granted a permanent free tier: the trial credit allowance
+  // resets every calendar period, so such a workspace renewed forever. Null now
+  // means EXPIRED — a workspace on the trial plan with no end date has no
+  // entitlement to prove, and the manual checkout path is one click away. That
+  // is the safe direction to fail for something that gives away real AI spend.
   const trialEndsAt = plan === "trial" ? (wsRows[0]?.trialEndsAt ?? null) : null;
-  const trialEnded = plan === "trial" && !!trialEndsAt && trialEndsAt.getTime() < Date.now();
+  const trialEnded = plan === "trial" && (!trialEndsAt || trialEndsAt.getTime() < Date.now());
   const status: CreditStatus = {
     plan,
     allowance,
@@ -237,9 +250,18 @@ export async function applySubscriptionState(args: {
   // on, decide which source of truth wins and enforce it here — e.g. skip this
   // update while paid_through is in the future, or clear paid_through when a
   // Stripe subscription takes over. See docs/DEPLOYMENT.md.
+  const stillPaying = args.status === "active" || args.status === "trialing";
   await db()
     .update(workspaces)
-    .set({ plan: args.status === "active" || args.status === "trialing" ? args.plan : "trial" })
+    .set(
+      stillPaying
+        ? { plan: args.plan }
+        : // Dropping back to "trial" means "no paid plan", NOT "have another
+          // free week". Someone who subscribed during their trial and later
+          // lapsed still had days left on the clock, and without this they get
+          // them back. Expire on the way down; trialUsedAt records it was spent.
+          { plan: "trial", trialEndsAt: sql`least(${workspaces.trialEndsAt}, now())` },
+    )
     .where(eq(workspaces.id, args.workspaceId));
   await invalidateCreditCache(args.workspaceId);
 }

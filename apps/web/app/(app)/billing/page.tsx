@@ -157,8 +157,11 @@ export default function BillingPage() {
                       <span className="text-sm font-normal text-ink-3">/month</span>
                     </p>
                     {p.setupFeeUsd > 0 && (
+                      // Not "+ $X": the setup fee replaces month one rather
+                      // than adding to it, so a "+" overstates what they pay
+                      // today and understates what they pay later.
                       <p className="mt-0.5 text-[12.5px] text-ink-2">
-                        + ${p.setupFeeUsd} one-time setup
+                        ${p.setupFeeUsd} to start, then ${p.priceMonthlyUsd}/month from day 31
                       </p>
                     )}
                   </>
@@ -197,9 +200,10 @@ export default function BillingPage() {
       </section>
 
       <p className="mt-6 text-[12px] leading-relaxed text-ink-3">
-        Plans that show a setup fee charge that one-time amount now, which covers your first month;
-        the monthly price then recurs after 30 days. You can cancel anytime and your plan stays active
-        until the end of the period. By subscribing you agree to our{" "}
+        The setup fee is your first payment and covers your first month — it is not charged on top.
+        The monthly price then begins on day 31. The free trial is one time only and does not renew.
+        You can cancel anytime and your plan stays active until the end of the period. By subscribing
+        you agree to our{" "}
         <a href="/terms" className="underline hover:text-ink-2">Terms</a> and{" "}
         <a href="/refunds" className="underline hover:text-ink-2">Refund Policy</a>.
       </p>

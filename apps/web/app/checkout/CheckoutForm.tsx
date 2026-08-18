@@ -105,9 +105,13 @@ export default function CheckoutForm({
       <section className="mt-6 rounded-xl border border-line p-5">
         <p className="font-medium">Send ${totalUsd} fresh USD</p>
         {setupFeeUsd > 0 ? (
+          // The setup fee covers month one, so this is the whole first payment
+          // — not a monthly charge with a fee added. The old wording read
+          // "$monthly + $setup = $total", which described a sum we no longer
+          // charge and quoted a larger number than the customer owes.
           <p className="mt-1 text-[13px] text-ink-2">
-            ${monthlyUsd} monthly + ${setupFeeUsd} setup = <strong className="text-ink">${totalUsd}</strong>.
-            The setup fee is one time — future months are ${monthlyUsd}.
+            <strong className="text-ink">${setupFeeUsd}</strong> to get started, which covers your
+            setup and your first month. From day 31 it&apos;s ${monthlyUsd}/month.
           </p>
         ) : (
           <p className="mt-1 text-[13px] text-ink-2">

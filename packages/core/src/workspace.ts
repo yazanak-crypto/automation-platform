@@ -114,8 +114,11 @@ export async function resolveWorkspace(identity: AuthedIdentity) {
         .values({
           name: identity.name ? `${identity.name}'s workspace` : "My workspace",
           slug,
-          // 7-day free trial (founder decision) — time-gated, not credit-gated.
+          // 7-day free trial (founder decision) — time-gated, not credit-gated,
+          // and granted exactly once. trialUsedAt is the record that it was
+          // spent; nothing in the codebase clears it.
           trialEndsAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          trialUsedAt: new Date(),
         })
         .returning()
     )[0]!;

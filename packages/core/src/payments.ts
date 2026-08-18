@@ -1,5 +1,5 @@
 import { db, payments, users, workspaces } from "@platform/db";
-import { and, desc, eq, ne } from "drizzle-orm";
+import { and, desc, eq, ne, sql } from "drizzle-orm";
 import { PLANS, type PlanId } from "./billing";
 
 // Manual payments (bank transfer / Whish) — the path used while there is no
@@ -73,7 +73,13 @@ export async function amountDueFor(
   const monthlyUsd = PLANS[plan].priceMonthlyUsd;
   const includesSetupFee = confirmed.length === 0;
   const setupFeeUsd = includesSetupFee ? PLANS[plan].setupFeeUsd : 0;
-  return { monthlyUsd, setupFeeUsd, totalUsd: monthlyUsd + setupFeeUsd, includesSetupFee };
+  // The setup fee IS month one — charged INSTEAD of the monthly price, not on
+  // top of it. This previously summed both, so a first payment came to
+  // setup + monthly ($898 on Starter) while every customer-facing surface
+  // quoted the setup fee alone ($499). Whichever number was right, they
+  // disagreed, and the one the customer was shown was the smaller.
+  const totalUsd = includesSetupFee ? setupFeeUsd : monthlyUsd;
+  return { monthlyUsd, setupFeeUsd, totalUsd, includesSetupFee };
 }
 
 export interface ClaimEligibility {
@@ -214,7 +220,14 @@ export async function rejectPayment(paymentId: string, reviewedBy: string, note:
       .where(eq(payments.id, paymentId));
     await tx
       .update(workspaces)
-      .set({ plan: "trial", paidThrough: null })
+      // Same rule as a lapsed subscription: reverting to "trial" is the absence
+      // of a paid plan, not a fresh free week. Expire any time still on the
+      // clock so a rejected payment can't hand back trial days.
+      .set({
+        plan: "trial",
+        paidThrough: null,
+        trialEndsAt: sql`least(${workspaces.trialEndsAt}, now())`,
+      })
       .where(eq(workspaces.id, p.workspaceId));
     return { ...p, status: "REJECTED" as const };
   });
