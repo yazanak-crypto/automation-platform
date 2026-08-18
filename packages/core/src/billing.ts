@@ -191,11 +191,16 @@ export async function invalidateCreditCache(workspaceId: string) {
   await redis().del(`credits:${workspaceId}`).catch(() => {});
 }
 
-/** Upsert from Stripe webhook events — the only writer of subscription state. */
+/**
+ * Upsert from a payment provider webhook — the only writer of subscription
+ * state. Provider-neutral by signature: Stripe and Paddle both call this with
+ * their own ids, and `provider` says which system those ids belong to.
+ */
 export async function applySubscriptionState(args: {
   workspaceId: string;
-  stripeCustomerId: string;
-  stripeSubscriptionId: string | null;
+  provider: "stripe" | "paddle";
+  providerCustomerId: string;
+  providerSubscriptionId: string | null;
   plan: PlanId;
   status: string;
   currentPeriodStart: Date | null;
@@ -210,8 +215,9 @@ export async function applySubscriptionState(args: {
     await db()
       .update(subscriptions)
       .set({
-        stripeCustomerId: args.stripeCustomerId,
-        stripeSubscriptionId: args.stripeSubscriptionId,
+        provider: args.provider,
+        providerCustomerId: args.providerCustomerId,
+        providerSubscriptionId: args.providerSubscriptionId,
         plan: args.plan,
         status: args.status,
         currentPeriodStart: args.currentPeriodStart,
@@ -222,8 +228,9 @@ export async function applySubscriptionState(args: {
   } else {
     await db().insert(subscriptions).values({
       workspaceId: args.workspaceId,
-      stripeCustomerId: args.stripeCustomerId,
-      stripeSubscriptionId: args.stripeSubscriptionId,
+      provider: args.provider,
+      providerCustomerId: args.providerCustomerId,
+      providerSubscriptionId: args.providerSubscriptionId,
       plan: args.plan,
       status: args.status,
       currentPeriodStart: args.currentPeriodStart,
