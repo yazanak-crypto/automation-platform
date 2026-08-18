@@ -9,6 +9,8 @@ import {
   DRAFT_PROFILE_SYSTEM,
   draftProfileUserPrompt,
 } from "./prompts";
+import { runPrefillPass, type PrefillResult } from "./prefill";
+import { detectVertical } from "./verticals";
 import { scrapeSite } from "./scrape";
 import { ensureProfile } from "./service";
 import { bumpBrainVersion } from "./version";
@@ -119,6 +121,17 @@ export async function runIngest(workspaceId: string, url: string): Promise<Inges
   }
   const parsed = draft;
 
+  // Second pass: pre-fill the guided setup, tailored to the vertical the first
+  // pass just identified. Deliberately non-fatal — a failure here costs the
+  // owner some typing, so it must never lose the profile the first pass found.
+  const vertical = detectVertical(parsed.identity.industry);
+  let prefill: PrefillResult = { values: {}, guessed: [], rejected: [] };
+  try {
+    prefill = await runPrefillPass({ workspaceId, vertical, pages: usable, brainVersion });
+  } catch (err) {
+    console.error("[brain.ingest] prefill pass failed (profile kept):", err);
+  }
+
   await db().transaction(async (tx) => {
     await tx
       .update(businessProfiles)
@@ -126,6 +139,13 @@ export async function runIngest(workspaceId: string, url: string): Promise<Inges
         identity: { ...parsed.identity, url },
         voice: parsed.voice,
         policies: parsed.policies,
+        // Everything the pass produced is `guessed`, so it is excluded from
+        // the context pack until the owner confirms it in the flow.
+        answers: {
+          vertical,
+          values: prefill.values,
+          guessed: prefill.guessed,
+        },
         onboardingStatus: "draft_ready",
         updatedAt: new Date(),
       })

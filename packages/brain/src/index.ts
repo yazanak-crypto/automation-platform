@@ -5,4 +5,6 @@ export * from "./ingest";
 export * from "./scrape";
 export * from "./ssrf";
 export * from "./prompts";
+export * from "./prefill";
+export * from "./prefillPrompt";
 export * from "./verticals";
