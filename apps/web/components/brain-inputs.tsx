@@ -9,7 +9,7 @@ import {
   type PriceRange,
   type Question,
   type WeeklyHours,
-} from "@platform/brain";
+} from "@platform/brain/verticals";
 
 // Input widgets for the guided Brain setup. One component per input TYPE —
 // never per question — so a new vertical is a data file and nothing more.

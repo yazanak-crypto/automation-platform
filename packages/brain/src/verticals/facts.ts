@@ -1,4 +1,4 @@
-import { getQuestionSet } from "./index";
+import { getQuestionSet } from "./sets";
 import {
   DAYS,
   DAY_LABELS,

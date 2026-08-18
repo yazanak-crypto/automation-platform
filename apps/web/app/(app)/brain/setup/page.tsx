@@ -8,7 +8,7 @@ import {
   detectVertical,
   visibleQuestions,
   type AnswerValue,
-} from "@platform/brain";
+} from "@platform/brain/verticals";
 import { QuestionInput } from "@/components/brain-inputs";
 import { Page, PageHeader, SkeletonRows } from "@/components/ui";
 

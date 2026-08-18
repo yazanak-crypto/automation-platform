@@ -65,7 +65,7 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["@platform/db", "@platform/ai"],
+  transpilePackages: ["@platform/db", "@platform/ai", "@platform/brain"],
   // BullMQ loads its Lua command files via dynamic require() — webpack can't
   // statically analyze that and emits "Critical dependency: the request of a
   // dependency is an expression". Keep it (and its Redis client) as runtime
