@@ -27,7 +27,7 @@ export async function POST(req: Request) {
 
   // Reuse the workspace's Stripe customer if one exists.
   const existing = await db()
-    .select({ customerId: subscriptions.stripeCustomerId })
+    .select({ customerId: subscriptions.providerCustomerId })
     .from(subscriptions)
     .where(eq(subscriptions.workspaceId, ctx.workspace.id))
     .limit(1);

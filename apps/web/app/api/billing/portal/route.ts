@@ -12,7 +12,7 @@ export async function POST() {
     return NextResponse.json({ error: "Billing isn't configured yet." }, { status: 503 });
   }
   const sub = await db()
-    .select({ customerId: subscriptions.stripeCustomerId })
+    .select({ customerId: subscriptions.providerCustomerId })
     .from(subscriptions)
     .where(eq(subscriptions.workspaceId, ctx.workspace.id))
     .limit(1);

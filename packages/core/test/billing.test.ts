@@ -103,8 +103,9 @@ describe.skipIf(!hasDb)("credit status + subscription state (DB)", () => {
     const end = new Date(Date.now() + 29 * 24 * 3600 * 1000);
     await applySubscriptionState({
       workspaceId: ws,
-      stripeCustomerId: "cus_test",
-      stripeSubscriptionId: "sub_test",
+      provider: "stripe" as const,
+      providerCustomerId: "cus_test",
+      providerSubscriptionId: "sub_test",
       plan: "pro",
       status: "active",
       currentPeriodStart: start,
@@ -136,8 +137,9 @@ describe.skipIf(!hasDb)("credit status + subscription state (DB)", () => {
   it("cancellation drops back to trial", async () => {
     await applySubscriptionState({
       workspaceId: ws,
-      stripeCustomerId: "cus_test",
-      stripeSubscriptionId: "sub_test",
+      provider: "stripe" as const,
+      providerCustomerId: "cus_test",
+      providerSubscriptionId: "sub_test",
       plan: "trial",
       status: "canceled",
       currentPeriodStart: null,
