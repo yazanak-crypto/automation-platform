@@ -197,8 +197,11 @@ export default function Home() {
                         : `About ${convos.toLocaleString()} customer conversations / month`}
                     </p>
                     {id !== "trial" && p.setupFeeUsd > 0 && (
+                      // The setup fee is not an extra on top of month one — it
+                      // IS month one. "+ $X one-time setup" read as an
+                      // additional charge and overstated the first payment.
                       <p className="mt-1 text-[12px] text-ink-3">
-                        + ${p.setupFeeUsd} one-time setup
+                        ${p.setupFeeUsd} to start, covering your first month
                       </p>
                     )}
                   </div>

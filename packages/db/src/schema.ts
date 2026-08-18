@@ -34,6 +34,11 @@ export const workspaces = pgTable("workspaces", {
   clerkOrgId: text("clerk_org_id").unique(),
   plan: text("plan").notNull().default("trial"),
   trialEndsAt: timestamp("trial_ends_at", { withTimezone: true }),
+  // Set once, the first time a workspace is granted its free trial, and never
+  // cleared. Makes "one trial, ever" a property of the data rather than the
+  // absence of code that grants a second one: any future path that wants to
+  // start a trial must check this first.
+  trialUsedAt: timestamp("trial_used_at", { withTimezone: true }),
   // Manual (bank/Whish) payment access. Null = never paid manually. Independent
   // of Stripe: whichever grants access wins.
   paidThrough: timestamp("paid_through", { withTimezone: true }),

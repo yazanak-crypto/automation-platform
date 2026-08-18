@@ -1,5 +1,5 @@
 import { aiConfigured, callAi } from "@platform/ai";
-import { getCreditStatus, takeLimit } from "@platform/core";
+import { getCreditStatus, PLANS, takeLimit } from "@platform/core";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { BRAND } from "@/lib/brand";
@@ -32,14 +32,14 @@ Channels: Website chat and Email (Gmail) work today. Add website chat on the Cha
 
 Autonomy: low-risk, well-grounded questions can be answered automatically in Smart mode; refunds, complaints, negotiations, and anything unclear always come to the owner. Boundaries (e.g. "never offer discounts") are always respected.
 
-Billing: 7-day free trial (no card). Then Starter — $49/month plus a one-time $70 setup fee; Premium — $149/month plus a one-time $120 setup fee. The setup fee is charged once, on the first payment. Each plan covers a set number of customer conversations per month. Payment is by bank transfer or Whish from the Billing page; amounts are quoted in fresh USD.
+Billing: a one-time 7-day free trial (no card), which never renews. Then Starter — a one-time $${PLANS.starter.setupFeeUsd} setup fee that covers the first month, then $${PLANS.starter.priceMonthlyUsd}/month from day 31; Premium — $${PLANS.pro.setupFeeUsd} setup covering month one, then $${PLANS.pro.priceMonthlyUsd}/month. The setup fee is charged once and includes the first month. Each plan covers a set number of customer conversations per month. Payment is by bank transfer or Whish from the Billing page; amounts are quoted in fresh USD.
 
 Account: the avatar menu (bottom-left) has Account settings, Billing, Manage profile, and Sign out.`;
 
 function fallback(question: string): string {
   const q = question.toLowerCase();
   if (/bill|price|pay|charge|refund|credit|cancel|subscri|upgrade/.test(q))
-    return `Billing lives on the Billing page. You get a 7-day free trial (no card). Starter is $49/month plus a one-time $70 setup fee; Premium is $149/month plus a one-time $120 setup fee. You can upgrade from there anytime.`;
+    return `Billing lives on the Billing page. You get a one-time 7-day free trial (no card). Starter is a $${PLANS.starter.setupFeeUsd} one-time setup fee covering your first month, then $${PLANS.starter.priceMonthlyUsd}/month; Premium is $${PLANS.pro.setupFeeUsd} then $${PLANS.pro.priceMonthlyUsd}/month. You can upgrade from there anytime.`;
   if (/activate|automation|marketplace|lead|concierge/.test(q))
     return `To activate an automation: open Automations, pick one, connect a channel, configure it, preview it on a sample message, then go live. It starts in Supervised mode so you approve every reply until you trust it.`;
   if (/channel|website|chat|widget|email|gmail|whatsapp|instagram|integrat/.test(q))

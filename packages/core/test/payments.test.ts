@@ -5,17 +5,22 @@ import { isPayablePlan, referenceCodeFor } from "../src/payments";
 // Money-shaped values must come from the catalog, never the client.
 describe("plan catalog pricing", () => {
   it("prices starter and pro with a visible one-time setup fee", () => {
-    expect(PLANS.starter.priceMonthlyUsd).toBe(49);
-    expect(PLANS.starter.setupFeeUsd).toBe(70);
-    expect(PLANS.pro.priceMonthlyUsd).toBe(149);
-    expect(PLANS.pro.setupFeeUsd).toBe(120);
+    expect(PLANS.starter.priceMonthlyUsd).toBe(399);
+    expect(PLANS.starter.setupFeeUsd).toBe(499);
+    expect(PLANS.pro.priceMonthlyUsd).toBe(599);
+    expect(PLANS.pro.setupFeeUsd).toBe(799);
     expect(PLANS.trial.setupFeeUsd).toBe(0);
   });
 
-  it("totals first-month vs returning amounts", () => {
-    // First paid month = monthly + setup; afterwards monthly only.
-    expect(PLANS.starter.priceMonthlyUsd + PLANS.starter.setupFeeUsd).toBe(119);
-    expect(PLANS.pro.priceMonthlyUsd + PLANS.pro.setupFeeUsd).toBe(269);
+  it("charges the setup fee INSTEAD of month one, not on top of it", () => {
+    // This test used to assert monthly + setup as the first payment. That sum
+    // is what amountDueFor() actually charged, while every customer-facing
+    // surface quoted the setup fee alone — a real disagreement about how much
+    // someone owes on day one. The setup fee covers month one; the monthly
+    // price starts on day 31.
+    expect(PLANS.starter.setupFeeUsd).toBe(499);
+    expect(PLANS.starter.priceMonthlyUsd + PLANS.starter.setupFeeUsd).not.toBe(499);
+    expect(PLANS.pro.setupFeeUsd).toBe(799);
   });
 });
 
