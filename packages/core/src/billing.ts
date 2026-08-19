@@ -70,11 +70,18 @@ export function creditsFromMicrocents(microcents: number): number {
   return Math.ceil(microcents / MICROCENTS_PER_CREDIT);
 }
 
+/** Which record granted the current plan. Answers "why do I have this?". */
+export type EntitlementSource = "manual" | "provider" | "trial";
+
 export interface CreditStatus {
   /** Set when the workspace is on trial: when it ends / whether it has ended. */
   trialEndsAt: string | null;
   trialEnded: boolean;
   plan: PlanId;
+  /** Where `plan` came from — previously unanswerable without reading two tables. */
+  source: EntitlementSource;
+  /** When the granting record runs out: paidThrough, period end, or trial end. */
+  activeUntil: string | null;
   allowance: number;
   used: number;
   remaining: number;
@@ -83,6 +90,13 @@ export interface CreditStatus {
   periodEnd: Date;
   subscriptionStatus: string | null;
 }
+
+/**
+ * Plan ranking, used to settle disagreements between payment records.
+ * Order matters more than the numbers: it is "how much was bought", not a
+ * feature list.
+ */
+const PLAN_RANK: Record<PlanId, number> = { trial: 0, starter: 1, pro: 2 };
 
 /** Calendar-month period for trial workspaces (no Stripe period to anchor to). */
 function calendarPeriod(now = new Date()): { start: Date; end: Date } {
@@ -125,23 +139,47 @@ export async function getCreditStatus(
     .limit(1);
   const sub = subRows[0];
 
-  // Manual (bank/Whish) access runs alongside Stripe — whichever grants access
-  // wins. A confirmed or provisional manual payment sets workspaces.plan +
-  // paid_through; while paid_through is in the future that plan is live.
+  // ── Entitlement is DERIVED here, never stored ───────────────────────────
+  //
+  // Two payment paths grant access and each owns its own record:
+  //   • manual bank/Whish  → workspaces.plan + paid_through
+  //   • provider (Paddle/Stripe) → the subscriptions row
+  //
+  // They used to share workspaces.plan, which meant one webhook could undo a
+  // paying manual customer: a non-active status wrote plan="trial" while
+  // paid_through was still in the future, so the customer kept access but
+  // silently dropped to the 300-credit trial allowance. Nothing errored.
+  //
+  // When the two records disagree, the MORE GENEROUS active one wins. Both
+  // represent money that actually arrived, and the two errors are not
+  // symmetric: over-granting costs a little AI spend, while downgrading
+  // someone who paid is a refund conversation. It cannot be gamed either —
+  // manual grants require admin confirmation.
   const paidThrough = wsRows[0]?.paidThrough ?? null;
-  const manualActive =
-    !!paidThrough && paidThrough.getTime() > Date.now() && isPlanId(wsRows[0]?.wsPlan ?? "");
+  const manual =
+    !!paidThrough && paidThrough.getTime() > Date.now() && isPlanId(wsRows[0]?.wsPlan ?? "")
+      ? { plan: wsRows[0]!.wsPlan as PlanId, until: paidThrough }
+      : null;
 
-  const stripeActive =
-    sub && (sub.status === "active" || sub.status === "trialing") && isPlanId(sub.plan);
-  const plan: PlanId = manualActive
-    ? (wsRows[0]!.wsPlan as PlanId)
-    : stripeActive
-      ? (sub.plan as PlanId)
-      : "trial";
-  const period = manualActive
-    ? calendarPeriod()
-    : stripeActive && sub.currentPeriodStart && sub.currentPeriodEnd
+  const providerActive =
+    sub && (sub.status === "active" || sub.status === "trialing") && isPlanId(sub.plan)
+      ? { plan: sub.plan as PlanId, until: sub.currentPeriodEnd ?? null }
+      : null;
+
+  const candidates = [manual, providerActive].filter((c) => c !== null);
+  const best = candidates.reduce<{ plan: PlanId; until: Date | null } | null>(
+    (acc, c) => (acc === null || PLAN_RANK[c.plan] > PLAN_RANK[acc.plan] ? c : acc),
+    null,
+  );
+
+  const plan: PlanId = best?.plan ?? "trial";
+  const source: EntitlementSource =
+    best === null ? "trial" : best === manual ? "manual" : "provider";
+
+  // Usage is measured over the provider's billing period when the provider is
+  // what granted the plan; otherwise a calendar month.
+  const period =
+    source === "provider" && sub?.currentPeriodStart && sub?.currentPeriodEnd
       ? { start: sub.currentPeriodStart, end: sub.currentPeriodEnd }
       : calendarPeriod();
 
@@ -172,6 +210,8 @@ export async function getCreditStatus(
   const trialEnded = plan === "trial" && (!trialEndsAt || trialEndsAt.getTime() < Date.now());
   const status: CreditStatus = {
     plan,
+    source,
+    activeUntil: (best?.until ?? trialEndsAt)?.toISOString() ?? null,
     allowance,
     used,
     remaining: Math.max(0, allowance - used),
@@ -237,38 +277,18 @@ export async function applySubscriptionState(args: {
       currentPeriodEnd: args.currentPeriodEnd,
     });
   }
-  // ⚠️ COLLISION RISK WITH MANUAL PAYMENTS — read before enabling BILLING_ENABLED.
+  // This function deliberately does NOT touch `workspaces`.
   //
-  // This writes workspaces.plan unconditionally, but manual bank/Whish payments
-  // (packages/core/src/payments.ts) write the SAME column plus paid_through, and
-  // this function never looks at paid_through. Once Stripe is live, one webhook
-  // can silently undo a paid manual customer:
+  // It used to write workspaces.plan, which the manual bank/Whish path also
+  // owns (packages/core/src/payments.ts writes plan + paid_through). Two
+  // writers on one field meant a single webhook could silently undo a paying
+  // manual customer — a non-active status wrote plan="trial" while paid_through
+  // was still in the future, so they kept access at the 300-credit trial
+  // allowance after paying for Starter.
   //
-  //   • A non-active Stripe status forces plan back to "trial" while
-  //     paid_through is still in the future. getCreditStatus() then reads
-  //     manualActive === true with plan "trial" (isPlanId("trial") is true), so
-  //     the customer keeps access but drops to the 300-credit trial allowance —
-  //     a silent downgrade of someone who paid.
-  //   • An active Stripe status overwrites a manually-set plan, leaving a
-  //     paid_through that belongs to a different plan than the one now stored.
-  //
-  // Today this cannot fire: billingConfigured() requires BILLING_ENABLED, so the
-  // Stripe webhook returns 503 and never reaches here. Before turning that flag
-  // on, decide which source of truth wins and enforce it here — e.g. skip this
-  // update while paid_through is in the future, or clear paid_through when a
-  // Stripe subscription takes over. See docs/DEPLOYMENT.md.
-  const stillPaying = args.status === "active" || args.status === "trialing";
-  await db()
-    .update(workspaces)
-    .set(
-      stillPaying
-        ? { plan: args.plan }
-        : // Dropping back to "trial" means "no paid plan", NOT "have another
-          // free week". Someone who subscribed during their trial and later
-          // lapsed still had days left on the clock, and without this they get
-          // them back. Expire on the way down; trialUsedAt records it was spent.
-          { plan: "trial", trialEndsAt: sql`least(${workspaces.trialEndsAt}, now())` },
-    )
-    .where(eq(workspaces.id, args.workspaceId));
+  // Each path now owns its own record and getCreditStatus() derives the
+  // effective plan from both. A lapsed subscription needs no write here: it
+  // simply stops counting as an active entitlement, and an expired trial does
+  // not revive.
   await invalidateCreditCache(args.workspaceId);
 }
