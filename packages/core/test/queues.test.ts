@@ -10,12 +10,18 @@ import { brainIngestQueue, redis, takeLimit } from "../src";
 const hasRedis = !!process.env.REDIS_URL;
 const uuid = () => crypto.randomUUID();
 
+// Teardown lives at FILE level, not inside the first describe. `redis()` is a
+// shared singleton: disconnecting it after the first block left every later
+// block talking to a closed connection, which is why the lock test below
+// failed with "Connection is closed" the first time these tests actually ran.
+afterAll(async () => {
+  if (!hasRedis) return;
+  await brainIngestQueue().obliterate({ force: true }).catch(() => {});
+  await brainIngestQueue().close().catch(() => {});
+  redis().disconnect();
+});
+
 describe.skipIf(!hasRedis)("ingest queue regressions", () => {
-  afterAll(async () => {
-    await brainIngestQueue().obliterate({ force: true }).catch(() => {});
-    await brainIngestQueue().close();
-    redis().disconnect();
-  });
 
   it("P0-3: a completed job no longer blocks a re-ingest (unique jobIds)", async () => {
     const ws = uuid();

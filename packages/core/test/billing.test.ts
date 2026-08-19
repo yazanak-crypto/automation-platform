@@ -61,7 +61,17 @@ describe.skipIf(!hasDb)("credit status + subscription state (DB)", () => {
 
   beforeAll(async () => {
     ws = (
-      await db().insert(workspaces).values({ name: "Bill T", slug: `t-${uuid().slice(0, 12)}` }).returning()
+      await db()
+        .insert(workspaces)
+        .values({
+          name: "Bill T",
+          slug: `t-${uuid().slice(0, 12)}`,
+          // A real workspace always gets a trial end date at creation. This
+          // test used to omit it and rely on null meaning "never expires",
+          // which was the permanent-free-tier bug — null now means expired.
+          trialEndsAt: new Date(Date.now() + 7 * 86_400_000),
+        })
+        .returning()
     )[0]!.id;
   });
 
@@ -103,8 +113,9 @@ describe.skipIf(!hasDb)("credit status + subscription state (DB)", () => {
     const end = new Date(Date.now() + 29 * 24 * 3600 * 1000);
     await applySubscriptionState({
       workspaceId: ws,
-      stripeCustomerId: "cus_test",
-      stripeSubscriptionId: "sub_test",
+      provider: "stripe" as const,
+      providerCustomerId: "cus_test",
+      providerSubscriptionId: "sub_test",
       plan: "pro",
       status: "active",
       currentPeriodStart: start,
@@ -136,8 +147,9 @@ describe.skipIf(!hasDb)("credit status + subscription state (DB)", () => {
   it("cancellation drops back to trial", async () => {
     await applySubscriptionState({
       workspaceId: ws,
-      stripeCustomerId: "cus_test",
-      stripeSubscriptionId: "sub_test",
+      provider: "stripe" as const,
+      providerCustomerId: "cus_test",
+      providerSubscriptionId: "sub_test",
       plan: "trial",
       status: "canceled",
       currentPeriodStart: null,
@@ -150,4 +162,24 @@ describe.skipIf(!hasDb)("credit status + subscription state (DB)", () => {
 
 describe.skipIf(hasDb)("billing (skipped)", () => {
   it("requires DATABASE_URL + REDIS_URL", () => expect(true).toBe(true));
+});
+
+describe.skipIf(!hasDb)("trial expiry (DB)", () => {
+  it("treats a NULL trial end date as expired, not as unlimited", async () => {
+    // The old rule was "null = no expiry, active for safety", which granted a
+    // permanent free tier: the trial allowance resets every calendar period, so
+    // such a workspace renewed forever. Failing closed is the safe direction
+    // for something that spends real AI budget.
+    const id = (
+      await db()
+        .insert(workspaces)
+        .values({ name: "Null trial", slug: `t-${uuid().slice(0, 12)}` })
+        .returning()
+    )[0]!.id;
+
+    const s = await getCreditStatus(id, { skipCache: true });
+    expect(s.plan).toBe("trial");
+    expect(s.trialEnded).toBe(true);
+    expect(s.exhausted).toBe(true);
+  });
 });

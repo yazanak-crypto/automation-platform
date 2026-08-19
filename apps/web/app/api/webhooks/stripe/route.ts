@@ -98,8 +98,9 @@ async function applyFromSubscription(sub: Stripe.Subscription) {
   const end = periods.current_period_end ?? periods.items.data[0]?.current_period_end;
   await applySubscriptionState({
     workspaceId,
-    stripeCustomerId: typeof sub.customer === "string" ? sub.customer : sub.customer.id,
-    stripeSubscriptionId: sub.id,
+    provider: "stripe" as const,
+    providerCustomerId: typeof sub.customer === "string" ? sub.customer : sub.customer.id,
+    providerSubscriptionId: sub.id,
     plan: sub.status === "canceled" ? "trial" : plan,
     status: sub.status,
     currentPeriodStart: start ? new Date(start * 1000) : null,

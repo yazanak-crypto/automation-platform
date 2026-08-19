@@ -459,7 +459,7 @@ export const runEvents = pgTable(
   (t) => [index("run_events_run_idx").on(t.runId, t.seq)],
 );
 
-// ── Billing (Step 9): Stripe subscription state; credits computed from ai_calls ─
+// ── Billing (Step 9): subscription state; credits computed from ai_calls ───────
 
 export const subscriptions = pgTable("subscriptions", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -467,8 +467,17 @@ export const subscriptions = pgTable("subscriptions", {
     .notNull()
     .unique()
     .references(() => workspaces.id),
-  stripeCustomerId: text("stripe_customer_id").notNull(),
-  stripeSubscriptionId: text("stripe_subscription_id"),
+  // Provider-neutral. These were stripe_customer_id / stripe_subscription_id,
+  // which named one vendor in the schema and would not have held a Paddle id
+  // without lying about what it was. Renamed while the table was EMPTY — after
+  // the first paying customer this becomes a data migration instead of a rename.
+  //
+  // `provider` is required rather than defaulted: a row whose ids belong to a
+  // provider nobody recorded is unfixable later, and a default would let a
+  // caller create one by forgetting.
+  provider: text("provider", { enum: ["stripe", "paddle"] }).notNull(),
+  providerCustomerId: text("provider_customer_id").notNull(),
+  providerSubscriptionId: text("provider_subscription_id"),
   plan: text("plan").notNull().default("trial"),
   status: text("status").notNull().default("incomplete"),
   currentPeriodStart: timestamp("current_period_start", { withTimezone: true }),
