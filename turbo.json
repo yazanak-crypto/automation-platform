@@ -7,7 +7,13 @@
     },
     "typecheck": { "dependsOn": ["^typecheck"] },
     "lint": {},
-    "test": {},
+    // Turborepo runs tasks in a filtered environment: anything not declared
+    // here is stripped from the child process. TEST_DATABASE_URL was set in CI
+    // but never reached vitest, so every DB-gated integration test in the repo
+    // silently SKIPPED — ~39 of them, across core, brain and channels, while CI
+    // reported green. Declaring them also means a change to either value
+    // correctly busts the test cache.
+    "test": { "env": ["TEST_DATABASE_URL", "DATABASE_URL", "REDIS_URL"] },
     "dev": { "cache": false, "persistent": true }
   }
 }
