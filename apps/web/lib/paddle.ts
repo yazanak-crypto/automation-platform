@@ -17,8 +17,10 @@ import type { PlanId } from "@platform/core";
 //
 // ⚠️ If the recurring price does NOT have a 30-day trial set in Paddle, the
 // customer is charged setup + monthly on day one ($898 on Starter). That is a
-// configuration failure with no code signal, so verifyPaddlePrices() below
-// exists to catch it before a customer does.
+// dashboard configuration failure with no runtime signal in this codebase, so
+// `pnpm paddle:verify` (scripts/paddle-verify.ts) checks all four prices
+// against PLANS via the Paddle API. Run it after any price change, and before
+// switching PADDLE_ENV to production.
 
 export function paddleConfigured(): boolean {
   return !!(process.env.PADDLE_API_KEY && process.env.PADDLE_WEBHOOK_SECRET);
