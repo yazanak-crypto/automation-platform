@@ -31,6 +31,16 @@ const clerk = [
   "https://*.clerk.com",
   ...(clerkCustomDomain ? [`https://${clerkCustomDomain}`] : []),
 ];
+// Paddle Checkout: script from the CDN, the overlay itself in an iframe, and
+// API calls from the browser. Both sandbox and production hosts are listed so a
+// sandbox test does not fail with a blank overlay and no error — a missing CSP
+// entry shows up as "the checkout never opens", with nothing in the logs.
+const paddle = {
+  script: ["https://cdn.paddle.com", "https://sandbox-cdn.paddle.com"],
+  frame: ["https://buy.paddle.com", "https://sandbox-buy.paddle.com", "https://checkout.paddle.com", "https://sandbox-checkout.paddle.com"],
+  connect: ["https://api.paddle.com", "https://sandbox-api.paddle.com", "https://checkout-service.paddle.com", "https://sandbox-checkout-service.paddle.com"],
+};
+
 const csp = [
   `default-src 'self'`,
   `base-uri 'self'`,
@@ -40,13 +50,13 @@ const csp = [
   // 'unsafe-inline' keeps Clerk/Next/styled-jsx working without a nonce
   // pipeline; 'unsafe-eval' is dev-only (React Refresh). No dangerouslySetInnerHTML
   // exists in the app, so residual inline-script risk is low.
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} ${clerk.join(" ")} https://challenges.cloudflare.com https://js.stripe.com`,
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} ${clerk.join(" ")} https://challenges.cloudflare.com https://js.stripe.com ${paddle.script.join(" ")}`,
   `style-src 'self' 'unsafe-inline'`,
   `img-src 'self' data: blob: https://img.clerk.com`,
   `font-src 'self' data:`,
   `worker-src 'self' blob:`,
-  `connect-src 'self' ${clerk.join(" ")} https://clerk-telemetry.com https://api.nango.dev https://api.stripe.com https://*.sentry.io https://*.ingest.sentry.io`,
-  `frame-src 'self' ${clerk.join(" ")} https://challenges.cloudflare.com https://js.stripe.com https://hooks.stripe.com`,
+  `connect-src 'self' ${clerk.join(" ")} https://clerk-telemetry.com https://api.nango.dev https://api.stripe.com ${paddle.connect.join(" ")} https://*.sentry.io https://*.ingest.sentry.io`,
+  `frame-src 'self' ${clerk.join(" ")} https://challenges.cloudflare.com https://js.stripe.com https://hooks.stripe.com ${paddle.frame.join(" ")}`,
   ...(isDev ? [] : ["upgrade-insecure-requests"]),
 ].join("; ");
 

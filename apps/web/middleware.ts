@@ -15,6 +15,9 @@ const isPublicRoute = createRouteMatcher([
   "/api/health",
   "/widget.js",
   "/api/webhooks/stripe",
+  // Paddle has no Clerk session; the route verifies every request with the
+  // Paddle-Signature header instead.
+  "/api/webhooks/paddle",
   // Meta (Instagram/WhatsApp/Facebook) webhooks: GET verification handshake +
   // POST events. Auth can't apply — Meta has no Clerk session. The route
   // handler still verifies every POST via X-Hub-Signature-256/META_APP_SECRET.

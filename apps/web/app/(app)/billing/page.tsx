@@ -56,8 +56,30 @@ export default function BillingPage() {
       setError((await res?.json().catch(() => null))?.error ?? "That didn’t work — try again.");
       return;
     }
-    const { url } = await res.json();
-    if (url) window.location.href = url;
+    const payload = await res.json();
+
+    // Stripe hands back a hosted URL to redirect to. Paddle has no such URL —
+    // the checkout is an overlay opened by Paddle.js against a transaction the
+    // server already created, so the browser never sees a price id.
+    if (payload.provider === "paddle" && payload.transactionId) {
+      try {
+        const { initializePaddle } = await import("@paddle/paddle-js");
+        const paddle = await initializePaddle({
+          environment:
+            process.env.NEXT_PUBLIC_PADDLE_ENV === "production" ? "production" : "sandbox",
+          token: process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN ?? "",
+        });
+        if (!paddle) throw new Error("Paddle failed to initialise");
+        paddle.Checkout.open({ transactionId: payload.transactionId });
+      } catch {
+        // A blocked script or a missing client token would otherwise leave the
+        // button looking dead, which is the hardest failure to diagnose.
+        setError("The payment window couldn't open. Please refresh and try again.");
+      }
+      return;
+    }
+
+    if (payload.url) window.location.href = payload.url;
   }
 
   if (!data)
