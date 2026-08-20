@@ -7,6 +7,35 @@ import { NextResponse } from "next/server";
 // (no auth) and cheap; reports dependency health without leaking internals.
 export const dynamic = "force-dynamic";
 
+/**
+ * Migration drift, reported as a THREE-state result.
+ *
+ * The previous shape was a bare `number | null`, initialised to null and set by
+ * a promise whose rejection was swallowed. So a broken check and a healthy one
+ * were indistinguishable: production sat at `pendingMigrations: null` while two
+ * unapplied migrations took `/dashboard` down twice. `null` looked reassuring
+ * and meant "I have no idea".
+ *
+ * "unknown" is now explicit, carries the reason, and never masquerades as zero.
+ */
+type MigrationReport =
+  | { status: "ok"; pending: 0 }
+  | { status: "pending"; pending: number }
+  | { status: "unknown"; error: string };
+
+async function checkMigrations(): Promise<MigrationReport> {
+  try {
+    const pending = await pendingMigrationCount();
+    return pending === 0 ? { status: "ok", pending: 0 } : { status: "pending", pending };
+  } catch (err) {
+    // Surfaced, not swallowed. The failure mode that hid twice was an ENOENT
+    // on the journal in a bundled serverless function.
+    const message = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+    console.error("[health] migration check failed:", message);
+    return { status: "unknown", error: message.slice(0, 200) };
+  }
+}
+
 export async function GET() {
   const checks: Record<string, "ok" | "down" | "stale"> = {
     db: "down",
@@ -14,22 +43,19 @@ export async function GET() {
     worker: "down",
   };
   let heartbeat: string | null = null;
-  // Schema drift is invisible until a request happens to touch the missing
-  // column, and then it surfaces as "Something went wrong" with no clue why.
-  // That cost a production outage, so it is reported here explicitly.
-  let pendingMigrations: number | null = null;
-  await Promise.all([
+
+  // Migrations come back as a RETURN VALUE rather than a mutated variable:
+  // assigning inside a .then() left TypeScript narrowing the type to the
+  // initialiser, and more importantly it was the shape that made swallowing the
+  // error easy in the first place.
+  const [, migrations] = await Promise.all([
     db()
       .execute(sql`select 1`)
       .then(() => {
         checks.db = "ok";
       })
       .catch(() => {}),
-    pendingMigrationCount()
-      .then((n) => {
-        pendingMigrations = n;
-      })
-      .catch(() => {}),
+    checkMigrations(),
     (async () => {
       try {
         await redis().ping();
@@ -46,18 +72,26 @@ export async function GET() {
       }
     })(),
   ]);
+
   // db + redis are hard failures (503). A stale/down worker is reported but does
   // not fail the web liveness check — it's surfaced for alerting.
-  // Pending migrations do NOT fail the probe: the app may be serving fine
-  // until a request reaches the new column. It is reported so a monitor can
-  // alert on it, and so this endpoint answers "why is the site broken?" in one
-  // call instead of a database session.
+  //
+  // Migrations do not fail the probe either: pending ones may be harmless until
+  // a request reaches the new column, and a broken CHECK is not a broken app.
+  // But neither is allowed to look healthy — `checks.migrations` carries the
+  // real state so a monitor can alert on "pending" or "unknown", and so this
+  // endpoint answers "why is the site broken?" in one call.
+  checks.migrations = migrations.status === "ok" ? "ok" : "down";
+
   const ok = checks.db === "ok" && checks.redis === "ok";
   return NextResponse.json(
     {
       ok,
       checks,
-      pendingMigrations,
+      migrations,
+      // Kept for existing monitors. Now genuinely a count or null-because-
+      // unknown, with `migrations.status` saying which.
+      pendingMigrations: migrations.status === "unknown" ? null : migrations.pending,
       workerHeartbeat: heartbeat,
       time: new Date().toISOString(),
     },

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { journalTags } from "../src/migrate";
 
 // The journal is the source of truth for "how many migrations should exist".
@@ -33,5 +33,29 @@ describe("journalTags", () => {
       .map((f) => f.replace(/\.sql$/, ""))
       .sort();
     expect(journalTags().slice().sort()).toEqual(files);
+  });
+});
+
+describe("journal is bundler-safe", () => {
+  it("returns the journal without reading the filesystem", async () => {
+    // The health endpoint runs inside a bundled serverless function where
+    // packages/db/migrations is NOT shipped. journalTags() used to readFileSync
+    // a path derived from import.meta.url, threw ENOENT there, and the endpoint
+    // swallowed it — so the drift detector reported healthy through two
+    // outages. A static import keeps the data in the module graph instead.
+    //
+    // Asserted against the source because node:fs cannot be spied on: the point
+    // is that this code path has no filesystem dependency at all.
+    const { readFileSync } = await import("node:fs");
+    const { join, dirname } = await import("node:path");
+    const { fileURLToPath } = await import("node:url");
+    const src = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), "..", "src", "migrate.ts"),
+      "utf8",
+    );
+    const journalFn = src.slice(src.indexOf("export function journalTags"));
+    expect(journalFn.slice(0, journalFn.indexOf("}"))).not.toContain("readFileSync");
+    expect(src).toContain('import journal from "../migrations/meta/_journal.json"');
+    expect(journalTags().length).toBeGreaterThan(0);
   });
 });

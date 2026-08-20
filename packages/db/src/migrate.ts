@@ -1,8 +1,8 @@
-import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { sql } from "drizzle-orm";
+import journal from "../migrations/meta/_journal.json";
 import { db } from "./index";
 
 // Schema migrations, applied automatically instead of by hand.
@@ -24,6 +24,11 @@ import { db } from "./index";
 // for a few seconds the old code runs against the new schema. Additive changes
 // are invisible to old code; destructive ones are an outage.
 
+// Only applyMigrations() uses this. It reads the .sql files off disk and runs
+// ONLY in the worker, which executes from source on Railway with the repo
+// present. Counting pending migrations deliberately does NOT touch the
+// filesystem — see journalTags() — so it keeps working inside a bundle where
+// this path does not resolve.
 const MIGRATIONS_FOLDER = join(dirname(fileURLToPath(import.meta.url)), "..", "migrations");
 
 interface JournalEntry {
@@ -31,11 +36,24 @@ interface JournalEntry {
   tag: string;
 }
 
-/** Migration tags on disk, in order, from drizzle's journal. */
-export function journalTags(folder = MIGRATIONS_FOLDER): string[] {
-  const raw = readFileSync(join(folder, "meta", "_journal.json"), "utf8");
-  const journal = JSON.parse(raw) as { entries: JournalEntry[] };
-  return journal.entries.sort((a, b) => a.idx - b.idx).map((e) => e.tag);
+/**
+ * Migration tags, in order.
+ *
+ * IMPORTED, not read from disk. This used to be a readFileSync against a path
+ * derived from import.meta.url, which works under tsx in the worker and fails
+ * in a bundled serverless function: Next traces imports, not runtime file
+ * reads, so packages/db/migrations was never included and the read threw
+ * ENOENT. The health endpoint swallowed that and reported `null`, so the drift
+ * detector was blind through two outages it existed to catch.
+ *
+ * A static import puts the journal in the module graph, so every bundler that
+ * can see this file also ships its data.
+ */
+export function journalTags(): string[] {
+  return (journal as { entries: JournalEntry[] }).entries
+    .slice()
+    .sort((a, b) => a.idx - b.idx)
+    .map((e) => e.tag);
 }
 
 /**
