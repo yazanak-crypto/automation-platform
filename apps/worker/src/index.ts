@@ -22,6 +22,7 @@ process.on("uncaughtException", (err) => {
   void Sentry.close(2000).finally(() => process.exit(1));
 });
 import { startBrainWorkers } from "./brainJobs";
+import { startBillingReconcile } from "./billingReconcile";
 import { startEmailPolling } from "./emailPoll";
 import { startWebchatWorker } from "./webchatDraft";
 
@@ -62,6 +63,10 @@ const brainWorkers = [...startBrainWorkers(connection), startWebchatWorker(conne
 // The webchat worker is the one that matters, so it reports readiness.
 const [, , webchatWorker] = brainWorkers;
 const stopEmailPolling = startEmailPolling();
+// Hourly Paddle drift repair. Paddle drops a failed webhook permanently after
+// three attempts, so the push path alone can lose entitlement for a paying
+// customer; this bounds that to an hour.
+const stopBillingReconcile = startBillingReconcile();
 
 // Audit P0-5: hourly sweep closes conversations idle >7 days (enables
 // "returning visitor" continuity and keeps the inbox honest).
@@ -87,6 +92,7 @@ webchatWorker?.on("ready", () => console.log("[worker] ready — connected to Re
 async function shutdown() {
   clearInterval(heartbeat);
   stopEmailPolling();
+  stopBillingReconcile();
   clearInterval(idleSweep);
   await Promise.all(brainWorkers.map((w) => w.close()));
   connection.disconnect();

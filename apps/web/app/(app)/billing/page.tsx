@@ -30,18 +30,44 @@ interface Data {
   };
   plans: Plan[];
   billingConfigured: boolean;
+  /** Any card provider live (Paddle or Stripe). Gates provider-neutral UI. */
+  cardBilling: boolean;
 }
 
 export default function BillingPage() {
   const [data, setData] = useState<Data | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/billing");
     if (res.ok) setData(await res.json());
   }, []);
   useEffect(() => { void load(); }, [load]);
+
+  /**
+   * Re-read the subscription from the payment provider.
+   *
+   * Separate from go() because this one has no redirect and no overlay — it
+   * reports an outcome in place and reloads the page data. It exists for the
+   * customer holding a receipt whose plan has not changed: webhooks can be
+   * dropped permanently, and without this their only recourse is support.
+   */
+  async function refresh() {
+    setBusy("refresh");
+    setError(null);
+    setNotice(null);
+    const res = await fetch("/api/billing/refresh", { method: "POST" }).catch(() => null);
+    const payload = await res?.json().catch(() => null);
+    setBusy(null);
+    if (!res?.ok) {
+      setError(payload?.error ?? "That didn’t work — try again.");
+      return;
+    }
+    setNotice(payload?.message ?? "Checked.");
+    if (payload?.updated) await load();
+  }
 
   async function go(path: string, body?: unknown, key = path) {
     setBusy(key);
@@ -102,6 +128,7 @@ export default function BillingPage() {
         upgrade anytime as you grow.
       </p>
       {error && <p className="mt-4 text-sm text-stop">{error}</p>}
+      {notice && <p className="mt-4 text-sm text-ink-2">{notice}</p>}
 
       <section className="mt-6 rounded-xl border border-line p-5">
         <div className="flex items-center justify-between">
@@ -123,15 +150,29 @@ export default function BillingPage() {
               </span>
             )}
           </p>
-          {status.subscriptionStatus && (
-            <button
-              onClick={() => go("/api/billing/portal", undefined, "portal")}
-              disabled={busy === "portal"}
-              className="press-glow rounded-lg bg-hover px-3 py-1.5 text-xs transition-transform active:scale-[0.97] disabled:opacity-50"
-            >
-              Manage subscription
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {/* Deliberately NOT gated on having a subscription row: the case this
+                exists for is having paid and having no row. */}
+            {data.cardBilling && (
+              <button
+                onClick={() => void refresh()}
+                disabled={busy === "refresh"}
+                title="Re-check your subscription with the payment provider"
+                className="press-glow rounded-lg px-3 py-1.5 text-xs text-ink-2 transition-transform hover:text-ink active:scale-[0.97] disabled:opacity-50"
+              >
+                {busy === "refresh" ? "Checking…" : "Refresh"}
+              </button>
+            )}
+            {status.subscriptionStatus && (
+              <button
+                onClick={() => go("/api/billing/portal", undefined, "portal")}
+                disabled={busy === "portal"}
+                className="press-glow rounded-lg bg-hover px-3 py-1.5 text-xs transition-transform active:scale-[0.97] disabled:opacity-50"
+              >
+                Manage subscription
+              </button>
+            )}
+          </div>
         </div>
         <div className="mt-4">
           <div className="flex justify-between text-sm">

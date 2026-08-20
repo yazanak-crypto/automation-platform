@@ -258,27 +258,21 @@ export async function applySubscriptionState(args: {
   currentPeriodStart: Date | null;
   currentPeriodEnd: Date | null;
 }) {
-  const existing = await db()
-    .select({ id: subscriptions.id })
-    .from(subscriptions)
-    .where(eq(subscriptions.workspaceId, args.workspaceId))
-    .limit(1);
-  if (existing[0]) {
-    await db()
-      .update(subscriptions)
-      .set({
-        provider: args.provider,
-        providerCustomerId: args.providerCustomerId,
-        providerSubscriptionId: args.providerSubscriptionId,
-        plan: args.plan,
-        status: args.status,
-        currentPeriodStart: args.currentPeriodStart,
-        currentPeriodEnd: args.currentPeriodEnd,
-        updatedAt: new Date(),
-      })
-      .where(eq(subscriptions.id, existing[0].id));
-  } else {
-    await db().insert(subscriptions).values({
+  // ONE atomic upsert, not select-then-insert-or-update.
+  //
+  // This was a check-then-act race and it fired the first time two events
+  // landed together: replaying subscription.created and subscription.trialing
+  // 0.4s apart, both reads saw no row, both inserted, and the loser died on
+  // `subscriptions_workspace_id_unique` with a 500. Paddle fans out several
+  // events per checkout and retries non-2xx, so concurrent delivery is the
+  // normal case rather than an edge case — and a 500 here is a customer who
+  // paid and did not get access.
+  //
+  // The unique index on workspace_id is what makes the conflict target valid;
+  // Postgres resolves the collision instead of the application losing the race.
+  await db()
+    .insert(subscriptions)
+    .values({
       workspaceId: args.workspaceId,
       provider: args.provider,
       providerCustomerId: args.providerCustomerId,
@@ -287,8 +281,20 @@ export async function applySubscriptionState(args: {
       status: args.status,
       currentPeriodStart: args.currentPeriodStart,
       currentPeriodEnd: args.currentPeriodEnd,
+    })
+    .onConflictDoUpdate({
+      target: subscriptions.workspaceId,
+      set: {
+        provider: args.provider,
+        providerCustomerId: args.providerCustomerId,
+        providerSubscriptionId: args.providerSubscriptionId,
+        plan: args.plan,
+        status: args.status,
+        currentPeriodStart: args.currentPeriodStart,
+        currentPeriodEnd: args.currentPeriodEnd,
+        updatedAt: new Date(),
+      },
     });
-  }
   // This function deliberately does NOT touch `workspaces`.
   //
   // It used to write workspaces.plan, which the manual bank/Whish path also

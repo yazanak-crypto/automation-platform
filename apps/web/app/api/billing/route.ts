@@ -36,5 +36,9 @@ export async function GET() {
           : billingConfigured() && !!priceIdForPlan(id as "starter" | "pro")),
     })),
     billingConfigured: billingConfigured(),
+    // Whether ANY card provider is live. `billingConfigured` above is the
+    // Stripe-only flag and reads false on a working Paddle setup, so it cannot
+    // gate provider-neutral UI like the "refresh subscription" action.
+    cardBilling: paymentProvider() !== null,
   });
 }

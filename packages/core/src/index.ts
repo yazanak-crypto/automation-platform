@@ -7,4 +7,5 @@ export * from "./graduation";
 export * from "./billing";
 export * from "./notifications";
 export * from "./payments";
+export * from "./paddleSync";
 export * from "./contacts";
