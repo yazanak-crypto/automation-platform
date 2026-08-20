@@ -51,7 +51,7 @@ describe("credit math (unit)", () => {
     // Premium $80 against $599 is ~13%.
     expect(PLANS.starter.monthlyCredits * MICROCENTS_PER_CREDIT).toBe(usd(40));
     expect(PLANS.pro.monthlyCredits * MICROCENTS_PER_CREDIT).toBe(usd(80));
-    expect(PLANS.trial.monthlyCredits * MICROCENTS_PER_CREDIT).toBe(usd(0.75));
+    expect(PLANS.trial.monthlyCredits * MICROCENTS_PER_CREDIT).toBe(usd(1.5));
   });
 
   it("quotes conversation counts from the measured cost per conversation", () => {
@@ -61,7 +61,7 @@ describe("credit math (unit)", () => {
     expect(CREDITS_PER_CONVERSATION).toBe(2);
     expect(conversationsFromCredits(PLANS.starter.monthlyCredits)).toBe(2_000);
     expect(conversationsFromCredits(PLANS.pro.monthlyCredits)).toBe(4_000);
-    expect(conversationsFromCredits(PLANS.trial.monthlyCredits)).toBe(38);
+    expect(conversationsFromCredits(PLANS.trial.monthlyCredits)).toBe(75);
   });
 
   it("plan ids validate", () => {
