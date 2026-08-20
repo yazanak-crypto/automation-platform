@@ -10,6 +10,7 @@
     "test": "turbo test",
     "e2e": "pnpm --filter @platform/e2e e2e",
     "preflight": "tsx scripts/preflight.ts",
+    "paddle:verify": "tsx scripts/paddle-verify.ts",
     "stripe:setup": "tsx scripts/stripe-setup.ts"
   },
   "devDependencies": {

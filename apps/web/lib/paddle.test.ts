@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   isEntitlingPaddleStatus,
+  paddleErrorInfo,
   paddleConfigured,
   paddlePriceForPlan,
   paddleSetupPriceForPlan,
@@ -112,5 +113,42 @@ describe("provider selection", () => {
     vi.stubEnv("STRIPE_SECRET_KEY", "");
     vi.stubEnv("BILLING_ENABLED", "");
     expect(paymentProvider()).toBeNull();
+  });
+});
+
+describe("paddleErrorInfo", () => {
+  it("extracts the code and detail from a real Paddle SDK error", () => {
+    // Verbatim from the sandbox failure that 500'd the checkout: no default
+    // payment link set on the account. The code is the whole diagnosis, so this
+    // pins the exact shape we depend on.
+    const err = Object.assign(new Error("no default payment link"), {
+      type: "request_error",
+      code: "transaction_default_checkout_url_not_set",
+      detail:
+        "Cannot create a transaction or open a checkout as no default payment link has been set for this account. Set in the Paddle dashboard, then try again.",
+      documentationUrl:
+        "https://developer.paddle.com/v1/errors/transactions/transaction_default_checkout_url_not_set",
+      errors: null,
+      retryAfter: null,
+    });
+    expect(paddleErrorInfo(err)).toEqual({
+      code: "transaction_default_checkout_url_not_set",
+      detail: err.detail,
+    });
+  });
+
+  it("returns null for anything that is not a coded Paddle error", () => {
+    // The caller falls back to String(err) and a generic code, so a null here
+    // must never be mistaken for a successful extraction.
+    expect(paddleErrorInfo(new Error("socket hang up"))).toBeNull();
+    expect(paddleErrorInfo(null)).toBeNull();
+    expect(paddleErrorInfo(undefined)).toBeNull();
+    expect(paddleErrorInfo("boom")).toBeNull();
+    expect(paddleErrorInfo({ code: 500 })).toBeNull();
+    expect(paddleErrorInfo({ code: "" })).toBeNull();
+  });
+
+  it("tolerates a missing detail", () => {
+    expect(paddleErrorInfo({ code: "forbidden" })).toEqual({ code: "forbidden", detail: "" });
   });
 });

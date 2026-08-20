@@ -17,8 +17,10 @@ import type { PlanId } from "@platform/core";
 //
 // ⚠️ If the recurring price does NOT have a 30-day trial set in Paddle, the
 // customer is charged setup + monthly on day one ($898 on Starter). That is a
-// configuration failure with no code signal, so verifyPaddlePrices() below
-// exists to catch it before a customer does.
+// dashboard configuration failure with no runtime signal in this codebase, so
+// `pnpm paddle:verify` (scripts/paddle-verify.ts) checks all four prices
+// against PLANS via the Paddle API. Run it after any price change, and before
+// switching PADDLE_ENV to production.
 
 export function paddleConfigured(): boolean {
   return !!(process.env.PADDLE_API_KEY && process.env.PADDLE_WEBHOOK_SECRET);
@@ -69,4 +71,29 @@ export function planForPaddlePrice(priceId: string): PlanId | null {
  */
 export function isEntitlingPaddleStatus(status: string): boolean {
   return status === "active" || status === "trialing";
+}
+
+/** The machine-readable fields the Paddle SDK attaches to an API failure. */
+export interface PaddleErrorInfo {
+  code: string;
+  detail: string;
+}
+
+/**
+ * Pull `code`/`detail` off a thrown Paddle error.
+ *
+ * Worth having because the alternative is what actually happened: a checkout
+ * 500'd with nothing in the response and nothing in the logs, and diagnosing
+ * "no default payment link is set on the account" took a Vercel log pull. The
+ * SDK hands us a stable error code — discarding it is throwing away the only
+ * part of the failure that says what to go and fix.
+ *
+ * Duck-typed rather than instanceof: the SDK's error class is not exported, and
+ * a shape check keeps this working across SDK versions.
+ */
+export function paddleErrorInfo(err: unknown): PaddleErrorInfo | null {
+  if (!err || typeof err !== "object") return null;
+  const e = err as { code?: unknown; detail?: unknown };
+  if (typeof e.code !== "string" || !e.code) return null;
+  return { code: e.code, detail: typeof e.detail === "string" ? e.detail : "" };
 }
