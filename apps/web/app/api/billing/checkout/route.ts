@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
   paddle,
+  paddleErrorInfo,
   paddlePriceForPlan,
   paddleSetupPriceForPlan,
   paymentProvider,
@@ -50,14 +51,42 @@ export async function POST(req: Request) {
     // One transaction, two items: the setup fee is charged now and the
     // subscription is created in its 30-day trial, so the first monthly charge
     // lands on day 31. The trial length lives on the recurring price in Paddle.
-    const transaction = await paddle().transactions.create({
-      items: [
-        { priceId: setupPriceId, quantity: 1 },
-        { priceId: recurringPriceId, quantity: 1 },
-      ],
-      customData: { workspaceId: ctx.workspace.id, plan },
-      ...(existing[0]?.customerId ? { customerId: existing[0].customerId } : {}),
-    });
+    //
+    // Wrapped because a Paddle-side failure here is usually a DASHBOARD
+    // misconfiguration, not a transient fault — a missing default payment link,
+    // an archived price, a revoked key. Unwrapped, all of those looked like an
+    // identical bare 500 with an empty body, and the only way to tell them apart
+    // was pulling runtime logs. The SDK's error code is the diagnosis, so log it.
+    let transaction;
+    try {
+      transaction = await paddle().transactions.create({
+        items: [
+          { priceId: setupPriceId, quantity: 1 },
+          { priceId: recurringPriceId, quantity: 1 },
+        ],
+        customData: { workspaceId: ctx.workspace.id, plan },
+        ...(existing[0]?.customerId ? { customerId: existing[0].customerId } : {}),
+      });
+    } catch (err) {
+      const info = paddleErrorInfo(err);
+      console.error(
+        `[billing.checkout] paddle transactions.create failed ` +
+          `(workspace ${ctx.workspace.id}, plan ${plan}): ` +
+          (info ? `${info.code} — ${info.detail}` : String(err)),
+      );
+      // 502, not 500: the failure is upstream, and it is not the caller's fault.
+      // The message points at the bank-transfer path at /checkout, which works
+      // regardless of Paddle's state, so the customer is never simply stuck.
+      // `code` rides along for support without being rendered to the customer.
+      return NextResponse.json(
+        {
+          error:
+            "Card payment isn’t available right now. You can pay by bank transfer instead, or try again shortly.",
+          code: info?.code ?? "paddle_error",
+        },
+        { status: 502 },
+      );
+    }
 
     // Paddle.js opens this; there is no hosted URL to redirect to.
     return NextResponse.json({ provider: "paddle", transactionId: transaction.id });
