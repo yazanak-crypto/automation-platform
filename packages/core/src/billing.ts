@@ -19,7 +19,7 @@ export const MICROCENTS_PER_CREDIT = 1_000_000;
 export const PLANS = {
   // 7-day free trial, ONE TIME. The credit ceiling is a quiet anti-abuse cap,
   // not the gate — see trialUsedAt in the workspaces table.
-  trial: { name: "Free trial", monthlyCredits: 75, priceMonthlyUsd: 0, setupFeeUsd: 0 },
+  trial: { name: "Free trial", monthlyCredits: 150, priceMonthlyUsd: 0, setupFeeUsd: 0 },
   // The setup fee IS month one: it is charged today and covers the first 30
   // days, then the monthly price starts on day 31. Every surface that quotes
   // money reads these numbers, so they are the only place to change a price —
