@@ -1,10 +1,22 @@
 /**
- * Pre-flight check for the four Paddle prices. Read-only — fetches each price
- * and asserts it sells what we advertise. Creates and changes nothing.
+ * Pre-flight check for the Paddle integration. Read-only — reads prices and
+ * webhook destinations and asserts they match what we ship. Changes nothing.
  *
- * Run: pnpm tsx scripts/paddle-verify.ts
+ * Run: pnpm paddle:verify
  *
- * Why this exists: the offer is ONE checkout with TWO items — a one-time setup
+ * Covers the two failure modes that cost real money and produce no runtime
+ * signal, both of which have already bitten us:
+ *
+ *   1. A recurring price with no 30-day trial → the customer is charged setup +
+ *      monthly on day one instead of on day 31.
+ *   2. PADDLE_WEBHOOK_SECRET not matching the live destination → the customer
+ *      pays, Paddle reports the delivery as sent, and entitlement never lands.
+ *
+ * Both live in the Paddle dashboard rather than in this repo, so they are
+ * checked against the live API and against PLANS, which is what the pricing
+ * page promises.
+ *
+ * Why the trial check exists: the offer is ONE checkout with TWO items — a one-time setup
  * fee charged today, plus a monthly subscription whose first charge must land on
  * day 31. The 30-day delay lives on the RECURRING PRICE in the Paddle dashboard,
  * not in our code. If it is missing, Paddle charges setup + monthly immediately:
@@ -14,6 +26,7 @@
  * So the invariants are checked against the live Paddle API, where they actually
  * live, and against PLANS, which is what the pricing page promises.
  */
+import { createHash } from "node:crypto";
 import { config } from "dotenv";
 import { resolve } from "node:path";
 config({ path: resolve(import.meta.dirname, "..", ".env") });
@@ -38,6 +51,72 @@ const fail = (m: string) => {
   console.log(`  ✗ ${m}`);
 };
 const pass = (m: string) => console.log(`  ✓ ${m}`);
+
+/**
+ * Compare PADDLE_WEBHOOK_SECRET against every active webhook destination.
+ *
+ * This exists because it already went wrong: the env var held the notification
+ * setting's ID (`ntfset_…`) rather than its signing key (`pdl_ntfset_…`). The
+ * two are adjacent in the dashboard and share a prefix. Result: a successful
+ * sandbox checkout, a receipt from Paddle, 26 webhook deliveries all rejected
+ * with 400, and no plan change — with nothing anywhere saying why.
+ *
+ * Secrets are never printed; only lengths and a truncated hash.
+ */
+async function checkWebhookSecret(isProd: boolean) {
+  const ours = process.env.PADDLE_WEBHOOK_SECRET;
+  if (!ours) {
+    fail("PADDLE_WEBHOOK_SECRET is not set — every webhook 503s and entitlement never lands");
+    return;
+  }
+  if (ours.startsWith("ntfset_")) {
+    fail(
+      `PADDLE_WEBHOOK_SECRET looks like a notification-setting ID, not its signing key ` +
+        `(expected a "pdl_ntfset_…" value from the destination's "Secret key" field)`,
+    );
+  }
+
+  const host = isProd ? "api.paddle.com" : "sandbox-api.paddle.com";
+  let settings: { description?: string; destination?: string; active?: boolean; endpoint_secret_key?: string }[];
+  try {
+    const res = await fetch(`https://${host}/notification-settings`, {
+      headers: { Authorization: `Bearer ${process.env.PADDLE_API_KEY}` },
+    });
+    if (!res.ok) {
+      fail(`could not list webhook destinations (HTTP ${res.status})`);
+      return;
+    }
+    settings = ((await res.json()) as { data?: typeof settings }).data ?? [];
+  } catch (err) {
+    fail(`could not list webhook destinations: ${err instanceof Error ? err.message : String(err)}`);
+    return;
+  }
+
+  const active = settings.filter((s) => s.active);
+  if (!active.length) {
+    fail("no ACTIVE webhook destination configured — subscription events go nowhere");
+    return;
+  }
+
+  const digest = (s: string) => createHash("sha256").update(s).digest("hex").slice(0, 12);
+  const match = active.find((s) => s.endpoint_secret_key === ours);
+  if (match) {
+    pass(`webhook secret matches active destination "${match.description ?? match.destination}"`);
+    return;
+  }
+
+  fail(
+    `PADDLE_WEBHOOK_SECRET matches NO active destination — every delivery will 400. ` +
+      `ours: len ${ours.length}, sha256 ${digest(ours)}`,
+  );
+  for (const s of active) {
+    const k = s.endpoint_secret_key;
+    console.log(
+      `      destination "${s.description ?? s.destination}" → ` +
+        (k ? `len ${k.length}, sha256 ${digest(k)}` : "secret not returned by the API"),
+    );
+  }
+}
 
 (async () => {
   const apiKey = process.env.PADDLE_API_KEY;
@@ -64,11 +143,11 @@ const pass = (m: string) => console.log(`  ✓ ${m}`);
   } else {
     pass(`client token matches the environment (${clientToken.slice(0, 5)}…)`);
   }
-  if (!process.env.PADDLE_WEBHOOK_SECRET) {
-    fail("PADDLE_WEBHOOK_SECRET is not set — webhooks will 503 and entitlement never lands");
-  } else {
-    pass("webhook secret present");
-  }
+  // The webhook secret is checked against the LIVE destination, not just for
+  // presence. A wrong secret is the worst failure this integration has: the
+  // customer pays, Paddle reports the delivery as sent, and every event is
+  // rejected at the door — so entitlement silently never lands.
+  await checkWebhookSecret(isProd);
 
   const checks: Check[] = [
     {

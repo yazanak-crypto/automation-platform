@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { aiCalls, db, workspaces } from "@platform/db";
+import { aiCalls, db, subscriptions as subscriptionsTable, workspaces } from "@platform/db";
+import { eq as eqOp } from "drizzle-orm";
 import {
   applySubscriptionState,
   conversationsFromCredits,
@@ -196,5 +197,69 @@ describe.skipIf(!hasDb)("trial expiry (DB)", () => {
     expect(s.plan).toBe("trial");
     expect(s.trialEnded).toBe(true);
     expect(s.exhausted).toBe(true);
+  });
+});
+
+describe.skipIf(!hasDb)("applySubscriptionState concurrency (DB)", () => {
+  it("survives two events for the same workspace arriving at once", async () => {
+    // The real failure: replaying subscription.created and subscription.trialing
+    // 0.4s apart made both reads see no row, both insert, and the loser die on
+    // subscriptions_workspace_id_unique with a 500. Paddle fans out several
+    // events per checkout, so concurrent delivery is normal — and a 500 there is
+    // a customer who paid and did not get access.
+    const ws = (
+      await db()
+        .insert(workspaces)
+        .values({ name: "Race T", slug: `t-${uuid().slice(0, 12)}`, trialEndsAt: new Date(Date.now() + 7 * 86_400_000) })
+        .returning()
+    )[0]!.id;
+
+    const event = (status: string) => ({
+      workspaceId: ws,
+      provider: "paddle" as const,
+      providerCustomerId: "ctm_race",
+      providerSubscriptionId: "sub_race",
+      plan: "starter" as const,
+      status,
+      currentPeriodStart: null,
+      currentPeriodEnd: null,
+    });
+
+    await expect(
+      Promise.all([
+        applySubscriptionState(event("trialing")),
+        applySubscriptionState(event("trialing")),
+        applySubscriptionState(event("trialing")),
+      ]),
+    ).resolves.toBeDefined();
+
+    const s = await getCreditStatus(ws, { skipCache: true });
+    expect(s.plan).toBe("starter");
+  });
+
+  it("a later event overwrites an earlier one rather than duplicating the row", async () => {
+    const ws = (
+      await db()
+        .insert(workspaces)
+        .values({ name: "Race U", slug: `t-${uuid().slice(0, 12)}`, trialEndsAt: new Date(Date.now() + 7 * 86_400_000) })
+        .returning()
+    )[0]!.id;
+    const base = {
+      workspaceId: ws,
+      provider: "paddle" as const,
+      providerCustomerId: "ctm_u",
+      providerSubscriptionId: "sub_u",
+      currentPeriodStart: null,
+      currentPeriodEnd: null,
+    };
+    await applySubscriptionState({ ...base, plan: "starter", status: "trialing" });
+    await applySubscriptionState({ ...base, plan: "pro", status: "active" });
+
+    const rows = await db()
+      .select({ id: subscriptionsTable.id, plan: subscriptionsTable.plan, status: subscriptionsTable.status })
+      .from(subscriptionsTable)
+      .where(eqOp(subscriptionsTable.workspaceId, ws));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ plan: "pro", status: "active" });
   });
 });

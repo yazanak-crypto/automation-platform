@@ -26,6 +26,22 @@ interface PaddleSubscriptionLike {
   currentBillingPeriod?: { startsAt?: string | null; endsAt?: string | null } | null;
 }
 
+/**
+ * Describe the configured secret WITHOUT logging it: length, prefix, and
+ * whether it looks like a signing key at all. Enough to spot the ID-vs-key
+ * mix-up from a log line; useless to anyone who reads the log.
+ */
+function describeSecret(secret: string | undefined): string {
+  if (!secret) return "not set";
+  if (secret.startsWith("ntfset_")) {
+    return `len ${secret.length}, looks like a notification-setting ID, not its signing key (expected "pdl_ntfset_…")`;
+  }
+  if (!secret.startsWith("pdl_")) {
+    return `len ${secret.length}, unexpected prefix (expected "pdl_ntfset_…")`;
+  }
+  return `len ${secret.length}, prefix ok`;
+}
+
 function planFromItems(sub: PaddleSubscriptionLike) {
   for (const item of sub.items ?? []) {
     const priceId = item?.price?.id;
@@ -72,7 +88,18 @@ export async function POST(req: Request) {
       process.env.PADDLE_WEBHOOK_SECRET!,
       signature,
     );
-  } catch {
+  } catch (err) {
+    // Logged, not silent. 26 consecutive rejections once produced zero output:
+    // the checkout succeeded, Paddle's dashboard showed deliveries, and the only
+    // evidence was a 400 status with an empty body. The cause was
+    // PADDLE_WEBHOOK_SECRET holding the notification-setting ID (`ntfset_…`)
+    // instead of its signing key (`pdl_ntfset_…`) — indistinguishable from a
+    // forged request without a log line saying which secret we verified against.
+    console.error(
+      `[paddle.webhook] signature verification FAILED ` +
+        `(secret ${describeSecret(process.env.PADDLE_WEBHOOK_SECRET)}): ` +
+        (err instanceof Error ? err.message : String(err)),
+    );
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
   if (!event) return NextResponse.json({ error: "Invalid payload" }, { status: 400 });

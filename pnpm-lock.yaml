@@ -291,6 +291,9 @@ importers:
 
   packages/core:
     dependencies:
+      '@paddle/paddle-node-sdk':
+        specifier: ^3.10.0
+        version: 3.10.0
       '@platform/db':
         specifier: workspace:*
         version: link:../db
