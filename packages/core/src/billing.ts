@@ -19,15 +19,15 @@ export const MICROCENTS_PER_CREDIT = 1_000_000;
 export const PLANS = {
   // 7-day free trial, ONE TIME. The credit ceiling is a quiet anti-abuse cap,
   // not the gate — see trialUsedAt in the workspaces table.
-  trial: { name: "Free trial", monthlyCredits: 300, priceMonthlyUsd: 0, setupFeeUsd: 0 },
+  trial: { name: "Free trial", monthlyCredits: 150, priceMonthlyUsd: 0, setupFeeUsd: 0 },
   // The setup fee IS month one: it is charged today and covers the first 30
   // days, then the monthly price starts on day 31. Every surface that quotes
   // money reads these numbers, so they are the only place to change a price —
   // EXCEPT the payment provider's own price objects, which are what actually
   // gets charged. Keep them in step or the site quotes one figure and the card
   // is charged another.
-  starter: { name: "Starter", monthlyCredits: 2_000, priceMonthlyUsd: 399, setupFeeUsd: 499 },
-  pro: { name: "Premium", monthlyCredits: 5_000, priceMonthlyUsd: 599, setupFeeUsd: 799 },
+  starter: { name: "Starter", monthlyCredits: 4_000, priceMonthlyUsd: 399, setupFeeUsd: 499 },
+  pro: { name: "Premium", monthlyCredits: 8_000, priceMonthlyUsd: 599, setupFeeUsd: 799 },
 } as const;
 
 // The ONLY customer-facing unit is a conversation; credits never appear in the
@@ -36,11 +36,23 @@ export const PLANS = {
 // duplicated as a bare `/ 4` in all four, which let the quoted numbers drift
 // apart from each other and from the plan table.
 //
-// One conversation ≈ one frontier draft + a fast boundary check, plus headroom
-// for a regeneration round. Raise the divisor when a conversation gets more
-// expensive, lower it when it gets cheaper (e.g. once prompt caching lands) —
-// the quoted counts follow automatically.
-export const CREDITS_PER_CONVERSATION = 8;
+// Set from MEASURED cost, not a guess. Production ai_calls (8 real runs,
+// prompt webchat/draft-reply v3, claude-sonnet-5) average 1,087 tokens in and
+// 199 out = 624,638 microcents, i.e. $0.0062 per conversation — about
+// two-thirds of a cent. The divisor was 8 ($0.08), roughly 13x too pessimistic,
+// which advertised a fraction of what the plans can actually deliver.
+//
+// This is deliberately set to 2 ($0.02) rather than the measured 0.62, because
+// those 8 runs are a FLOOR, not a typical case: every one ran against an empty
+// Business Brain and most escalated instead of composing an answer. A populated
+// brain sends a much larger context pack and writes longer replies, and the
+// boundary check is not currently firing (1.00 calls per run) but is designed
+// to. ~3x headroom keeps the quoted counts honest as the product gets better at
+// its job, rather than shrinking them later.
+//
+// Re-measure once ~100 real conversations exist against a populated brain; the
+// direction of error is predictable, since cost rises as quality does.
+export const CREDITS_PER_CONVERSATION = 2;
 
 /** Credits → the conversation count shown to customers. */
 export function conversationsFromCredits(credits: number): number {

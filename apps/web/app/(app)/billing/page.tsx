@@ -7,18 +7,13 @@ interface Plan {
   id: string;
   name: string;
   monthlyCredits: number;
+  /** Computed server-side from core — never divide credits in the client. */
+  conversations: number;
   priceMonthlyUsd: number;
   setupFeeUsd: number;
   purchasable: boolean;
 }
 
-// Mirrors CREDITS_PER_CONVERSATION in packages/core/src/billing.ts — kept local
-// because this is a client component and @platform/core pulls in the db driver
-// and redis. Keep the two in sync; core is the source of truth.
-const CREDITS_PER_CONVERSATION = 8;
-function conversationsFromCredits(credits: number): number {
-  return Math.round(credits / CREDITS_PER_CONVERSATION);
-}
 interface Data {
   status: {
     plan: string;
@@ -26,6 +21,8 @@ interface Data {
     used: number;
     remaining: number;
     exhausted: boolean;
+    conversationsUsed: number;
+    conversationsAllowance: number;
     periodEnd: string;
     subscriptionStatus: string | null;
     trialEndsAt: string | null;
@@ -117,7 +114,7 @@ export default function BillingPage() {
         <div className="mt-4">
           <div className="flex justify-between text-sm">
             <span className={status.exhausted ? "text-stop" : "text-ink-2"}>
-              {Math.round(status.used / 4).toLocaleString()} of {Math.round(status.allowance / 4).toLocaleString()} conversations used
+              {status.conversationsUsed.toLocaleString()} of {status.conversationsAllowance.toLocaleString()} conversations used
             </span>
             <span className="text-ink-3">
               resets {new Date(status.periodEnd).toLocaleDateString()}
@@ -171,7 +168,7 @@ export default function BillingPage() {
                 <p className="mt-2 text-sm text-ink-2">
                   {p.id === "trial"
                     ? "7 days free · full product"
-                    : `About ${conversationsFromCredits(p.monthlyCredits).toLocaleString()} customer conversations / month`}
+                    : `About ${p.conversations.toLocaleString()} customer conversations / month`}
                 </p>
                 {isCurrent ? (
                   <p className="mt-4 text-xs text-ink-3">Current plan</p>
