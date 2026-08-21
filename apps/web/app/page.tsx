@@ -2,6 +2,7 @@ import { SignedIn, SignedOut, SignInButton } from "@clerk/nextjs";
 import Link from "next/link";
 import { Tilt } from "@/components/motion";
 import { Reveal } from "@/components/reveal";
+import { OrganizationJsonLd } from "@/components/structured-data";
 import { RingField } from "@/components/ring-field";
 import { TransitionLink } from "@/components/transition-link";
 import { Wordmark } from "@/components/wordmark";
@@ -23,6 +24,9 @@ const Check = () => (
 export default function Home() {
   return (
     <main className="flex min-h-screen flex-col overflow-hidden">
+      {/* Organization markup — homepage only. This is what Google reads to
+          associate the logo with the brand in search results. */}
+      <OrganizationJsonLd />
       <header className="sticky top-0 z-40 border-b border-line bg-bg/85 backdrop-blur">
         <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-6 py-4">
           <Wordmark href="/" size="lg" />

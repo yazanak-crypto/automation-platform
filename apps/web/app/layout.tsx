@@ -6,19 +6,27 @@ import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
 
-// Favicon: the Ovanth mark — self-contained SVG, no asset pipeline. Kept in sync
-// with app/icon.svg and the LogoMark component.
-const FAVICON =
-  "data:image/svg+xml," +
-  encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#0B0B0D"/><g stroke="#D4B872" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M8 16 H25"/><path d="M18.5 16 L9 9"/><path d="M18.5 16 L9 23"/></g></svg>`,
-  );
+// Icons are FILE-CONVENTION now, not metadata:
+//
+//   app/favicon.ico    16-256px, for legacy browsers and bookmark bars
+//   app/icon0.svg      vector — crisp at 16px, 318 bytes
+//   app/icon1.png      512px raster fallback
+//   app/apple-icon.png 180px, iOS home screen (iOS applies its own rounding)
+//
+// NUMBERED because Next emits only ONE file per icon base name: with both
+// icon.svg and icon.png present it picked the PNG and dropped the SVG from
+// <head> entirely. The numeric suffix makes them siblings rather than rivals,
+// and the order puts the vector first.
+//
+// There used to be an inline `icons: { icon: <data URI> }` here. Explicit
+// metadata.icons OVERRIDES the file convention entirely, so leaving it in place
+// would have silently ignored every file above — the tab would still render the
+// hand-written SVG. Deleted rather than extended: one source of truth.
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"),
   title: { default: `${BRAND} — AI that runs your business conversations`, template: `%s · ${BRAND}` },
   description: BRAND_TAGLINE,
-  icons: { icon: FAVICON },
   openGraph: {
     title: `${BRAND} — AI that runs your business conversations`,
     description: BRAND_TAGLINE,
