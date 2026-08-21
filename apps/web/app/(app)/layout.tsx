@@ -5,6 +5,7 @@ import { Orbit } from "@/components/orbit";
 import { SupportChat } from "@/components/support-chat";
 import { Wordmark } from "@/components/wordmark";
 import NavLinks, { MobileTabBar } from "./nav-links";
+import { planBadge } from "@/lib/plan-badge";
 import { requireWorkspace } from "@/lib/workspace";
 
 // The app shell (Design Direction §3.1): one calm room. Desktop sidebar with
@@ -44,6 +45,18 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     if (status !== "confirmed" && status !== "skipped") redirect("/onboarding");
   }
 
+  // The sidebar badge reads DERIVED entitlement, not workspaces.plan.
+  //
+  // workspaces.plan is written only by the manual bank-transfer path
+  // (packages/core/src/payments.ts); applySubscriptionState deliberately leaves
+  // it alone to avoid two writers on one field. So the old badge read "trial"
+  // forever for every card-paying customer — it was displaying a column nobody
+  // maintains. getCreditStatus is the single place that reconciles manual and
+  // provider entitlement, and it is Redis-cached, so this costs one cache read.
+  //
+  // Never fails the shell: a badge is not worth a 500 on every page.
+  const entitlement = ctx ? await planBadge(ctx.workspace.id) : null;
+
   return (
     <div className="flex min-h-screen">
       {/* The AI, alive — orbit of channels + activity behind every app screen.
@@ -61,7 +74,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <Wordmark />
         <NavLinks />
         <div className="mt-auto border-t border-line pt-4">
-          <AccountMenu showDetails name={ctx?.workspace.name} plan={ctx?.workspace.plan} />
+          <AccountMenu
+            showDetails
+            name={ctx?.workspace.name}
+            plan={entitlement?.plan}
+            planLabel={entitlement?.label}
+            trialDaysLeft={entitlement?.trialDaysLeft}
+          />
         </div>
       </aside>
 
