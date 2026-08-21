@@ -20,7 +20,58 @@ const Card = () => (
   </svg>
 );
 
-export function AccountMenu({ showDetails = false, name, plan }: { showDetails?: boolean; name?: string; plan?: string }) {
+/**
+ * The plan badge.
+ *
+ * `plan` is the DERIVED entitlement from getCreditStatus, never
+ * workspaces.plan — that column is written only by the manual bank-transfer
+ * path, so it reads "trial" forever for every card customer.
+ *
+ * Weighted so the sidebar stays quiet: trial is plain text because it is a
+ * countdown rather than a status, Starter gets a neutral chip, and only
+ * Premium gets brass. Brass is the identity accent (globals.css: "moments,
+ * metrics, focus. Never buttons.") — a plan badge is identity, not a control.
+ */
+function PlanBadge({ plan, label, trialDaysLeft }: { plan: string; label: string; trialDaysLeft?: number | null }) {
+  if (plan === "pro") {
+    return (
+      <span className="mt-0.5 inline-flex items-center rounded-full bg-brass-dim px-1.5 py-px text-[10px] font-medium leading-[1.4] text-brass">
+        {label}
+      </span>
+    );
+  }
+  if (plan === "starter") {
+    return (
+      <span className="mt-0.5 inline-flex items-center rounded-full bg-hover px-1.5 py-px text-[10px] font-medium leading-[1.4] text-ink-2">
+        {label}
+      </span>
+    );
+  }
+  return (
+    <p className="text-[11px] text-ink-3">
+      {label}
+      {/* The number is the useful part of a trial, so it is shown inline
+          rather than requiring a trip to /billing. */}
+      {typeof trialDaysLeft === "number" && trialDaysLeft > 0 && (
+        <> · {trialDaysLeft} day{trialDaysLeft === 1 ? "" : "s"} left</>
+      )}
+    </p>
+  );
+}
+
+export function AccountMenu({
+  showDetails = false,
+  name,
+  plan,
+  planLabel,
+  trialDaysLeft,
+}: {
+  showDetails?: boolean;
+  name?: string;
+  plan?: string;
+  planLabel?: string;
+  trialDaysLeft?: number | null;
+}) {
   const button = (
     <UserButton
       afterSignOutUrl="/"
@@ -48,7 +99,11 @@ export function AccountMenu({ showDetails = false, name, plan }: { showDetails?:
       {button}
       <div className="min-w-0">
         <p className="truncate text-[13px] font-medium leading-tight">{name ?? "Workspace"}</p>
-        <p className="text-[11px] capitalize text-ink-3">{plan ?? "trial"} plan</p>
+        <PlanBadge
+          plan={plan ?? "trial"}
+          label={planLabel ?? "Free trial"}
+          trialDaysLeft={trialDaysLeft}
+        />
       </div>
     </div>
   );

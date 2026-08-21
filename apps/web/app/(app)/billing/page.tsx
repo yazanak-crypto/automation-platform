@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 interface Plan {
   id: string;
@@ -40,6 +40,31 @@ export default function BillingPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
+  /**
+   * Post-checkout confirmation.
+   *
+   * Paddle's overlay has no redirect, and `checkout.completed` fires in the
+   * BROWSER the moment payment succeeds — before the webhook has created the
+   * subscription row. Claiming "You're on Premium" at that point would be a
+   * lie for a few seconds, and a lie the customer can disprove by looking at
+   * the sidebar. So this is three honest states rather than one cheer:
+   *
+   *   activating — paid, entitlement not visible yet (the normal 1-5s)
+   *   active     — the plan actually changed; say so, then get out of the way
+   *   slow       — it did not land in time; point at Refresh, which repairs it
+   *
+   * "slow" is not an error. The reconciliation path exists precisely because
+   * webhooks can be dropped permanently, so this hands them the working button
+   * instead of a support ticket.
+   */
+  const [upgrade, setUpgrade] = useState<
+    { state: "activating" | "slow" } | { state: "active"; planName: string } | null
+  >(null);
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  // Timers outlive a fast navigation away from this page; clear them so a
+  // resolved poll cannot setState on an unmounted component.
+  useEffect(() => () => timers.current.forEach(clearTimeout), []);
+
   const load = useCallback(async () => {
     const res = await fetch("/api/billing");
     if (res.ok) setData(await res.json());
@@ -69,6 +94,41 @@ export default function BillingPage() {
     if (payload?.updated) await load();
   }
 
+  /**
+   * Poll until the plan actually changes, then confirm it.
+   *
+   * Compares against the plan as it was BEFORE checkout rather than against a
+   * hardcoded target: an upgrade from Starter to Premium and a first purchase
+   * from trial both just mean "it moved".
+   */
+  async function awaitUpgrade(planBefore: string) {
+    const DEADLINE_MS = 20_000;
+    const INTERVAL_MS = 2_000;
+    const started = Date.now();
+
+    const tick = async () => {
+      const res = await fetch("/api/billing").catch(() => null);
+      const payload = res?.ok ? ((await res.json().catch(() => null)) as Data | null) : null;
+
+      if (payload && payload.status.plan !== planBefore) {
+        setData(payload);
+        const planName =
+          payload.plans.find((p) => p.id === payload.status.plan)?.name ?? payload.status.plan;
+        setUpgrade({ state: "active", planName });
+        // Confirmation is a moment, not a permanent banner.
+        timers.current.push(setTimeout(() => setUpgrade(null), 6_000));
+        return;
+      }
+      if (Date.now() - started >= DEADLINE_MS) {
+        setUpgrade({ state: "slow" });
+        return;
+      }
+      timers.current.push(setTimeout(() => void tick(), INTERVAL_MS));
+    };
+
+    timers.current.push(setTimeout(() => void tick(), INTERVAL_MS));
+  }
+
   async function go(path: string, body?: unknown, key = path) {
     setBusy(key);
     setError(null);
@@ -89,11 +149,27 @@ export default function BillingPage() {
     // server already created, so the browser never sees a price id.
     if (payload.provider === "paddle" && payload.transactionId) {
       try {
+        // Unreachable in practice — the upgrade buttons only render once `data`
+        // has loaded. Guarded rather than defaulted: a made-up "plan before"
+        // would make the confirmation fire against the wrong baseline.
+        if (!data) return;
+        const planBefore = data.status.plan;
         const { initializePaddle } = await import("@paddle/paddle-js");
         const paddle = await initializePaddle({
           environment:
             process.env.NEXT_PUBLIC_PADDLE_ENV === "production" ? "production" : "sandbox",
           token: process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN ?? "",
+          // Fires in the browser the instant payment succeeds — which is BEFORE
+          // the webhook has granted anything. It is a cue to start watching,
+          // not proof of entitlement.
+          eventCallback: (event) => {
+            if (event.name === "checkout.completed") {
+              setError(null);
+              setNotice(null);
+              setUpgrade({ state: "activating" });
+              void awaitUpgrade(planBefore);
+            }
+          },
         });
         if (!paddle) throw new Error("Paddle failed to initialise");
         paddle.Checkout.open({ transactionId: payload.transactionId });
@@ -129,6 +205,31 @@ export default function BillingPage() {
       </p>
       {error && <p className="mt-4 text-sm text-stop">{error}</p>}
       {notice && <p className="mt-4 text-sm text-ink-2">{notice}</p>}
+
+      {/* Post-checkout confirmation. Inline and quiet — no modal, no confetti.
+          aria-live so it is announced without stealing focus. */}
+      {upgrade && (
+        <p
+          aria-live="polite"
+          className={`mt-4 text-sm ${upgrade.state === "active" ? "text-brass" : "text-ink-2"}`}
+        >
+          {upgrade.state === "activating" && "Payment received — activating your plan…"}
+          {upgrade.state === "active" && `You're on ${upgrade.planName}.`}
+          {upgrade.state === "slow" && (
+            <>
+              Payment received. Your plan will update shortly — use{" "}
+              <button
+                onClick={() => void refresh()}
+                disabled={busy === "refresh"}
+                className="underline underline-offset-2 hover:text-ink disabled:opacity-50"
+              >
+                Refresh
+              </button>{" "}
+              if it doesn’t.
+            </>
+          )}
+        </p>
+      )}
 
       <section className="mt-6 rounded-xl border border-line p-5">
         <div className="flex items-center justify-between">
