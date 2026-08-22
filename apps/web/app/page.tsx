@@ -245,6 +245,7 @@ export default function Home() {
       <footer className="mx-auto flex w-full max-w-5xl flex-col items-center gap-2 px-6 py-6 text-center text-[12px] text-ink-3 sm:flex-row sm:justify-between">
         <span>© {new Date().getFullYear()} {BRAND}</span>
         <nav className="flex items-center gap-4">
+          <Link href="/pricing" className="hover:text-ink-2">Pricing</Link>
           <Link href="/privacy" className="hover:text-ink-2">Privacy</Link>
           <Link href="/terms" className="hover:text-ink-2">Terms</Link>
           <Link href="/refunds" className="hover:text-ink-2">Refunds</Link>

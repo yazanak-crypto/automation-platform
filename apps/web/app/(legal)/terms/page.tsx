@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { LEGAL } from "@/lib/legal";
+import { PLANS } from "@platform/core";
+import { LEGAL, PAYMENTS, TRIAL_DAYS } from "@/lib/legal";
 
 export const metadata: Metadata = { title: "Terms of Service" };
 
@@ -12,8 +13,15 @@ export default function TermsPage() {
       </div>
 
       <p>
-        These Terms govern your use of the {LEGAL.brand} platform provided by {LEGAL.entity}. By
-        creating an account or using the Service, you agree to these Terms.
+        These Terms govern your use of the {LEGAL.brand} platform (the “Service”), provided by{" "}
+        {LEGAL.entity}, {LEGAL.entityForm} (commercial registration {LEGAL.registrationNumber}),
+        registered at {LEGAL.address}. By creating an account or using the Service, you agree to these
+        Terms.
+      </p>
+
+      <p>
+        Payments for the Service are sold and processed by {PAYMENTS.provider} as merchant of record —
+        see “Fees and billing” below.
       </p>
 
       <Section title="1. The Service">
@@ -43,16 +51,47 @@ export default function TermsPage() {
       </Section>
 
       <Section title="5. Fees and billing">
-        Paid plans are billed as described on the Billing page. Some plans include a one-time setup fee
-        that covers your first month; recurring charges begin after that period. Plans include a monthly
-        allowance of AI usage; if you exhaust it, AI drafting pauses until the next period or an upgrade,
-        and your data remains available. Fees are exclusive of taxes where applicable. See our Refund
-        Policy for cancellations and refunds.
+        <p>
+          <strong>{PAYMENTS.provider} is the merchant of record for all purchases.</strong>{" "}
+          {PAYMENTS.providerEntity} sells the subscription to you, collects payment, and is
+          responsible for charging and remitting VAT and sales tax where it applies. Your contract for
+          the <em>payment</em> is therefore with {PAYMENTS.provider}, and your card statement and
+          receipt will show {PAYMENTS.provider}. Your contract for <em>use of the Service</em> is with{" "}
+          {LEGAL.entity} under these Terms. {PAYMENTS.provider}’s{" "}
+          <a className="underline" href={PAYMENTS.providerTermsUrl} target="_blank" rel="noreferrer">
+            terms
+          </a>{" "}
+          also apply to the payment.
+        </p>
+        <p className="mt-2">Current plans:</p>
+        <ul className="ml-5 mt-1 list-disc space-y-1">
+          <li>
+            <strong>{PLANS.starter.name}</strong> — ${PLANS.starter.setupFeeUsd} one-time setup fee,
+            which includes your first month, then ${PLANS.starter.priceMonthlyUsd} per month starting
+            on day 31.
+          </li>
+          <li>
+            <strong>{PLANS.pro.name}</strong> — ${PLANS.pro.setupFeeUsd} one-time setup fee, which
+            includes your first month, then ${PLANS.pro.priceMonthlyUsd} per month starting on day 31.
+          </li>
+        </ul>
+        <p className="mt-2">
+          Prices are in US dollars and exclude VAT or sales tax, which {PAYMENTS.provider} adds where
+          required by your location. Plans include a monthly allowance of AI usage; if you exhaust it,
+          AI drafting pauses until the next period or an upgrade, and your data remains available. See
+          our{" "}
+          <a className="underline" href="/refunds">
+            Refund Policy
+          </a>{" "}
+          for cancellations and refunds.
+        </p>
       </Section>
 
       <Section title="6. Free trial">
-        We may offer a time-limited free trial. At the end of the trial, AI features pause unless you
-        select a paid plan. No charge is made without a plan you choose.
+        New workspaces get a {TRIAL_DAYS}-day free trial. It is offered <strong>once per
+        workspace</strong> and does not renew. No payment method is required to start it, and no charge
+        is made unless you choose a paid plan. At the end of the trial, AI features pause until you
+        subscribe; your data remains available.
       </Section>
 
       <Section title="7. Your data">
@@ -62,9 +101,9 @@ export default function TermsPage() {
       </Section>
 
       <Section title="8. Third-party services">
-        The Service integrates with third parties (e.g., Meta, Google, Stripe). Your use of those
-        integrations is also subject to their terms, and we are not responsible for their availability
-        or actions.
+        The Service integrates with third parties (e.g., Meta, Google, {PAYMENTS.provider}). Your use
+        of those integrations is also subject to their terms, and we are not responsible for their
+        availability or actions.
       </Section>
 
       <Section title="9. Warranty disclaimer">
@@ -80,9 +119,10 @@ export default function TermsPage() {
       </Section>
 
       <Section title="11. Termination">
-        You may cancel at any time from the Billing page. We may suspend or terminate accounts that
-        violate these Terms. On termination, your right to use the Service ends; data handling follows
-        the Privacy Policy.
+        You may cancel at any time from the Billing page, which cancels the subscription held with{" "}
+        {PAYMENTS.provider}. Your plan stays active until the end of the paid period and then does not
+        renew. We may suspend or terminate accounts that violate these Terms. On termination, your
+        right to use the Service ends; data handling follows the Privacy Policy.
       </Section>
 
       <Section title="12. Changes">
@@ -96,7 +136,17 @@ export default function TermsPage() {
       </Section>
 
       <Section title="14. Contact">
+        {LEGAL.entity}
+        <br />
+        {LEGAL.address}
+        <br />
+        Commercial registration {LEGAL.registrationNumber}
+        <br />
         <a className="underline" href={`mailto:${LEGAL.contactEmail}`}>{LEGAL.contactEmail}</a>
+        <p className="mt-2">
+          For questions about a <em>charge</em>, receipt, or tax invoice, contact{" "}
+          {PAYMENTS.provider}, the merchant of record, or write to us and we will help.
+        </p>
       </Section>
     </article>
   );

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { LEGAL, SUBPROCESSORS } from "@/lib/legal";
+import { LEGAL, PAYMENTS, SUBPROCESSORS } from "@/lib/legal";
 
 export const metadata: Metadata = { title: "Privacy Policy" };
 
@@ -12,9 +12,10 @@ export default function PrivacyPage() {
       </div>
 
       <p>
-        This Privacy Policy explains how {LEGAL.entity} (“{LEGAL.brand}”, “we”, “us”) collects, uses,
-        and protects information when you use our AI customer-conversation platform (the “Service”).
-        By using the Service you agree to this policy.
+        This Privacy Policy explains how {LEGAL.entity} (“{LEGAL.brand}”, “we”, “us”) —{" "}
+        {LEGAL.entityForm}, commercial registration {LEGAL.registrationNumber}, registered at{" "}
+        {LEGAL.address} — collects, uses, and protects information when you use our AI
+        customer-conversation platform (the “Service”). By using the Service you agree to this policy.
       </p>
 
       <Section title="Who controls your data">
@@ -30,7 +31,7 @@ export default function PrivacyPage() {
           <li><strong>Business Brain:</strong> the business details, voice, policies, and FAQs you provide or that we extract from a website you give us.</li>
           <li><strong>Conversations:</strong> messages exchanged with your customers on channels you connect (website chat, email, Instagram), and AI-drafted replies.</li>
           <li><strong>Connected accounts:</strong> we store a reference to your connected accounts and a display label. We never store the passwords or OAuth tokens for those accounts — they are held by our OAuth vault provider.</li>
-          <li><strong>Billing data:</strong> plan and subscription status. Card details are handled by our payment processor; we never see or store full card numbers.</li>
+          <li><strong>Billing data:</strong> your plan, subscription status, and the identifiers {PAYMENTS.provider} gives us for your customer and subscription. {PAYMENTS.provider} is the merchant of record and collects your payment and billing details directly — card numbers and billing addresses are never sent to us, and we never see or store them. {PAYMENTS.provider} is an independent controller for the payment data it collects; see its <a className="underline" href={PAYMENTS.providerPrivacyUrl} target="_blank" rel="noreferrer">privacy notice</a>.</li>
           <li><strong>Usage and diagnostics:</strong> logs, IP address (for rate limiting and abuse prevention), and error reports.</li>
         </ul>
       </Section>
@@ -101,6 +102,10 @@ export default function PrivacyPage() {
       </Section>
 
       <Section title="Contact">
+        {LEGAL.entity}
+        <br />
+        {LEGAL.address}
+        <br />
         Questions or requests:{" "}
         <a className="underline" href={`mailto:${LEGAL.privacyEmail}`}>{LEGAL.privacyEmail}</a>.
       </Section>

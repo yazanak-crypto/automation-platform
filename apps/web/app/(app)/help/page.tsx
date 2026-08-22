@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Page, PageHeader } from "@/components/ui";
 import { BRAND } from "@/lib/brand";
+import { LEGAL } from "@/lib/legal";
 
 const CARDS = [
   { title: "Getting started", body: `Set up your Business Brain, connect a channel, and put ${BRAND} on duty.`, href: "/dashboard" },
@@ -28,8 +29,8 @@ export default function HelpPage() {
       </div>
       <p className="mt-8 text-[13px] text-ink-2">
         Need a hand? Email{" "}
-        <a href="mailto:support@example.com" className="text-brass underline underline-offset-4">
-          support
+        <a href={`mailto:${LEGAL.contactEmail}`} className="text-brass underline underline-offset-4">
+          {LEGAL.contactEmail}
         </a>{" "}
         and a human will get back to you.
       </p>

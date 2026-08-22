@@ -4,7 +4,7 @@ const base = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replac
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date();
-  return ["", "/demo", "/privacy", "/terms", "/refunds"].map((path) => ({
+  return ["", "/demo", "/pricing", "/privacy", "/terms", "/refunds"].map((path) => ({
     url: `${base}${path}`,
     lastModified: now,
     changeFrequency: "weekly",
