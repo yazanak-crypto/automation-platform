@@ -6,6 +6,11 @@ import { NextResponse } from "next/server";
 const isPublicRoute = createRouteMatcher([
   "/",
   "/demo(.*)",
+  // The four URLs Paddle verifies. All must resolve for an ANONYMOUS visitor —
+  // /pricing was missing here and returned 404 behind auth.protect(), which is
+  // exactly how a verification check fails while the page looks fine to a
+  // signed-in developer.
+  "/pricing",
   "/privacy",
   "/terms",
   "/refunds",

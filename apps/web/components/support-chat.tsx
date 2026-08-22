@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { BRAND } from "@/lib/brand";
+import { LEGAL } from "@/lib/legal";
 
 // AI support assistant panel. Opens on the `ovanth:help-open` window event
 // (dispatched by the Help nav item). Talks to /api/support — no keys client
@@ -54,7 +55,7 @@ export function SupportChat() {
       const data = res.ok ? await res.json() : null;
       setMessages((m) => [
         ...m,
-        { role: "assistant", content: data?.reply ?? "I couldn't reach support just now — try again, or email support@example.com." },
+        { role: "assistant", content: data?.reply ?? `I couldn't reach support just now — try again, or email ${LEGAL.contactEmail}.` },
       ]);
     } catch {
       setMessages((m) => [...m, { role: "assistant", content: "I couldn't reach support just now — try again in a moment." }]);

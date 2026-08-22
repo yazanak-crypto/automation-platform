@@ -3,6 +3,7 @@ import { getCreditStatus, PLANS, takeLimit } from "@platform/core";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { BRAND } from "@/lib/brand";
+import { LEGAL } from "@/lib/legal";
 import { requireWorkspace, unauthorized } from "@/lib/workspace";
 
 // In-product AI support assistant. Runs entirely server-side (the AI key never
@@ -28,11 +29,11 @@ Onboarding: sign up → confirm what ${BRAND} learned from your site → connect
 
 Activating an automation: go to Automations (the marketplace) → pick one (e.g. Lead Concierge) → Connect a channel → Configure → Preview on a sample message → Go live. It starts Supervised; you approve every draft until you trust it.
 
-Channels: Website chat and Email (Gmail) work today. Add website chat on the Channels page by pasting a snippet on your site; connect Gmail via the Channels page. WhatsApp, Instagram, Messenger, SMS, and more are on the roadmap.
+Channels: Website chat, Email (Gmail), and WhatsApp work today. Add website chat on the Channels page by pasting a snippet on your site; connect Gmail or WhatsApp via the Channels page. Instagram, Messenger, SMS, and more are on the roadmap.
 
 Autonomy: low-risk, well-grounded questions can be answered automatically in Smart mode; refunds, complaints, negotiations, and anything unclear always come to the owner. Boundaries (e.g. "never offer discounts") are always respected.
 
-Billing: a one-time 7-day free trial (no card), which never renews. Then Starter — a one-time $${PLANS.starter.setupFeeUsd} setup fee that covers the first month, then $${PLANS.starter.priceMonthlyUsd}/month from day 31; Premium — $${PLANS.pro.setupFeeUsd} setup covering month one, then $${PLANS.pro.priceMonthlyUsd}/month. The setup fee is charged once and includes the first month. Each plan covers a set number of customer conversations per month. Payment is by bank transfer or Whish from the Billing page; amounts are quoted in fresh USD.
+Billing: a one-time 7-day free trial (no card), which never renews. Then Starter — a one-time $${PLANS.starter.setupFeeUsd} setup fee that covers the first month, then $${PLANS.starter.priceMonthlyUsd}/month from day 31; Premium — $${PLANS.pro.setupFeeUsd} setup covering month one, then $${PLANS.pro.priceMonthlyUsd}/month. The setup fee is charged once and includes the first month. Each plan covers a set number of customer conversations per month. Pay by card from the Billing page — Paddle is the merchant of record, so the receipt and card statement show Paddle, and Paddle handles VAT/sales tax. Bank transfer and Whish remain available as an alternative. Refunds: the setup fee is fully refundable within 14 days; see the Refund Policy at /refunds.
 
 Account: the avatar menu (bottom-left) has Account settings, Billing, Manage profile, and Sign out.`;
 
@@ -48,7 +49,7 @@ function fallback(question: string): string {
     return `Your Business Brain is what ${BRAND} knows about your business — voice, policies, FAQs, and boundaries. Edit it on the Business Brain page; confirm suggestions before ${BRAND} uses them.`;
   if (/account|profile|password|sign|logout|setting/.test(q))
     return `Open the avatar menu at the bottom-left for Account settings, Billing, Manage profile, and Sign out.`;
-  return `I can help with how ${BRAND} works, activating automations, connecting channels, billing, and account settings. Ask me anything — or email support@example.com for a human.`;
+  return `I can help with how ${BRAND} works, activating automations, connecting channels, billing, and account settings. Ask me anything — or email ${LEGAL.contactEmail} for a human.`;
 }
 
 export async function POST(req: Request) {

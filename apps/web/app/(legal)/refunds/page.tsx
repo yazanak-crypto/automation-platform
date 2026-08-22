@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { LEGAL } from "@/lib/legal";
+import { PLANS } from "@platform/core";
+import { LEGAL, PAYMENTS, TRIAL_DAYS } from "@/lib/legal";
 
 export const metadata: Metadata = { title: "Refund Policy" };
 
@@ -11,39 +12,83 @@ export default function RefundsPage() {
         <p className="mt-1 text-[13px] text-ink-3">Last updated {LEGAL.lastUpdated}</p>
       </div>
 
+      <p>
+        This policy applies to subscriptions to the {LEGAL.brand} platform, operated by{" "}
+        {LEGAL.entity}, {LEGAL.entityForm} (commercial registration {LEGAL.registrationNumber}),{" "}
+        {LEGAL.address}.
+      </p>
+
+      <Section title="Who you are buying from">
+        {PAYMENTS.provider} ({PAYMENTS.providerEntity}) is the <strong>merchant of record</strong> for
+        all purchases. {PAYMENTS.provider} sells the subscription to you, takes the payment, issues the
+        receipt, and handles VAT and sales tax. Refunds are therefore processed by{" "}
+        {PAYMENTS.provider}, to the original payment method. You can request one from us or from{" "}
+        {PAYMENTS.provider} directly; either way we authorise it and {PAYMENTS.provider} pays it out.
+      </Section>
+
       <Section title="Free trial">
-        Every account starts with a time-limited free trial. You are not charged during the trial, and
-        no payment method is required to start it.
+        Every new workspace gets a {TRIAL_DAYS}-day free trial. No payment method is required to start
+        it and no charge is made during it. The trial is offered <strong>once per workspace</strong>{" "}
+        and does not renew.
       </Section>
 
-      <Section title="Cancellation">
-        You can cancel your subscription at any time from the Billing page. When you cancel, your plan
-        remains active until the end of the current billing period, after which it will not renew and
-        no further charges are made. Your data stays available while your account is open.
+      <Section title="What you are charged">
+        <ul className="ml-5 list-disc space-y-1">
+          <li>
+            <strong>{PLANS.starter.name}</strong> — ${PLANS.starter.setupFeeUsd} one-time setup fee
+            covering your first month, then ${PLANS.starter.priceMonthlyUsd} per month from day 31.
+          </li>
+          <li>
+            <strong>{PLANS.pro.name}</strong> — ${PLANS.pro.setupFeeUsd} one-time setup fee covering
+            your first month, then ${PLANS.pro.priceMonthlyUsd} per month from day 31.
+          </li>
+        </ul>
+        <p className="mt-2">
+          Prices are in US dollars and exclude VAT or sales tax, which {PAYMENTS.provider} adds where
+          your location requires it.
+        </p>
       </Section>
 
-      <Section title="Setup fee">
-        Some plans include a one-time setup fee that covers your first month of service. Because it
-        pays for the first active month, the setup fee is non-refundable once your workspace has been
-        provisioned, except where required by law.
+      <Section title="14-day refund on the setup fee">
+        {/* A blanket "non-refundable setup fee" on a $499 first charge is the
+            single most likely reason a Paddle application is rejected, and it is
+            the term most likely to produce chargebacks later. A bounded window
+            is both fairer and cheaper than disputes. */}
+        If you are not satisfied, you may request a full refund of the setup fee within{" "}
+        <strong>14 days</strong> of the charge. We refund in full within that window, no reason
+        required. After 14 days the setup fee is non-refundable, because it covers a month of service
+        that has been delivered — except where consumer law in your country grants you a longer right,
+        which we will honour.
       </Section>
 
       <Section title="Monthly fees">
-        Recurring subscription fees are billed in advance for each period and are generally
-        non-refundable for partial periods. If you were charged in error, or experienced a material
-        failure of the Service, contact us within 14 days and we will review the charge in good faith
-        and issue a refund where appropriate.
+        Recurring fees are billed in advance for each month. If you cancel, your plan stays active
+        until the end of the period you have paid for and is not renewed; we do not pro-rate partial
+        months. If you were charged in error, charged after cancelling, or the Service suffered a
+        material failure, contact us within 30 days and we will refund the affected period.
+      </Section>
+
+      <Section title="Cancellation">
+        You can cancel at any time from the Billing page in your account — no email or phone call
+        required. Cancelling stops future charges immediately; access continues to the end of the paid
+        period. Your data stays available while your account is open.
       </Section>
 
       <Section title="Failed payments">
-        If a renewal payment fails, your subscription is marked past-due and AI features may pause until
-        payment succeeds. Your data is retained during this period.
+        If a renewal payment fails, {PAYMENTS.provider} retries it and your subscription is marked
+        past-due. AI features may pause until payment succeeds. Your data is retained during this
+        period and nothing is deleted because of a failed payment.
       </Section>
 
       <Section title="How to request a refund">
         Email{" "}
-        <a className="underline" href={`mailto:${LEGAL.contactEmail}`}>{LEGAL.contactEmail}</a> from
-        your account email with the charge details. We respond within 5 business days.
+        <a className="underline" href={`mailto:${LEGAL.contactEmail}`}>
+          {LEGAL.contactEmail}
+        </a>{" "}
+        from your account email address with the charge date and amount. We respond within{" "}
+        <strong>2 business days</strong> and, where a refund is due, authorise it with{" "}
+        {PAYMENTS.provider} immediately. {PAYMENTS.provider} then returns the money to your original
+        payment method, which typically takes 5–10 business days depending on your bank.
       </Section>
     </article>
   );

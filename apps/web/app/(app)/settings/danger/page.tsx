@@ -1,6 +1,7 @@
 "use client";
 
 import { Page, PageHeader } from "@/components/ui";
+import { LEGAL } from "@/lib/legal";
 
 export default function DangerZonePage() {
   return (
@@ -30,7 +31,7 @@ export default function DangerZonePage() {
             we handle it by request so we can confirm it&apos;s really you.
           </p>
           <a
-            href={`mailto:${process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "hello@ovanth.com"}?subject=Close%20my%20workspace`}
+            href={`mailto:${LEGAL.contactEmail}?subject=Close%20my%20workspace`}
             className="mt-3 inline-block rounded-lg border border-line px-4 py-2 text-sm text-ink-2 transition-colors hover:border-line-strong hover:text-ink"
           >
             Request deletion
