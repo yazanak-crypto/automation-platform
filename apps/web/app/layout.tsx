@@ -36,6 +36,12 @@ export const metadata: Metadata = {
   },
   twitter: { card: "summary_large_image", title: BRAND, description: BRAND_TAGLINE },
   robots: { index: true, follow: true },
+  // Meta's domain verification. Must be server-rendered into <head> — Meta
+  // rejects the tag if it is injected by client-side JS. This layout is a
+  // server component, so Next emits it in the initial HTML.
+  other: {
+    "facebook-domain-verification": "pb100omigsh4e34vpx7iz87y8mp022",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
