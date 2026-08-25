@@ -1,6 +1,34 @@
 "use client";
 
 import { UserButton } from "@clerk/nextjs";
+import { PALETTE } from "@/lib/palette";
+
+// --line from globals.css, as a literal (see the note in lib/palette.ts on why
+// Clerk cannot take var()).
+const LINE = "rgba(255, 255, 255, 0.08)";
+
+/**
+ * One menu row, every state pinned explicitly.
+ *
+ * `color` is repeated on each state rather than left to inherit: the original
+ * bug was the label going dark, and hover/focus are exactly where a stray
+ * inherited color would creep back in. `&:disabled` drops to the faint ink so
+ * a disabled row still reads as text rather than vanishing.
+ */
+const ROW = {
+  color: PALETTE.cream,
+  "&:hover": { color: PALETTE.cream, backgroundColor: "rgba(255, 255, 255, 0.055)" },
+  "&:focus": { color: PALETTE.cream },
+  "&:focus-visible": { outline: "none", boxShadow: `0 0 0 1px ${PALETTE.brass}` },
+  "&:active": { color: PALETTE.cream },
+  "&:disabled": { color: PALETTE.creamFaint, backgroundColor: "transparent" },
+} as const;
+
+/** Row icons. Dimmer than the label, but never below the legibility floor. */
+const ICON = {
+  color: PALETTE.creamMuted,
+  opacity: 1,
+} as const;
 
 // The account menu — Clerk's UserButton, extended with our own links and
 // themed to match. Provides: Account settings, Billing, Manage profile,
@@ -78,8 +106,42 @@ export function AccountMenu({
       appearance={{
         elements: {
           userButtonAvatarBox: "h-8 w-8",
-          userButtonPopoverCard: "shadow-2xl",
-          userButtonPopoverFooter: "hidden",
+
+          // ── Why style OBJECTS and not Tailwind classes ────────────────────
+          // The className approach was tried and measurably failed: even with
+          // `!important` on all four rows the text stayed black, which rules
+          // out a specificity fight and means the classes were not affecting
+          // these elements at all. Style objects are emitted as CSS by
+          // clerk-js itself, so they depend on nothing external — not the
+          // Tailwind sheet, not class application, not CSS-variable
+          // resolution, not Clerk's neutral-ramp derivation.
+          //
+          // Literal hex for the same reason. These mirror :root in
+          // globals.css via lib/palette.ts (cream #f4f4f5 on charcoal
+          // #131315); keep them in step if the palette moves.
+          userButtonPopoverCard: {
+            backgroundColor: PALETTE.charcoal,
+            border: `1px solid ${LINE}`,
+            color: PALETTE.cream,
+          },
+          userButtonPopoverMain: { backgroundColor: "transparent" },
+          userButtonPopoverActions: { borderColor: LINE },
+
+          // Built-in rows: Manage account, Sign out.
+          userButtonPopoverActionButton: ROW,
+          userButtonPopoverActionButtonIconBox: ICON,
+          userButtonPopoverActionButtonIcon: ICON,
+
+          // Our rows: Account settings, Billing. Different slot, same styling —
+          // theming only the built-ins would leave these two invisible.
+          userButtonPopoverCustomItemButton: ROW,
+          userButtonPopoverCustomItemButtonIconBox: ICON,
+
+          // Identity block at the top of the card.
+          userPreviewMainIdentifier: { color: PALETTE.cream },
+          userPreviewSecondaryIdentifier: { color: PALETTE.creamMuted },
+
+          userButtonPopoverFooter: { display: "none" },
         },
       }}
     >
