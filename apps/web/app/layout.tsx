@@ -2,6 +2,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { BRAND, BRAND_TAGLINE } from "@/lib/brand";
+import { PALETTE } from "@/lib/palette";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
@@ -45,12 +46,25 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       signInFallbackRedirectUrl="/dashboard"
       signUpFallbackRedirectUrl="/dashboard"
       appearance={{
+        // Clerk 6 derives every greyscale shade it paints — secondary labels,
+        // menu-item text, separators, disabled states — from `colorNeutral`,
+        // which defaults to BLACK. Setting only colorBackground therefore
+        // repainted the card dark and left the text on the light-theme ramp:
+        // black on charcoal. colorNeutral is the load-bearing one.
+        //
+        // The names below are the current (non-deprecated) v6 spelling;
+        // colorText / colorInputText / colorInputBackground are the v5 aliases
+        // that used to be here.
         variables: {
-          colorBackground: "#131315",
-          colorText: "#f4f4f5",
-          colorPrimary: "#d4b872",
-          colorInputBackground: "#0b0b0d",
-          colorInputText: "#f4f4f5",
+          colorNeutral: PALETTE.cream,
+          colorBackground: PALETTE.charcoal,
+          colorForeground: PALETTE.cream,
+          colorMutedForeground: PALETTE.creamMuted,
+          colorPrimary: PALETTE.brass,
+          colorPrimaryForeground: PALETTE.void,
+          colorBorder: "rgba(255, 255, 255, 0.08)",
+          colorInput: PALETTE.void,
+          colorInputForeground: PALETTE.cream,
           borderRadius: "10px",
         },
       }}
