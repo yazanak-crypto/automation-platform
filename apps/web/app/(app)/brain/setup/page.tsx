@@ -30,20 +30,7 @@ export default function BrainSetupPage() {
   const [confirmSkip, setConfirmSkip] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    void (async () => {
-      const res = await fetch("/api/brain/answers").catch(() => null);
-      if (res?.ok) {
-        const d = await res.json();
-        setValues((d.values ?? {}) as Values);
-        setGuessed(d.guessed ?? []);
-        // Pre-select from the scraped industry, but the picker still shows —
-        // a wrong guess costs one tap, never a wrong question set.
-        setVertical(d.vertical ?? (d.detectedIndustry ? detectVertical(d.detectedIndustry) : null));
-      }
-      setLoaded(true);
-    })();
-  }, []);
+
 
   // Patches ACCUMULATE between flushes. The debounce clears its previous
   // timer, so without this, tapping Next through several pre-filled answers
@@ -83,6 +70,38 @@ export default function BrainSetupPage() {
     },
     [],
   );
+
+  useEffect(() => {
+    void (async () => {
+      const res = await fetch("/api/brain/answers").catch(() => null);
+      if (res?.ok) {
+        const d = await res.json();
+        setValues((d.values ?? {}) as Values);
+        setGuessed(d.guessed ?? []);
+        // Pre-select from the scraped industry when the profile has no vertical
+        // of its own.
+        const detected =
+          d.vertical ?? (d.detectedIndustry ? detectVertical(d.detectedIndustry) : null);
+        setVertical(detected);
+
+        // PERSIST a detected vertical immediately. Without this it lived only
+        // in this component's state: `save({vertical})` is called from the
+        // picker's onClick, and detection SKIPS the picker, so the server never
+        // learned it and `answers.vertical` stayed null.
+        //
+        // That is not cosmetic. `renderAnswerFacts` walks
+        // `getQuestionSet(vertical)`, so a null vertical resolves to OTHER and
+        // every vertical-specific answer is silently dropped from the context
+        // pack — measured on a live workspace: 6 of 13 answers reaching the AI,
+        // with turnaround, pricing_model, typical_price, service_area,
+        // requires_deposit and free_consultation all missing. The owner had
+        // answered them; the AI never saw them.
+        if (!d.vertical && detected) save({ vertical: detected });
+      }
+      setLoaded(true);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const questions = useMemo(
     () => (vertical ? visibleQuestions(vertical, values) : []),
