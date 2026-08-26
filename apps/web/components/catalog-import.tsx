@@ -6,6 +6,7 @@ import {
   fieldDirection,
   needsReview,
   newRowId,
+  pluralize,
   rowIsRtl,
 } from "@platform/brain/catalog/rows";
 import {
@@ -166,8 +167,7 @@ export function CatalogImport({
       <div className="rounded-[10px] border border-line bg-raised p-4">
         <p className="text-sm">
           <span className="text-ok">✓</span> {value.count}{" "}
-          {value.count === 1 ? question.itemNoun : `${question.itemNoun}s`} saved to your Business
-          Brain
+          {pluralize(question.itemNoun, value.count)} saved to your Business Brain
           {value.sourceName ? ` from ${value.sourceName}` : ""}.
         </p>
         <p className="mt-1 text-[12px] text-ink-3">
@@ -204,7 +204,7 @@ export function CatalogImport({
       <div>
         <div className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <p className="text-sm">
-            {usable} {usable === 1 ? question.itemNoun : `${question.itemNoun}s`} found
+            {usable} {pluralize(question.itemNoun, usable)} found
           </p>
           {review.length > 0 && (
             <p className="text-[12.5px] text-wait">
