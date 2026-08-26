@@ -45,6 +45,19 @@ export function rowIsRtl(row: CatalogRow): boolean {
   );
 }
 
+/**
+ * Pluralise a catalog noun for display.
+ *
+ * `${itemNoun}s` is wrong for the very first vertical that uses it — the
+ * restaurant set says "dish", and the review table read "5 dishs found".
+ * Sibilant endings take "es"; everything the vertical files use today
+ * (listing, product, service, item) takes a plain "s".
+ */
+export function pluralize(noun: string, count: number): string {
+  if (count === 1) return noun;
+  return /(s|x|z|ch|sh)$/i.test(noun) ? `${noun}es` : `${noun}s`;
+}
+
 let seq = 0;
 /** Ids are table-local and never persisted, so a counter is enough. */
 export function newRowId(): string {
