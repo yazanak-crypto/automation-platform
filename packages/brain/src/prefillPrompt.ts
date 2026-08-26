@@ -25,6 +25,13 @@ Respond with ONLY a JSON object:
 /** Describe the value shape the model must produce for one question. */
 function valueSpec(q: Question): string {
   switch (q.input) {
+    case "catalog":
+      // Unreachable: catalog questions are filtered out of the prompt below.
+      // A catalog cannot be read off a marketing page, and a *guessed* one
+      // would be worse than none — prefilled answers are excluded from the
+      // context pack until confirmed, so it would import nothing and still
+      // look answered.
+      return "";
     case "short_text":
     case "long_text":
       return "string";
@@ -63,6 +70,8 @@ export function prefillUserPrompt(input: {
   pages: { url: string; title: string; text: string }[];
 }): string {
   const questions = getQuestionSet(input.vertical)
+    // Catalog imports come from a file the owner uploads, never from a scrape.
+    .filter((q) => q.input !== "catalog")
     .map((q) => `- ${q.id} (${q.label}) → ${valueSpec(q)}`)
     .join("\n");
 

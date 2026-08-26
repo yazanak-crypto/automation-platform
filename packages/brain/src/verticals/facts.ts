@@ -3,6 +3,7 @@ import {
   DAYS,
   DAY_LABELS,
   type AnswerValue,
+  type CatalogAnswer,
   type ChipsPlusText,
   type PriceRange,
   type Question,
@@ -50,6 +51,15 @@ function renderValue(q: Question, value: AnswerValue): string {
     case "chips":
     case "list":
       return (value as string[]).join(", ");
+    case "catalog": {
+      // Deliberately a COUNT, not the items. facts[] is JSON.stringify'd into
+      // every reply prompt; an 87-item menu here would drown the other facts
+      // and multiply per-reply cost. The items live in knowledge_items and are
+      // retrieved per question. This line exists so the model knows a catalog
+      // exists and does not claim ignorance.
+      const v = value as CatalogAnswer;
+      return v.count > 0 ? `${v.count} items on file (retrieved individually as needed)` : "";
+    }
     case "chips_plus_text": {
       const v = value as ChipsPlusText;
       return [v.selected.join(", "), v.text?.trim()].filter(Boolean).join(" — ");

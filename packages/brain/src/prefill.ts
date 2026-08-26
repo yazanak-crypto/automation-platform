@@ -69,6 +69,11 @@ const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
  */
 function validateValue(q: Question, raw: unknown): AnswerValue | null {
   switch (q.input) {
+    case "catalog":
+      // Never accept a prefilled catalog. The receipt shape is trivial to
+      // forge from a scrape ({count: 12}) and would mark the step answered
+      // while no knowledge items exist behind it.
+      return null;
     case "short_text":
     case "long_text": {
       if (typeof raw !== "string") return null;

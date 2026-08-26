@@ -214,7 +214,12 @@ export default function BrainSetupPage() {
         )}
 
         <div className="mt-4">
-          <QuestionInput question={q} value={values[q.id]} onChange={(v) => setAnswer(q.id, v)} />
+          <QuestionInput
+            question={q}
+            value={values[q.id]}
+            onChange={(v) => setAnswer(q.id, v)}
+            vertical={vertical}
+          />
         </div>
       </div>
 

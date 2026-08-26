@@ -10,6 +10,19 @@ export const CLINIC: Vertical = {
   match: ["clinic", "health", "medical", "dental", "dentist", "doctor", "physio", "veterinar", "aesthetic", "hospital", "pharmac"],
   questions: [
     {
+      id: "services_catalog",
+      label: "Add your services and prices",
+      help: "Upload a price list or paste it as text. You will review everything before it saves.",
+      input: "catalog",
+      catalog: {
+        noun: "service list",
+        itemNoun: "service",
+        attributeHints: ["duration", "practitioner", "follow-up included"],
+        pastePlaceholder: "Consultation 300, Cleaning 250, تبييض 900",
+      },
+      important: true,
+    },
+    {
       id: "services",
       label: "What do you treat or offer?",
       input: "list",
@@ -80,6 +93,19 @@ export const DISTRIBUTOR: Vertical = {
   blurb: "Selling in bulk to shops, trade or businesses",
   match: ["distribut", "wholesale", "supplier", "import", "export", "trade", "b2b", "manufactur"],
   questions: [
+    {
+      id: "products_catalog",
+      label: "Add your product list",
+      help: "Upload your catalog or price list, or paste it as text. You will review everything before it saves.",
+      input: "catalog",
+      catalog: {
+        noun: "product list",
+        itemNoun: "product",
+        attributeHints: ["unit", "case size", "wholesale price", "MOQ"],
+        pastePlaceholder: "Olive oil 1L — 45/case of 12, Rice 5kg — 30",
+      },
+      important: true,
+    },
     {
       id: "products",
       label: "What do you supply?",
@@ -158,6 +184,19 @@ export const RETAIL: Vertical = {
   blurb: "Selling products to customers, online or in store",
   match: ["retail", "shop", "store", "ecommerce", "e-commerce", "boutique", "fashion", "clothing", "cosmetic", "furniture", "electronics"],
   questions: [
+    {
+      id: "products_catalog",
+      label: "Add your products",
+      help: "Upload a product list, a photo of your price list, or paste it as text. You will review everything before it saves.",
+      input: "catalog",
+      catalog: {
+        noun: "product list",
+        itemNoun: "product",
+        attributeHints: ["SKU", "size", "colour", "brand", "stock"],
+        pastePlaceholder: "Wheel 67 — 120, Brake pads 45, فلتر زيت 15",
+      },
+      important: true,
+    },
     {
       id: "delivery_areas",
       label: "Where do you deliver?",
@@ -239,6 +278,19 @@ export const RESTAURANT: Vertical = {
   match: ["restaurant", "food", "cafe", "café", "coffee", "bakery", "catering", "kitchen", "dining", "pizza", "burger", "sushi"],
   questions: [
     {
+      id: "menu_catalog",
+      label: "Add your menu",
+      help: "Upload a photo or PDF of the menu, a spreadsheet, or paste it as text. You will review everything before it saves.",
+      input: "catalog",
+      catalog: {
+        noun: "menu",
+        itemNoun: "dish",
+        attributeHints: ["section", "portion size", "spice level", "allergens"],
+        pastePlaceholder: "Margherita 12, Chicken shawarma 8.50, فتوش 7",
+      },
+      important: true,
+    },
+    {
       id: "service_types",
       label: "How do you serve customers?",
       input: "chips",
@@ -304,6 +356,19 @@ export const SERVICES: Vertical = {
   blurb: "Agencies, salons, lawyers, accountants, repairs, trades",
   match: ["service", "agency", "consult", "law", "legal", "account", "salon", "spa", "barber", "repair", "maintenance", "marketing", "design", "software", "cleaning", "photograph"],
   questions: [
+    {
+      id: "services_catalog",
+      label: "Add your service list",
+      help: "Upload a price list or paste it as text. You will review everything before it saves.",
+      input: "catalog",
+      catalog: {
+        noun: "service list",
+        itemNoun: "service",
+        attributeHints: ["unit", "rate type", "minimum charge"],
+        pastePlaceholder: "AC service 150/unit, Duct cleaning 400, Callout 75",
+      },
+      important: true,
+    },
     {
       id: "services",
       label: "What services do you offer?",
@@ -372,6 +437,19 @@ export const REAL_ESTATE: Vertical = {
   blurb: "Agencies, brokers, developers, property management",
   match: ["real estate", "property", "realty", "broker", "estate agent", "developer", "rental", "letting", "apartment"],
   questions: [
+    {
+      id: "listings_catalog",
+      label: "Add your listings",
+      help: "Upload a listings sheet, a PDF, or paste them as text. You will review everything before it saves.",
+      input: "catalog",
+      catalog: {
+        noun: "listings",
+        itemNoun: "listing",
+        attributeHints: ["bedrooms", "area", "community", "furnishing", "reference"],
+        pastePlaceholder: "Studio JVC 45k, 1BR Marina 85k, 2BR JBR 140k",
+      },
+      important: true,
+    },
     {
       id: "deal_types",
       label: "Do you handle sales, rentals, or both?",
@@ -465,6 +543,19 @@ export const OTHER: Vertical = {
   blurb: "Tell us in your own words — nothing here is forced",
   match: [],
   questions: [
+    {
+      id: "catalog",
+      label: "Add your price list or catalog",
+      help: "If you sell anything with set prices, upload or paste it here. You will review everything before it saves.",
+      input: "catalog",
+      catalog: {
+        noun: "catalog",
+        itemNoun: "item",
+        attributeHints: ["unit", "category"],
+        pastePlaceholder: "Item name — price, one per line",
+      },
+      important: true,
+    },
     {
       id: "offerings",
       label: "What do you sell or offer?",
