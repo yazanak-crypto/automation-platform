@@ -26,6 +26,8 @@ export default function BrainSetupPage() {
   const [index, setIndex] = useState(0);
   const [saving, setSaving] = useState<"idle" | "saving" | "failed">("idle");
   const [done, setDone] = useState(false);
+  const [committing, setCommitting] = useState(false);
+  const [confirmSkip, setConfirmSkip] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -97,6 +99,30 @@ export default function BrainSetupPage() {
     setGuessed((g) => g.filter((x) => x !== id)); // now it's their answer
     save({ values: { [id]: v } });
   }
+
+  /**
+   * Some inputs hold work that is staged rather than answered — the catalog
+   * import stages reviewed rows that only become knowledge on confirm. Those
+   * register a commit here, and Next runs it before moving on.
+   *
+   * This exists because the alternative shipped and lost data: the catalog
+   * step had its own "Save" button sitting directly above the wizard's Next,
+   * and pressing Next silently discarded every reviewed row. Production logs
+   * showed exactly that — two successful extractions, no confirm call, nothing
+   * saved.
+   *
+   * Kept generic on purpose. The wizard must not know what a catalog is (see
+   * the rule at the top of verticals/types.ts); any future input with staged
+   * state uses the same hook.
+   */
+  // A half-answered "discard them?" must not follow the owner to the next
+  // question, where it would read as being about something else.
+  useEffect(() => setConfirmSkip(false), [index]);
+
+  const commitRef = useRef<null | (() => Promise<boolean>)>(null);
+  const registerCommit = useCallback((fn: null | (() => Promise<boolean>)) => {
+    commitRef.current = fn;
+  }, []);
 
   if (!loaded) {
     return (
@@ -176,7 +202,17 @@ export default function BrainSetupPage() {
    * answer stays in `guessed` and is excluded from the context pack, so it
    * cannot ground a reply to a customer.
    */
-  function advance() {
+  async function advance() {
+    // Staged work is committed FIRST. If it fails we stay on the question —
+    // the input surfaces its own error, and moving on would drop the work.
+    const commit = commitRef.current;
+    if (commit) {
+      setCommitting(true);
+      const ok = await commit();
+      setCommitting(false);
+      if (!ok) return;
+    }
+
     const last = index + 1 >= questions.length;
     const confirming = isGuess && values[q.id] !== undefined;
     const patch: { values?: Values; completed?: boolean } = {};
@@ -187,6 +223,22 @@ export default function BrainSetupPage() {
     if (Object.keys(patch).length > 0) save(patch);
     if (last) setDone(true);
     else setIndex((i) => i + 1);
+  }
+
+  /**
+   * Skip. Normally silent — a skipped question is simply unanswered.
+   *
+   * But skipping past STAGED work throws it away, so that one case asks first.
+   * Two-step inline rather than a confirm() dialog: the wizard is one calm
+   * question per screen and a browser modal does not belong in it.
+   */
+  function skip() {
+    if (commitRef.current && !confirmSkip) {
+      setConfirmSkip(true);
+      return;
+    }
+    setConfirmSkip(false);
+    setIndex((i) => i + 1);
   }
 
   return (
@@ -219,6 +271,7 @@ export default function BrainSetupPage() {
             value={values[q.id]}
             onChange={(v) => setAnswer(q.id, v)}
             vertical={vertical}
+            registerCommit={registerCommit}
           />
         </div>
       </div>
@@ -232,19 +285,32 @@ export default function BrainSetupPage() {
           ← Back
         </button>
         <button
-          onClick={advance}
-          className="press-glow rounded-lg bg-white px-5 py-2.5 text-sm font-medium text-black transition-transform active:scale-[0.97]"
+          onClick={() => void advance()}
+          disabled={committing}
+          className="press-glow rounded-lg bg-white px-5 py-2.5 text-sm font-medium text-black transition-transform active:scale-[0.97] disabled:opacity-60"
         >
-          {index + 1 >= questions.length ? "Finish" : isGuess ? "Looks right" : "Next"}
+          {committing
+            ? "Saving…"
+            : index + 1 >= questions.length
+              ? "Finish"
+              : isGuess
+                ? "Looks right"
+                : "Next"}
         </button>
-        {/* Skip does NOT confirm. A pre-filled answer the owner skipped past
-            stays a guess, and guesses never ground a customer-facing reply. */}
-        <button
-          onClick={() => setIndex((i) => i + 1)}
-          className="text-sm text-ink-3 hover:text-ink-2"
-        >
-          Skip
+        {/* Skip does NOT confirm a pre-filled answer — one skipped past stays a
+            guess, and guesses never ground a customer-facing reply. It DOES ask
+            before discarding staged work (see skip()). */}
+        <button onClick={skip} className="text-sm text-ink-3 hover:text-ink-2">
+          {confirmSkip ? "Yes, discard them" : "Skip"}
         </button>
+        {confirmSkip && (
+          <button
+            onClick={() => setConfirmSkip(false)}
+            className="text-sm text-ink-2 underline underline-offset-4"
+          >
+            Keep them
+          </button>
+        )}
         <span className="ml-auto text-[12px] text-ink-3">
           {saving === "saving" ? "Saving…" : saving === "failed" ? "Not saved — retrying" : "Saved"}
         </span>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   emptyRow,
   fieldDirection,
@@ -31,12 +31,15 @@ export function CatalogImport({
   questionId,
   value,
   onChange,
+  registerCommit,
 }: {
   question: CatalogQuestion;
   vertical: string;
   questionId: string;
   value?: CatalogAnswer;
   onChange: (v: CatalogAnswer) => void;
+  /** Wizard hook: Next commits staged rows before advancing. */
+  registerCommit?: (fn: null | (() => Promise<boolean>)) => void;
 }) {
   const [phase, setPhase] = useState<Phase>(value?.count ? "saved" : "choose");
   const [rows, setRows] = useState<CatalogRow[]>([]);
@@ -141,10 +144,15 @@ export function CatalogImport({
     );
   }
 
-  async function save() {
+  /**
+   * Persist the reviewed rows. Returns whether it worked, because the wizard's
+   * Next waits on this and must NOT advance past rows it failed to save.
+   */
+  const save = useCallback(async (): Promise<boolean> => {
+    const payload = rows.filter((r) => r.name.trim());
+    if (!payload.length) return true; // nothing staged — advancing is a skip
     setBusyLabel("Saving…");
     setError(null);
-    const payload = rows.filter((r) => r.name.trim());
     const res = await fetch("/api/brain/catalog/confirm", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -153,13 +161,35 @@ export function CatalogImport({
     if (!res?.ok) {
       setError("Saving didn't go through — please try again.");
       setBusyLabel("");
-      return;
+      return false;
     }
     const data = (await res.json()) as { answer: CatalogAnswer };
     onChange(data.answer);
     setBusyLabel("");
     setPhase("saved");
-  }
+    return true;
+  }, [onChange, rows, source, sourceName]);
+
+  /**
+   * Register the commit whenever rows are staged and unsaved.
+   *
+   * Re-registers on every row change so the closure the wizard calls always
+   * sees the CURRENT rows — an owner who edits a cell and then presses Next
+   * must get the edit, not the extraction.
+   */
+  // `save` is intentionally NOT a dependency. Its identity changes on every
+  // render (the wizard passes an inline `onChange`), which would re-register on
+  // every render. The ref keeps the registered thunk pointing at the latest
+  // save while the effect only re-runs when what is staged actually changes.
+  const saveRef = useRef(save);
+  saveRef.current = save;
+
+  useEffect(() => {
+    if (!registerCommit) return;
+    const staged = phase === "review" && rows.some((r) => r.name.trim());
+    registerCommit(staged ? () => saveRef.current() : null);
+    return () => registerCommit(null);
+  }, [phase, rows, registerCommit]);
 
   // ── Already imported ──────────────────────────────────────────────────────
   if (phase === "saved" && value?.count) {
@@ -217,6 +247,11 @@ export function CatalogImport({
             </p>
           )}
         </div>
+
+        <p className="mb-3 text-[12px] text-ink-3">
+          Fix anything that looks wrong, then continue — these save when you press
+          Next.
+        </p>
 
         {/* Wide catalogs scroll inside the table, never the page. */}
         <div className="overflow-x-auto rounded-[10px] border border-line">
@@ -310,12 +345,15 @@ export function CatalogImport({
         {error && <p className="mt-3 text-[12.5px] text-stop">{error}</p>}
 
         <div className="mt-4 flex flex-wrap items-center gap-2">
+          {/* Optional now — Next commits these too. Demoted from a white
+              primary so it no longer competes with the wizard's own button,
+              which is what caused reviewed rows to be discarded. */}
           <button
-            onClick={save}
+            onClick={() => void save()}
             disabled={!usable || !!busyLabel}
-            className="press-glow rounded-lg bg-white px-5 py-2.5 text-sm font-medium text-black disabled:opacity-40"
+            className="rounded-lg border border-line px-4 py-2.5 text-sm hover:bg-hover disabled:opacity-40"
           >
-            {busyLabel || `Save ${usable} to my Brain`}
+            {busyLabel || `Save ${usable} now`}
           </button>
           <button
             onClick={() => setRows((rs) => [...rs, { ...emptyRow(), id: newRowId() }])}
