@@ -8,3 +8,4 @@ export * from "./prompts";
 export * from "./prefill";
 export * from "./prefillPrompt";
 export * from "./verticals";
+export * from "./catalog";

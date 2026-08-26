@@ -98,9 +98,15 @@ describe("vertical registry integrity", () => {
 
   it("keeps every set within the 12–13 question budget", () => {
     // The flow is sold as ~2 minutes. Silent growth is how that promise breaks.
+    //
+    // Raised 17 → 18 when the catalog import was added, deliberately and once.
+    // The catalog step is the one entry here that REMOVES work: it replaces
+    // typing a menu or price list by hand, and it is skippable in one tap. Only
+    // `retail` actually reaches 18. If a future change needs 19, that is a real
+    // budget conversation, not another bump.
     for (const v of VERTICALS) {
       const total = getQuestionSet(v.id).length;
-      expect(total, `${v.id} has ${total} questions`).toBeLessThanOrEqual(17);
+      expect(total, `${v.id} has ${total} questions`).toBeLessThanOrEqual(18);
       expect(total, `${v.id} has only ${total} questions`).toBeGreaterThanOrEqual(10);
     }
   });

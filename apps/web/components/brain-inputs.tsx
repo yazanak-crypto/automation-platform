@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { CatalogImport } from "./catalog-import";
 import {
   DAYS,
   DAY_LABELS,
   type AnswerValue,
+  type CatalogAnswer,
   type ChipsPlusText,
   type PriceRange,
   type Question,
@@ -298,12 +300,29 @@ export function QuestionInput({
   question,
   value,
   onChange,
+  vertical,
 }: {
   question: Question;
   value: AnswerValue | undefined;
   onChange: (v: AnswerValue) => void;
+  /** Required by `input: "catalog"`, which tailors extraction to the vertical. */
+  vertical?: string;
 }) {
   switch (question.input) {
+    case "catalog":
+      // The question carries its own copy and extraction hints, so this stays
+      // one branch no matter how many verticals import a catalog.
+      if (!question.catalog || !vertical) return null;
+      return (
+        <CatalogImport
+          question={question.catalog}
+          vertical={vertical}
+          questionId={question.id}
+          value={value as CatalogAnswer | undefined}
+          onChange={onChange}
+        />
+      );
+
     case "short_text":
       return (
         <input

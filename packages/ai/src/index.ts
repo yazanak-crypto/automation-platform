@@ -13,6 +13,13 @@ export interface GatewayCall {
   tier: ModelTier;
   system?: string;
   prompt: string;
+  /**
+   * Multimodal content. When present it is sent INSTEAD of `prompt`, so a
+   * caller passing images still routes through this gateway and still lands in
+   * `ai_calls` (Decisions 003/005/011 — no code path may reach a provider
+   * directly). `prompt` stays required as the text fallback and for logging.
+   */
+  content?: Array<Anthropic.ContentBlockParam>;
   maxTokens?: number;
   /** Business Brain context injected by the assembler (Decision 008). Logged verbatim. */
   contextPack?: Record<string, unknown>;
@@ -76,7 +83,7 @@ export async function callAi(call: GatewayCall): Promise<GatewayResult> {
       model,
       max_tokens: call.maxTokens ?? 1024,
       system: call.system,
-      messages: [{ role: "user", content: call.prompt }],
+      messages: [{ role: "user", content: call.content ?? call.prompt }],
     });
     const latencyMs = Date.now() - started;
     const tokensIn = res.usage.input_tokens;

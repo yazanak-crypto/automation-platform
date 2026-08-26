@@ -57,6 +57,9 @@ export function isAnswered(value: AnswerValue | undefined): boolean {
   if (typeof value === "string") return value.trim() !== "";
   if (Array.isArray(value)) return value.length > 0;
   if ("selected" in value) return value.selected.length > 0 || !!value.text?.trim();
+  // A catalog receipt counts as answered only if something was actually
+  // imported — confirming an empty table is the same as skipping.
+  if ("count" in value && "importedAt" in value) return value.count > 0;
   // A price range may arrive with only some keys present, so discriminate on
   // ANY range key — testing "varies" alone let a half-empty range fall through
   // to the hours branch and crash.

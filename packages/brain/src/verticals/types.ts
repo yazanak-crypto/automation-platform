@@ -23,7 +23,14 @@ export type InputType =
   /** A from–to range with a currency, or "varies". */
   | "price_range"
   /** Repeatable single lines (services, areas). */
-  | "list";
+  | "list"
+  /**
+   * Catalog import: upload a file / paste text / type rows by hand, review the
+   * extracted items in a table, then confirm. Copy and extraction hints come
+   * from the question's own `catalog` block, so a menu, a listings sheet and a
+   * product list are the same input with different words around it.
+   */
+  | "catalog";
 
 /** Where a website scrape may pre-fill this answer (used by the phase-2 pass). */
 export type PrefillSource =
@@ -57,6 +64,27 @@ export interface Question {
   /** Marks the handful of questions worth nudging about if left empty. */
   important?: boolean;
   prefillFrom?: PrefillSource;
+  /** Required by `input: "catalog"`, ignored otherwise. */
+  catalog?: CatalogQuestion;
+}
+
+/**
+ * Per-vertical dressing for a catalog import.
+ *
+ * `attributeHints` biases the extractor's PROMPT and nothing else — it is never
+ * a schema and never validates output. A listings sheet that happens to carry a
+ * "floor" column keeps it, and a menu that carries none of these still imports.
+ * Hard-coding fields per vertical is exactly what this avoids.
+ */
+export interface CatalogQuestion {
+  /** Plural noun for the collection: "menu", "listings", "products". */
+  noun: string;
+  /** Singular noun for one row: "dish", "listing", "product". */
+  itemNoun: string;
+  /** Example attribute names, passed to the model as hints only. */
+  attributeHints: readonly string[];
+  /** Shown in the paste box. */
+  pastePlaceholder?: string;
 }
 
 export interface Vertical {
@@ -95,13 +123,60 @@ export interface ChipsPlusText {
   text?: string;
 }
 
+/**
+ * One catalog row. Flat on purpose — the review table maps 1:1 to these.
+ *
+ * `price` stays a STRING. Real catalogs say "45k", "AED 85,000/yr", "from $12",
+ * "12–18", "حسب الطلب". Coercing to a number forces a currency decision, loses
+ * ranges, and invents precision the source never had. Nothing downstream does
+ * arithmetic — the model grounds on rendered text.
+ */
+export interface CatalogRow {
+  /** Stable id for the review table. Client-side only; nothing persists it. */
+  id: string;
+  name: string;
+  price?: string;
+  description?: string;
+  /**
+   * Whatever else THIS item had. Per-item, not per-vertical: two rows in one
+   * catalog may legitimately carry different keys.
+   */
+  attributes?: Record<string, string>;
+  /**
+   * Why the row needs a human. Presence marks it in the table — a row we could
+   * not read is surfaced for correction, never dropped silently.
+   */
+  issue?: string;
+  /** Source text for a row we could not parse into fields. */
+  raw?: string;
+}
+
+/**
+ * What the ANSWER stores — a receipt, not the items.
+ *
+ * The items themselves become `knowledge_items` rows on confirm, which is what
+ * makes them retrievable per-question instead of riding along in every context
+ * pack. Keeping a second copy here would bloat `business_profiles.answers` and
+ * create two sources of truth. Re-editing happens in the Knowledge view.
+ */
+export interface CatalogAnswer {
+  count: number;
+  source: "file" | "paste" | "manual";
+  sourceName?: string;
+  importedAt: string;
+}
+
 export type AnswerValue =
   | string
   | boolean
   | string[]
   | WeeklyHours
   | PriceRange
-  | ChipsPlusText;
+  | ChipsPlusText
+  | CatalogAnswer;
+
+/** Upper bound on one import. Bounds the confirm transaction and embed fan-out. */
+export const CATALOG_MAX_ITEMS = 500;
 
 /**
  * Stored answers. `guessed` lists ids the AI pre-filled and the user has not
