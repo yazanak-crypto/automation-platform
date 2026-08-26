@@ -365,6 +365,63 @@ export class OutsideServiceWindowError extends Error {
  * templates configured, so that failure is surfaced explicitly rather than
  * looking like a generic network error.
  */
+
+/**
+ * Pull the diagnostic fields out of a Meta Graph error body.
+ *
+ * Meta answers a rejected send with
+ * `{ error: { message, type, code, error_subcode, error_data: { details }, fbtrace_id } }`.
+ * `code` is the part that actually identifies the failure — 131047 (24-hour
+ * window closed), 190 (token expired/invalid), 131030 (recipient not on the
+ * allow list of a test number), 131026 (undeliverable). `error_data.details`
+ * usually carries the human-readable specifics.
+ *
+ * Tolerates a non-JSON body (gateway HTML, empty response) by falling back to
+ * the raw text, so a malformed error never masks the real one.
+ */
+function describeMetaError(detail: string): {
+  code?: number;
+  subcode?: number;
+  type?: string;
+  message?: string;
+  details?: string;
+  fbtraceId?: string;
+  /** Compact ` [code N/M] message` for appending to a thrown Error. */
+  suffix: string;
+} {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(detail);
+  } catch {
+    return { suffix: detail ? ` ${detail.slice(0, 300)}` : "" };
+  }
+  const err = (parsed as { error?: Record<string, unknown> } | null)?.error;
+  if (!err || typeof err !== "object") {
+    return { suffix: detail ? ` ${detail.slice(0, 300)}` : "" };
+  }
+  const num = (v: unknown) => (typeof v === "number" ? v : undefined);
+  const str = (v: unknown) => (typeof v === "string" ? v : undefined);
+
+  const code = num(err.code);
+  const subcode = num(err.error_subcode);
+  const message = str(err.message);
+  const details = str((err.error_data as { details?: unknown } | undefined)?.details);
+
+  const parts: string[] = [];
+  if (code !== undefined) parts.push(subcode !== undefined ? `code ${code}/${subcode}` : `code ${code}`);
+  if (message) parts.push(message);
+  if (details && details !== message) parts.push(details);
+
+  return {
+    code,
+    subcode,
+    type: str(err.type),
+    message,
+    details,
+    fbtraceId: str(err.fbtrace_id),
+    suffix: parts.length ? ` [${parts.join(" — ")}]`.slice(0, 400) : "",
+  };
+}
 export async function sendWhatsAppMessage(
   creds: WhatsAppCredentials,
   to: string,
@@ -387,17 +444,38 @@ export async function sendWhatsAppMessage(
 
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
+    const meta = describeMetaError(detail);
+
+    // Log BEFORE classifying. The branches below deliberately replace Meta's
+    // wording with our own, and the code they discard (131047 vs 190 vs
+    // 131030) is the only thing that distinguishes "24-hour window closed"
+    // from "stale token" from "recipient not on the test-number allow list".
+    // Without this line those three are indistinguishable after the fact —
+    // the thrown message reads the same in the runs table either way.
+    console.error("[whatsapp.send] Meta rejected the send", {
+      httpStatus: res.status,
+      code: meta.code,
+      subcode: meta.subcode,
+      type: meta.type,
+      metaMessage: meta.message,
+      details: meta.details,
+      fbtraceId: meta.fbtraceId,
+      phoneNumberId: creds.phoneNumberId,
+      // Recipient is PII — last 4 only, enough to correlate with a thread.
+      toSuffix: to.slice(-4),
+    });
+
     // 131047 = "Message failed to send because more than 24 hours have passed".
     if (detail.includes("131047") || detail.includes("re-engagement message")) {
       throw new OutsideServiceWindowError(
-        "WhatsApp's 24-hour reply window has closed for this conversation; " +
-          "an approved message template is required to reply.",
+        `WhatsApp's 24-hour reply window has closed for this conversation; ` +
+          `an approved message template is required to reply. (Meta code ${meta.code ?? 131047})`,
       );
     }
     if (res.status === 401 || res.status === 403) {
-      throw new ReconnectRequiredError(`WhatsApp auth failed: ${res.status}`);
+      throw new ReconnectRequiredError(`WhatsApp auth failed: ${res.status}${meta.suffix}`);
     }
-    throw new Error(`WhatsApp send failed: ${res.status} ${detail.slice(0, 200)}`);
+    throw new Error(`WhatsApp send failed: ${res.status}${meta.suffix}`);
   }
 
   const data = (await res.json()) as { messages?: Array<{ id?: string }> };
