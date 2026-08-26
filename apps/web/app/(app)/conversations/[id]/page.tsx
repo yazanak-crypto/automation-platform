@@ -63,6 +63,25 @@ export default function ConversationDetail({ params }: { params: Promise<{ id: s
   const visible = data.messages.filter((m) => m.draftStatus !== "dismissed" && m.id !== pending?.id);
   const lastRun = data.runs[0];
 
+  // Why this draft is waiting instead of having been sent. The autonomy engine
+  // already records it on the run's `decision` event (e.g. "Confidence 0.70
+  // below your 0.80 threshold"); until now it was stored but never shown, so a
+  // queued draft gave no clue which gate held it back.
+  //
+  // Runs arrive newest-first and a new draft supersedes any older pending one,
+  // so the newest run carrying a decision reason is the one that queued this
+  // draft. Scanning events backwards takes the final decision of that run —
+  // the one that actually determined the outcome.
+  const queuedReason = (() => {
+    for (const run of data.runs) {
+      for (let i = run.events.length - 1; i >= 0; i--) {
+        const reason = run.events[i]?.kind === "decision" ? run.events[i]?.detail?.reason : null;
+        if (typeof reason === "string" && reason.trim()) return reason;
+      }
+    }
+    return null;
+  })();
+
   async function act(action: "approve" | "dismiss") {
     setActionError(null);
     const res = await fetch(`/api/conversations/${id}/draft`, {
@@ -166,6 +185,11 @@ export default function ConversationDetail({ params }: { params: Promise<{ id: s
             </p>
             <RelativeTime value={pending.createdAt} />
           </div>
+          {queuedReason && (
+            <p className="mt-1.5 text-[12px] leading-relaxed text-ink-2">
+              Not sent automatically — {queuedReason}
+            </p>
+          )}
           {edit === null ? (
             <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed">{pending.body}</p>
           ) : (
