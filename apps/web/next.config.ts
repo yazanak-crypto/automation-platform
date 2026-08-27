@@ -1,5 +1,6 @@
 import { config } from "dotenv";
 import { resolve } from "node:path";
+import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
 
 // Env policy: platform/.env (monorepo root) is the single source of truth.
@@ -89,4 +90,28 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Sentry wrapping. Additive on purpose — nextConfig above is untouched, and
+// everything here degrades to a no-op when the env vars are absent, so a local
+// or fork build never breaks for want of a Sentry token.
+//
+// What the wrapper actually buys us:
+//   • loads sentry.client.config.ts into the browser bundle (the only way to
+//     get client-side capture in @sentry/nextjs v8)
+//   • uploads source maps when SENTRY_AUTH_TOKEN is set, so a production stack
+//     trace names our files instead of minified chunk offsets
+//   • tunnels browser events through /monitoring, same-origin, so ad blockers
+//     do not quietly drop the reports we depend on
+export default withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  // Without a token there is nothing to upload; saying so once beats a wall of
+  // warnings on every local build.
+  silent: !process.env.SENTRY_AUTH_TOKEN,
+  sourcemaps: { disable: !process.env.SENTRY_AUTH_TOKEN },
+  tunnelRoute: "/monitoring",
+  // The wrapper otherwise injects a route that re-exports React components for
+  // the Sentry toolbar; we do not use it and it inflates the bundle.
+  disableLogger: true,
+  telemetry: false,
+});

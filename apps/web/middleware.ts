@@ -27,6 +27,11 @@ const isPublicRoute = createRouteMatcher([
   // POST events. Auth can't apply — Meta has no Clerk session. The route
   // handler still verifies every POST via X-Hub-Signature-256/META_APP_SECRET.
   "/api/webhooks/meta",
+  // Sentry browser tunnel (next.config tunnelRoute). Same-origin so ad
+  // blockers do not drop the reports; must be public, since the errors most
+  // worth seeing happen to signed-OUT visitors on the marketing and sign-in
+  // pages.
+  "/monitoring",
 ]);
 
 const isDashboardRoute = createRouteMatcher(["/dashboard(.*)"]);

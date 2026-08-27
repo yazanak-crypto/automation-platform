@@ -474,8 +474,16 @@ async function deliverAutoMessage(conversationId: string, runId: string) {
   if (!rows[0]) return;
   await deliverOutbound(rows[0].id).catch(async (err) => {
     // Audit-2 P0-4: a failed delivery is never silent — the owner sees it.
+    //
+    // THIS is the path that hid "WhatsApp is not configured" for a whole
+    // workspace. The captureException was already here; it did nothing because
+    // no DSN was ever set. Tagged so the delivery failures are one filterable
+    // group rather than scattered through everything the worker reports.
     console.error("[deliver] auto message failed:", err.message);
-    Sentry.captureException(err);
+    Sentry.captureException(err, {
+      tags: { path: "auto-send", conversationId },
+      extra: { runId },
+    });
     await db()
       .update(conversations)
       .set({

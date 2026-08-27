@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/nextjs";
 import { deliverOutbound, supersedePendingDrafts } from "@platform/channels";
 import { conversations, db, messages } from "@platform/db";
 import { manualReplySchema } from "@platform/schemas";
@@ -47,8 +48,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return inserted;
   });
   let delivery: "ok" | "failed" = "ok";
-  await deliverOutbound(rows[0]!.id).catch(async () => {
+  await deliverOutbound(rows[0]!.id).catch(async (err) => {
     delivery = "failed";
+    // Same swallow as the approve path: the owner sees "failed to send" and we
+    // kept no record of the cause.
+    console.error("[deliver] manual reply failed to send:", err);
+    Sentry.captureException(err, {
+      tags: { path: "manual-reply", conversationId: id },
+    });
     await db()
       .update(conversations)
       .set({ status: "waiting_approval", attentionReason: "Your reply failed to send — try again" })
