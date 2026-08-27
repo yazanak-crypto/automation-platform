@@ -11,3 +11,4 @@ export * from "./paddleSync";
 export * from "./contacts";
 export * from "./orderGate";
 export * from "./orders";
+export * from "./orderMessages";

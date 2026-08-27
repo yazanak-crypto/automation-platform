@@ -1,6 +1,7 @@
 import * as Sentry from "@sentry/node";
 import { aiConfigured, callAi } from "@platform/ai";
 import { getContextPack } from "@platform/brain";
+import { fieldDirection } from "@platform/brain/catalog/rows";
 import {
   deliverOutbound,
   findBannedPhrase,
@@ -41,6 +42,8 @@ import {
   shouldSendHoldingLine,
   captureOrder,
   findModifiableOrder,
+  pickAckLanguage,
+  renderAcknowledgement,
   takeLimit,
   withRedisLock,
   type AutonomyDecision,
@@ -462,7 +465,19 @@ async function processDraftLocked(job: WebchatDraftJob) {
       const businessName = pack.identity && typeof pack.identity === "object"
         ? ((pack.identity as { businessName?: string }).businessName ?? "The team")
         : "The team";
-      const ack = `Noted: ${captured.summary}. ${businessName} will confirm shortly.`;
+      // Frame language follows the CUSTOMER's message, gated by the languages
+      // the business actually replies in. fieldDirection is the same
+      // first-strong-character rule the catalog review table uses, composed
+      // here because core cannot import brain without closing a cycle.
+      const ackLanguage = pickAckLanguage({
+        businessLanguages: businessLanguages(pack),
+        customerMessageIsRtl: fieldDirection(trigger.body) === "rtl",
+      });
+      const ack = renderAcknowledgement({
+        summary: captured.summary,
+        businessName,
+        language: ackLanguage,
+      });
 
       await db().transaction(async (tx) => {
         await tx.insert(messages).values({
@@ -573,6 +588,27 @@ async function processDraftLocked(job: WebchatDraftJob) {
     }).catch(() => {});
     throw err;
   }
+}
+
+
+/**
+ * The languages the business replies in, as answered in guided setup.
+ *
+ * Read from the rendered businessFacts rather than re-querying the profile:
+ * the pack is what the model saw, so the acknowledgement is keyed off exactly
+ * the same view of the brain. Returns [] when unanswered, which pickAckLanguage
+ * treats as English-only — the safe direction.
+ */
+function businessLanguages(pack: { businessFacts?: string[] }): string[] {
+  const line = (pack.businessFacts ?? []).find((f) =>
+    f.toLowerCase().startsWith("languages replies should use:"),
+  );
+  if (!line) return [];
+  return line
+    .slice(line.indexOf(":") + 1)
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
 }
 
 async function deliverAutoMessage(conversationId: string, runId: string) {
