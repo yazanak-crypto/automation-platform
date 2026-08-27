@@ -11,6 +11,7 @@ import {
   uuid,
   vector,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 // Skeleton schema: identity/tenancy + AI cost ledger (Decision 011).
 // Remaining Decision 009 tables land with their features, not before.
@@ -210,7 +211,27 @@ export const connections = pgTable(
       .default("active"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("connections_workspace_idx").on(t.workspaceId)],
+  (t) => [
+    index("connections_workspace_idx").on(t.workspaceId),
+    // One WhatsApp phone number id routes to exactly one connection.
+    //
+    // Inbound routing looks a number up here and takes LIMIT 1 with no ORDER
+    // BY, so a duplicate would send a customer's messages to an arbitrary
+    // workspace — picked by whatever order the planner happened to return.
+    // Uniqueness was previously enforced only indirectly, by the synthetic
+    // `env:whatsapp:<id>` value colliding on nango_connection_id, plus a check
+    // in scripts/whatsapp-setup.ts. Neither binds anything that writes this
+    // table by another path.
+    //
+    // PARTIAL, for two reasons: provider_account_id is null for poll-based
+    // providers like Gmail (many nulls, no meaning), and the other providers
+    // are not covered by this claim — Instagram and Facebook route on the same
+    // column and deserve the same rule, but adding it here without checking
+    // their live data first would be a guess.
+    uniqueIndex("connections_whatsapp_number_uq")
+      .on(t.providerAccountId)
+      .where(sql`${t.provider} = 'whatsapp' AND ${t.providerAccountId} IS NOT NULL`),
+  ],
 );
 
 // ── Channels & conversations (Decision 007, M1 step 3/4) ────────────────────

@@ -1,0 +1,23 @@
+-- One WhatsApp phone number id routes to exactly one connection.
+--
+-- Inbound routing (resolveWhatsAppChannel) looks a number up in this column and
+-- takes LIMIT 1 with no ORDER BY. A duplicate would therefore deliver a
+-- customer's messages to an arbitrary workspace, chosen by whatever order the
+-- planner happened to return — a cross-tenant leak with no error anywhere.
+--
+-- Uniqueness was previously enforced only indirectly: the setup script writes a
+-- synthetic `env:whatsapp:<id>` into nango_connection_id, which is unique, and
+-- the script also checks for a conflicting row. Neither constrains anything
+-- that writes this table by another path.
+--
+-- PARTIAL for two reasons. provider_account_id is null for poll-based providers
+-- like Gmail, so a plain unique index would be wrong. And the other webhook
+-- providers — Instagram, Facebook — route on this same column and deserve the
+-- same rule, but their live data has not been checked for existing duplicates,
+-- and a migration that fails on deploy takes the worker down with it. Extend
+-- this deliberately, per provider, after looking.
+--
+-- Safe to apply as a plain (non-CONCURRENT) index: the table holds single-digit
+-- rows, so the brief write lock is not observable. Revisit if connections ever
+-- grows into the thousands.
+CREATE UNIQUE INDEX "connections_whatsapp_number_uq" ON "connections" USING btree ("provider_account_id") WHERE "connections"."provider" = 'whatsapp' AND "connections"."provider_account_id" IS NOT NULL;
