@@ -34,6 +34,10 @@ export const leadConcierge: AutomationDefinition = {
       appointment_info: "auto",
       pricing_stated: "auto",
       product_availability: "auto",
+      // The ACKNOWLEDGEMENT auto-sends; the ORDER still waits for the owner.
+      // Two different decisions: autonomy governs the reply, shouldAutoConfirm
+      // governs the order. See the capture path in webchatDraft.
+      order_intent: "auto",
       product_recommendation: "approve",
       lead_inquiry: "approve",
       general_inquiry: "approve",
