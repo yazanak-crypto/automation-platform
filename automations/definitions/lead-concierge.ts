@@ -57,7 +57,7 @@ export const leadConcierge: AutomationDefinition = {
       "You approve, edit, or dismiss — nothing sends without you",
     ],
     requiredCapabilities: ["inbound-messages", "draft-replies"],
-    contextNeeds: ["identity", "voice", "policies", "boundaries", "faq_retrieval"],
+    contextNeeds: ["identity", "voice", "policies", "boundaries", "faq_retrieval", "order_history"],
     configFields: [
       {
         key: "leadDefinition",

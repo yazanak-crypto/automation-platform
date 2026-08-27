@@ -207,13 +207,26 @@ async function processDraftLocked(job: WebchatDraftJob) {
 
     const { pack, brainVersion } = await getContextPack(
       job.workspaceId,
-      ["identity", "voice", "policies", "boundaries", "faq_retrieval"],
-      { queryText: trigger.body },
+      ["identity", "voice", "policies", "boundaries", "faq_retrieval", "order_history"],
+      // contactId is REQUIRED by order_history — getContextPack throws without
+      // it rather than quietly returning nothing, so a missing thread here is a
+      // failed run instead of every customer looking like a first-time buyer.
+      { queryText: trigger.body, contactId: convo.contactId },
     );
     await addRunEvent(run.id, ++seq, "step", "Assembled business context", {
       brainVersion,
       knowledgeUsed: pack.knowledge?.map((k) => k.title) ?? [],
       boundaries: pack.boundaries?.length ?? 0,
+      // Recorded explicitly so a missing history is READABLE in the timeline
+      // rather than inferred from its absence. "none" and "not requested" are
+      // different answers to "why didn't it remember my last order?", and the
+      // owner opening this run can tell them apart.
+      orderHistory:
+        pack.orderHistory === undefined
+          ? "not requested"
+          : pack.orderHistory.length === 0
+            ? "none for this customer"
+            : `${pack.orderHistory.length} past order(s)`,
     });
 
     const contextBlock = JSON.stringify({
@@ -222,6 +235,11 @@ async function processDraftLocked(job: WebchatDraftJob) {
       policies: pack.policies ?? {},
       knowledge: pack.knowledge ?? [],
       boundaries: pack.boundaries ?? [],
+      // Included even when empty. The model is told "this customer has no past
+      // orders" rather than being left to infer it from a missing key — which
+      // is what makes "same as last time" answerable with a refusal instead of
+      // a guess.
+      orderHistory: pack.orderHistory ?? [],
       returningVisitor: prior > 0 ? `${prior} previous conversation(s)` : undefined,
     });
     const gen = async (feedback?: string) =>
