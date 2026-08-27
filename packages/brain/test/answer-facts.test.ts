@@ -113,3 +113,31 @@ describe("renderAnswerFacts", () => {
     expect(renderAnswerFacts({})).toEqual({ facts: [], rules: [] });
   });
 });
+
+describe("a missing vertical silently drops vertical-specific facts", () => {
+  // Why this matters, and why the setup page persists a DETECTED vertical:
+  // renderAnswerFacts walks getQuestionSet(vertical). With no vertical it
+  // resolves to OTHER, and every answer whose question lives in a vertical
+  // file vanishes from the context pack. It is silent — the owner answered,
+  // the profile stores the value, and the AI simply never sees it.
+  const values = {
+    what_you_do: "We service commercial AC units.", // core — always rendered
+    turnaround: "Same week",                        // services-only
+    pricing_model: "Per unit",                      // services-only
+  };
+
+  it("renders every answer when the vertical is known", () => {
+    const { facts } = renderAnswerFacts({ vertical: "services", values });
+    expect(facts.some((f) => f.includes("Same week"))).toBe(true);
+    expect(facts.some((f) => f.includes("Per unit"))).toBe(true);
+  });
+
+  it("drops them when the vertical is missing", () => {
+    const { facts } = renderAnswerFacts({ vertical: undefined, values });
+    // The core answer survives...
+    expect(facts.some((f) => f.includes("commercial AC"))).toBe(true);
+    // ...but the vertical-specific ones are gone.
+    expect(facts.some((f) => f.includes("Same week"))).toBe(false);
+    expect(facts.some((f) => f.includes("Per unit"))).toBe(false);
+  });
+});
