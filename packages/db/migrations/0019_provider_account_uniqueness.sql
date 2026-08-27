@@ -1,0 +1,23 @@
+-- Widen the routing-uniqueness rule from WhatsApp to every provider that
+-- carries a provider-side account id.
+--
+-- 0018 constrained WhatsApp only, because Instagram's and Facebook's live data
+-- had not been checked and a migration that fails on deploy takes the worker
+-- down with it. It has now been checked: there are no duplicate
+-- provider_account_id values for ANY provider, and instagram/facebook have no
+-- connection rows at all yet. Establishing the invariant while the table is
+-- nearly empty is the cheap moment — the same constraint after Instagram has
+-- customers is a data migration.
+--
+-- resolveInstagramChannel uses the identical lookup as its WhatsApp twin —
+-- match provider_account_id, INNER JOIN channels, LIMIT 1, no ORDER BY — so it
+-- carries exactly the same cross-tenant risk from a duplicate.
+--
+-- Keyed on (provider, provider_account_id), not the id alone, so two different
+-- providers minting the same id string do not collide with each other. Still
+-- partial: provider_account_id is null for poll-based providers like Gmail.
+--
+-- The DROP is safe in either merge order: migrations always run in journal
+-- order, so 0018 has created this index before 0019 removes it.
+DROP INDEX "connections_whatsapp_number_uq";--> statement-breakpoint
+CREATE UNIQUE INDEX "connections_provider_account_uq" ON "connections" USING btree ("provider","provider_account_id") WHERE "connections"."provider_account_id" IS NOT NULL;

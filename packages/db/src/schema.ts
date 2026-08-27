@@ -213,24 +213,29 @@ export const connections = pgTable(
   },
   (t) => [
     index("connections_workspace_idx").on(t.workspaceId),
-    // One WhatsApp phone number id routes to exactly one connection.
+    // A provider-side account id routes to exactly one connection.
     //
-    // Inbound routing looks a number up here and takes LIMIT 1 with no ORDER
-    // BY, so a duplicate would send a customer's messages to an arbitrary
-    // workspace — picked by whatever order the planner happened to return.
-    // Uniqueness was previously enforced only indirectly, by the synthetic
-    // `env:whatsapp:<id>` value colliding on nango_connection_id, plus a check
-    // in scripts/whatsapp-setup.ts. Neither binds anything that writes this
-    // table by another path.
+    // Every webhook resolver — resolveWhatsAppChannel, resolveInstagramChannel
+    // — looks an id up in this column and takes LIMIT 1 with no ORDER BY. A
+    // duplicate would therefore send a customer's messages to an arbitrary
+    // workspace, picked by whatever order the planner happened to return: a
+    // cross-tenant leak with no error anywhere.
     //
-    // PARTIAL, for two reasons: provider_account_id is null for poll-based
-    // providers like Gmail (many nulls, no meaning), and the other providers
-    // are not covered by this claim — Instagram and Facebook route on the same
-    // column and deserve the same rule, but adding it here without checking
-    // their live data first would be a guess.
-    uniqueIndex("connections_whatsapp_number_uq")
-      .on(t.providerAccountId)
-      .where(sql`${t.provider} = 'whatsapp' AND ${t.providerAccountId} IS NOT NULL`),
+    // Keyed on (provider, provider_account_id) rather than the id alone, so two
+    // different providers that happen to mint the same id string do not collide
+    // with each other.
+    //
+    // PARTIAL because provider_account_id is null for poll-based providers like
+    // Gmail — many nulls, no meaning, and a plain unique index would be wrong.
+    //
+    // Scope was widened from whatsapp-only after checking live data: no
+    // duplicates exist for ANY provider (instagram and facebook have no rows at
+    // all yet). Establishing the invariant while the table is nearly empty is
+    // the cheap moment — the same constraint after Instagram has customers is a
+    // data migration.
+    uniqueIndex("connections_provider_account_uq")
+      .on(t.provider, t.providerAccountId)
+      .where(sql`${t.providerAccountId} IS NOT NULL`),
   ],
 );
 
