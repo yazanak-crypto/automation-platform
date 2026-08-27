@@ -4,11 +4,20 @@ import * as Sentry from "@sentry/node";
 import { closeIdleConversations } from "@platform/channels";
 import { applyMigrations } from "@platform/db";
 import { redis } from "@platform/core";
+import { initSentry, sentryEnvironment } from "./sentry";
 
 // Audit P1-10: error capture + heartbeat, both gated on env (no-op without).
-if (process.env.SENTRY_DSN) {
-  Sentry.init({ dsn: process.env.SENTRY_DSN, tracesSampleRate: 0.1 });
-}
+//
+// Logged either way. An empty DSN used to be indistinguishable from a working
+// one — every captureException below was a silent no-op for months, which is
+// why diagnosing a failed WhatsApp send meant querying production by hand.
+// Now the worker says which mode it is in on every boot.
+const sentryOn = initSentry();
+console.log(
+  sentryOn
+    ? `[worker] Sentry on (environment: ${sentryEnvironment()})`
+    : "[worker] Sentry OFF — SENTRY_DSN is not set; errors go to stdout only",
+);
 process.on("unhandledRejection", (err) => {
   console.error("[worker] unhandled rejection:", err);
   Sentry.captureException(err);

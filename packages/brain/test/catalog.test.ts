@@ -9,6 +9,7 @@ import {
   normalizeRow,
   parseCsv,
   parseJsonReply,
+  pluralize,
   renderRowContent,
   rowIsRtl,
 } from "../src/catalog";
@@ -198,5 +199,21 @@ describe("parseJsonReply", () => {
   it("returns null on unparseable text rather than throwing", () => {
     expect(parseJsonReply("no json here")).toBeNull();
     expect(parseJsonReply("{broken")).toBeNull();
+  });
+});
+
+describe("pluralize", () => {
+  it("handles the sibilant case that shipped as 'dishs'", () => {
+    // Caught by looking at the rendered table, not by a unit test — the
+    // restaurant vertical's itemNoun is "dish".
+    expect(pluralize("dish", 5)).toBe("dishes");
+    expect(pluralize("dish", 1)).toBe("dish");
+  });
+
+  it("leaves the regular nouns the vertical files use alone", () => {
+    expect(pluralize("listing", 3)).toBe("listings");
+    expect(pluralize("product", 2)).toBe("products");
+    expect(pluralize("service", 2)).toBe("services");
+    expect(pluralize("item", 0)).toBe("items");
   });
 });

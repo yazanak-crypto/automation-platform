@@ -301,12 +301,18 @@ export function QuestionInput({
   value,
   onChange,
   vertical,
+  registerCommit,
 }: {
   question: Question;
   value: AnswerValue | undefined;
   onChange: (v: AnswerValue) => void;
   /** Required by `input: "catalog"`, which tailors extraction to the vertical. */
   vertical?: string;
+  /**
+   * Lets an input stage work that Next must commit before advancing. Inputs
+   * that answer immediately (text, chips, hours) never call it.
+   */
+  registerCommit?: (fn: null | (() => Promise<boolean>)) => void;
 }) {
   switch (question.input) {
     case "catalog":
@@ -320,6 +326,7 @@ export function QuestionInput({
           questionId={question.id}
           value={value as CatalogAnswer | undefined}
           onChange={onChange}
+          registerCommit={registerCommit}
         />
       );
 

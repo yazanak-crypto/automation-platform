@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/nextjs";
 import { deliverOutbound } from "@platform/channels";
 import { conversations, db, messages, runs } from "@platform/db";
 import { draftActionSchema } from "@platform/schemas";
@@ -76,8 +77,16 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   let delivery: "ok" | "failed" = "ok";
   if (approved) {
     // Email channels actually send here; web chat is a widget-poll no-op.
-    await deliverOutbound(pending.id).catch(async () => {
+    await deliverOutbound(pending.id).catch(async (err) => {
       delivery = "failed";
+      // The error was previously discarded entirely — not even bound. An owner
+      // approved a reply, the send failed, the conversation bounced back to the
+      // queue, and NOTHING recorded why. This is the manual twin of the
+      // auto-send path that hid the WhatsApp misconfiguration.
+      console.error("[deliver] approved reply failed to send:", err);
+      Sentry.captureException(err, {
+        tags: { path: "approve-draft", conversationId: id },
+      });
       // Audit-2 P0-4: surface the failure — the conversation returns to the queue.
       await db()
         .update(conversations)
