@@ -1,8 +1,10 @@
 import {
   boolean,
+  check,
   index,
   integer,
   jsonb,
+  numeric,
   pgTable,
   real,
   text,
@@ -467,6 +469,122 @@ export const activations = pgTable(
 );
 
 // ── Runs ledger, skeletal (Decision 009 source of truth; full catalog later) ─
+
+// ── Orders (structured order capture) ───────────────────────────────────────
+//
+// Orders are transactional records with a lifecycle, NOT knowledge. They are
+// deliberately not knowledge_items: those are retrieved semantically to ground
+// replies, and an order landing in that pool would surface as an answer to an
+// unrelated question.
+
+export const orders = pgTable(
+  "orders",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id),
+    // THE identity link. History is `WHERE contact_id = ?`, which is why
+    // contacts gained provider-identity uniqueness first (migration 0020):
+    // a duplicate contact would split one customer's history in half.
+    contactId: uuid("contact_id")
+      .notNull()
+      .references(() => contacts.id),
+    // Where it was captured. Orders OUTLIVE the conversation, so this is
+    // provenance, never the lookup key.
+    conversationId: uuid("conversation_id").references(() => conversations.id),
+    /** The inbound message this was extracted from — auditable provenance. */
+    sourceMessageId: uuid("source_message_id").references(() => messages.id),
+
+    status: text("status", {
+      enum: ["pending", "confirmed", "cancelled", "fulfilled"],
+    })
+      .notNull()
+      .default("pending"),
+
+    /** As the customer gave it; may differ from contacts.display_name. */
+    customerName: text("customer_name"),
+
+    // BOTH forms of the requested time, on purpose. The timestamp sorts and
+    // filters; the raw text is what gets quoted back. "tomorrow evening"
+    // resolved to 19:00 is useful for the owner and wrong to repeat verbatim
+    // to the customer as though they said 19:00.
+    requestedFor: timestamp("requested_for", { withTimezone: true }),
+    requestedForText: text("requested_for_text"),
+
+    notes: text("notes"),
+
+    // Nullable BY DESIGN, and the auto-confirm gate treats null as
+    // "cannot auto-confirm" rather than as zero. Catalog prices are strings
+    // ("45k", "AED 85,000/yr", "حسب الطلب"), so a total is often unknowable —
+    // and an unknown total that reads as 0 would slip under every ceiling.
+    totalEstimate: numeric("total_estimate", { precision: 12, scale: 2 }),
+    currency: text("currency"),
+
+    /** What the extractor claimed. Feeds the auto-confirm gate. */
+    captureConfidence: real("capture_confidence"),
+    /** True only when the gate fired. False means a human decided. */
+    autoConfirmed: boolean("auto_confirmed").notNull().default(false),
+
+    // Covers confirm AND cancel: both are the owner's decision, and `status`
+    // already says which. Two separate column pairs would leave the cancel
+    // case unattributed, which is the one you most want to look up later.
+    decidedBy: uuid("decided_by").references(() => users.id),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    // The Orders tab: workspace + status, newest first.
+    index("orders_workspace_status_idx").on(t.workspaceId, t.status, t.createdAt),
+    // Drizzle's `enum` is a TYPESCRIPT constraint only — it emits no database
+    // check, so raw SQL or a future code path can write any string. The Orders
+    // tab filters on status, so an out-of-enum value would not raise anything:
+    // the order would simply never appear. That silent disappearance is the
+    // failure mode this build is meant to avoid, so it is constrained here.
+    // A deliberate deviation from the platform's convention for status columns,
+    // because this particular one gates visibility.
+    check(
+      "orders_status_valid",
+      sql`${t.status} in ('pending', 'confirmed', 'cancelled', 'fulfilled')`,
+    ),
+    // The read path: this customer's history, newest first. Without this,
+    // every reply to a returning customer sequentially scans the table.
+    index("orders_contact_idx").on(t.contactId, t.createdAt),
+  ],
+);
+
+export const orderItems = pgTable(
+  "order_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orderId: uuid("order_id")
+      .notNull()
+      .references(() => orders.id, { onDelete: "cascade" }),
+    // NULLABLE on purpose. A customer will order something the catalog does
+    // not contain, or phrase it unmatchably. Forcing a link would mean either
+    // dropping the line or inventing a match — both worse than an unlinked row
+    // the owner can see and fix. The auto-confirm gate refuses to fire while
+    // any item is unlinked, because an unmatched item is an unpriced item.
+    knowledgeItemId: uuid("knowledge_item_id").references(() => knowledgeItems.id),
+    /** Always populated, even when linked — an unlinked row still reads right. */
+    nameText: text("name_text").notNull(),
+    quantity: integer("quantity").notNull().default(1),
+    /** Copied from the catalog AT CAPTURE, so a later price edit cannot
+     *  silently rewrite what the customer was quoted. */
+    unitPriceText: text("unit_price_text"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("order_items_order_idx").on(t.orderId),
+    // A zero or negative quantity is never a real order line; it is an
+    // extraction bug. Rejecting it at the database means no later reader has
+    // to defend against it.
+    check("order_items_quantity_positive", sql`${t.quantity} > 0`),
+  ],
+);
 
 export const runs = pgTable(
   "runs",
