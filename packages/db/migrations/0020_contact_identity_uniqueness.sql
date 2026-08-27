@@ -1,0 +1,30 @@
+-- One provider identity = one contact, per workspace.
+--
+-- The contact row is what durable per-customer records hang off. Order history
+-- will be `WHERE contact_id = ?`, so a duplicate contact does not merely waste a
+-- row — it splits one customer's history in half, and "same as last time" then
+-- reads the wrong half. Silently.
+--
+-- Both upsert paths (upsertWhatsAppContact, upsertInstagramContact) were
+-- select-then-insert with nothing underneath them, and Meta retries webhooks
+-- aggressively, so two concurrent deliveries could each miss the other's row.
+-- The same commit makes both insert-first with onConflictDoNothing, which only
+-- becomes real once this index exists — without a constraint there is nothing
+-- to conflict on, and the clause silently never fires.
+--
+-- Applied while `contacts` holds ONE row in production. The identical
+-- constraint after a year of customers is a data migration with a merge
+-- decision attached to every collision.
+--
+-- Partial: most contacts carry neither identity, and NULLs must not collide.
+--
+-- EMAIL IS DELIBERATELY ABSENT. A wa_id and an igsid are provider-assigned and
+-- arrive only through a webhook, so one value genuinely means one person. An
+-- email address is typed by a human and arrives from two independent paths —
+-- the email channel and the web-chat identify form — where the SAME person
+-- legitimately appears as two contacts. That is a contact-MERGE problem, and a
+-- unique index without a merge path would convert it into a failed web-chat
+-- message: upsertVisitorContact writes an email onto an existing contact, and
+-- that UPDATE would start throwing in the live visitor path.
+CREATE UNIQUE INDEX "contacts_workspace_whatsapp_uq" ON "contacts" USING btree ("workspace_id",("identities" ->> 'whatsapp')) WHERE "contacts"."identities" ->> 'whatsapp' IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "contacts_workspace_instagram_uq" ON "contacts" USING btree ("workspace_id",("identities" ->> 'instagram')) WHERE "contacts"."identities" ->> 'instagram' IS NOT NULL;

@@ -292,6 +292,34 @@ export const contacts = pgTable(
   },
   (t) => [
     uniqueIndex("contacts_workspace_visitor_idx").on(t.workspaceId, t.webchatVisitorId),
+    // One provider identity = one contact, per workspace.
+    //
+    // The contact row is what durable per-customer records hang off — order
+    // history is `WHERE contact_id = ?`. Both upserts below were
+    // select-then-insert with nothing underneath them, and Meta retries
+    // webhooks aggressively, so a race produced two contacts for one person.
+    // Today that is a duplicate row nobody notices. The moment anything is
+    // keyed on contact_id it silently splits one customer's history in half,
+    // and "same as last time" reads the wrong half.
+    //
+    // Partial, because most contacts carry neither identity and NULLs must not
+    // collide with each other.
+    //
+    // EMAIL IS DELIBERATELY ABSENT. A wa_id and an igsid are provider-assigned
+    // and arrive only through a webhook, so one value genuinely means one
+    // person. An email address is typed by a human and arrives from two
+    // independent paths — the email channel and the web-chat identify form —
+    // where the SAME person legitimately shows up as two contacts. That is a
+    // contact-merge problem, not a constraint violation, and a unique index
+    // without a merge path would turn it into a failed web-chat message
+    // (upsertVisitorContact writes an email onto an existing contact). See the
+    // PR for the full reasoning.
+    uniqueIndex("contacts_workspace_whatsapp_uq")
+      .on(t.workspaceId, sql`(${t.identities} ->> 'whatsapp')`)
+      .where(sql`${t.identities} ->> 'whatsapp' IS NOT NULL`),
+    uniqueIndex("contacts_workspace_instagram_uq")
+      .on(t.workspaceId, sql`(${t.identities} ->> 'instagram')`)
+      .where(sql`${t.identities} ->> 'instagram' IS NOT NULL`),
   ],
 );
 
