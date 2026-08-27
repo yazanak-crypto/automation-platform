@@ -141,6 +141,24 @@ export async function upsertWhatsAppContact(
   waId: string,
   displayName?: string,
 ) {
+  // INSERT first, then fall back to reading.
+  //
+  // Select-then-insert lost the race: Meta retries webhooks aggressively, and
+  // two concurrent deliveries for a new customer each found no row and each
+  // inserted one. A duplicate contact splits that customer's durable
+  // record — order history is keyed on contact_id — so the two halves are
+  // invisible to each other.
+  //
+  // `onConflictDoNothing` is only real because of the partial unique index in
+  // migration 0020; without a constraint there is nothing to conflict on and
+  // the clause silently never fires.
+  const inserted = await db()
+    .insert(contacts)
+    .values({ workspaceId, displayName, identities: { whatsapp: waId } })
+    .onConflictDoNothing()
+    .returning();
+  if (inserted[0]) return inserted[0];
+
   const existing = await db()
     .select()
     .from(contacts)
@@ -151,23 +169,19 @@ export async function upsertWhatsAppContact(
       ),
     )
     .limit(1);
-  if (existing[0]) {
-    // Backfill a name we didn't have on first contact; never overwrite one.
-    if (displayName && !existing[0].displayName) {
-      const updated = await db()
-        .update(contacts)
-        .set({ displayName })
-        .where(eq(contacts.id, existing[0].id))
-        .returning();
-      return updated[0] ?? existing[0];
-    }
-    return existing[0];
+  // Lost the race to a concurrent delivery, which has now created the row.
+  if (!existing[0]) throw new Error(`Failed to upsert WhatsApp contact ${waId}`);
+
+  // Backfill a name we didn't have on first contact; never overwrite one.
+  if (displayName && !existing[0].displayName) {
+    const updated = await db()
+      .update(contacts)
+      .set({ displayName })
+      .where(eq(contacts.id, existing[0].id))
+      .returning();
+    return updated[0] ?? existing[0];
   }
-  const rows = await db()
-    .insert(contacts)
-    .values({ workspaceId, displayName, identities: { whatsapp: waId } })
-    .returning();
-  return rows[0]!;
+  return existing[0];
 }
 
 export async function getOrCreateWhatsAppConversation(
