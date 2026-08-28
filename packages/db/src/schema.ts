@@ -532,6 +532,32 @@ export const orders = pgTable(
     decidedBy: uuid("decided_by").references(() => users.id),
     decidedAt: timestamp("decided_at", { withTimezone: true }),
 
+    // ── Did the customer actually hear about the decision? ──────────────────
+    //
+    // The decision and the notification are two separate things that can
+    // disagree: the owner confirms, the row flips to `confirmed`, and the
+    // WhatsApp send then fails. Without recording it, the Orders tab would show
+    // a confirmed order and the owner would reasonably believe the customer was
+    // told. They were not.
+    //
+    // So `decided_at` set with `decision_notified_at` NULL is a REAL state that
+    // the tab renders explicitly, not an edge case to be tidied away.
+    /** The outbound message row carrying the confirmation/cancellation. */
+    decisionMessageId: uuid("decision_message_id").references(() => messages.id),
+    decisionNotifiedAt: timestamp("decision_notified_at", { withTimezone: true }),
+    /** Why the notification failed. Shown to the owner, not just logged. */
+    decisionNotifyError: text("decision_notify_error"),
+
+    /**
+     * Why this order is still waiting — the auto-confirm gate's reason,
+     * recorded at capture.
+     *
+     * "Why is this pending?" must be answerable from the row. The same reason
+     * the gate returns is stored here and shown in the tab, exactly as
+     * AutonomyDecision.reason is surfaced on a waiting draft.
+     */
+    pendingReason: text("pending_reason"),
+
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
