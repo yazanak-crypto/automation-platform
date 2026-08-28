@@ -44,6 +44,7 @@ export const draftActionSchema = z.object({
 export const manualReplySchema = z.object({ body: z.string().min(1).max(4000) });
 
 import { CATEGORIES } from "./autonomy";
+import { orderCaptureSchema } from "./orders";
 
 /** Strict shape of the webchat draft prompt output (v3 — Decision 012). */
 export const webchatDraftOutputSchema = z.object({
@@ -55,6 +56,13 @@ export const webchatDraftOutputSchema = z.object({
   groundedOnContext: z.boolean().default(false),
   confidence: z.number().min(0).max(1).default(0),
   needsHuman: z.boolean().default(false),
+  /**
+   * Present ONLY for category order_intent. The pipeline writes an order when
+   * BOTH agree; disagreement means no order. A missed capture costs the owner
+   * a manual entry, a false one invents an order and tells a real customer it
+   * was noted — so the two must corroborate each other.
+   */
+  order: orderCaptureSchema.optional(),
 });
 export type WebchatDraftOutput = z.infer<typeof webchatDraftOutputSchema>;
 

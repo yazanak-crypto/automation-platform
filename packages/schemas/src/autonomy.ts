@@ -11,6 +11,7 @@ export const CATEGORIES = [
   "appointment_info",
   "pricing_stated",
   "product_availability",
+  "order_intent",
   "product_recommendation",
   "lead_inquiry",
   "general_inquiry",
@@ -33,6 +34,9 @@ export const RISK_TIERS: Record<Category, RiskTier> = {
   faq: "low",
   appointment_info: "low",
   pricing_stated: "low",
+  // A capture writes a real record and tells a real customer it was noted.
+  // Medium, not low: it is an action, not an answer.
+  order_intent: "medium",
   product_availability: "medium",
   product_recommendation: "medium",
   lead_inquiry: "medium",
