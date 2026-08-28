@@ -121,6 +121,17 @@ export async function ingestInstagramMessage(
 }
 
 export async function upsertInstagramContact(workspaceId: string, igsid: string) {
+  // INSERT first, then read — same reasoning as upsertWhatsAppContact. Meta
+  // retries webhooks aggressively, and a duplicate contact splits that
+  // customer's durable record. `onConflictDoNothing` is only real because of
+  // the partial unique index in migration 0020.
+  const inserted = await db()
+    .insert(contacts)
+    .values({ workspaceId, identities: { instagram: igsid } })
+    .onConflictDoNothing()
+    .returning();
+  if (inserted[0]) return inserted[0];
+
   const existing = await db()
     .select()
     .from(contacts)
@@ -131,12 +142,8 @@ export async function upsertInstagramContact(workspaceId: string, igsid: string)
       ),
     )
     .limit(1);
-  if (existing[0]) return existing[0];
-  const rows = await db()
-    .insert(contacts)
-    .values({ workspaceId, identities: { instagram: igsid } })
-    .returning();
-  return rows[0]!;
+  if (!existing[0]) throw new Error(`Failed to upsert Instagram contact ${igsid}`);
+  return existing[0];
 }
 
 export async function getOrCreateInstagramConversation(

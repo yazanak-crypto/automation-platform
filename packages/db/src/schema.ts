@@ -1,8 +1,10 @@
 import {
   boolean,
+  check,
   index,
   integer,
   jsonb,
+  numeric,
   pgTable,
   real,
   text,
@@ -213,24 +215,29 @@ export const connections = pgTable(
   },
   (t) => [
     index("connections_workspace_idx").on(t.workspaceId),
-    // One WhatsApp phone number id routes to exactly one connection.
+    // A provider-side account id routes to exactly one connection.
     //
-    // Inbound routing looks a number up here and takes LIMIT 1 with no ORDER
-    // BY, so a duplicate would send a customer's messages to an arbitrary
-    // workspace — picked by whatever order the planner happened to return.
-    // Uniqueness was previously enforced only indirectly, by the synthetic
-    // `env:whatsapp:<id>` value colliding on nango_connection_id, plus a check
-    // in scripts/whatsapp-setup.ts. Neither binds anything that writes this
-    // table by another path.
+    // Every webhook resolver — resolveWhatsAppChannel, resolveInstagramChannel
+    // — looks an id up in this column and takes LIMIT 1 with no ORDER BY. A
+    // duplicate would therefore send a customer's messages to an arbitrary
+    // workspace, picked by whatever order the planner happened to return: a
+    // cross-tenant leak with no error anywhere.
     //
-    // PARTIAL, for two reasons: provider_account_id is null for poll-based
-    // providers like Gmail (many nulls, no meaning), and the other providers
-    // are not covered by this claim — Instagram and Facebook route on the same
-    // column and deserve the same rule, but adding it here without checking
-    // their live data first would be a guess.
-    uniqueIndex("connections_whatsapp_number_uq")
-      .on(t.providerAccountId)
-      .where(sql`${t.provider} = 'whatsapp' AND ${t.providerAccountId} IS NOT NULL`),
+    // Keyed on (provider, provider_account_id) rather than the id alone, so two
+    // different providers that happen to mint the same id string do not collide
+    // with each other.
+    //
+    // PARTIAL because provider_account_id is null for poll-based providers like
+    // Gmail — many nulls, no meaning, and a plain unique index would be wrong.
+    //
+    // Scope was widened from whatsapp-only after checking live data: no
+    // duplicates exist for ANY provider (instagram and facebook have no rows at
+    // all yet). Establishing the invariant while the table is nearly empty is
+    // the cheap moment — the same constraint after Instagram has customers is a
+    // data migration.
+    uniqueIndex("connections_provider_account_uq")
+      .on(t.provider, t.providerAccountId)
+      .where(sql`${t.providerAccountId} IS NOT NULL`),
   ],
 );
 
@@ -287,6 +294,34 @@ export const contacts = pgTable(
   },
   (t) => [
     uniqueIndex("contacts_workspace_visitor_idx").on(t.workspaceId, t.webchatVisitorId),
+    // One provider identity = one contact, per workspace.
+    //
+    // The contact row is what durable per-customer records hang off — order
+    // history is `WHERE contact_id = ?`. Both upserts below were
+    // select-then-insert with nothing underneath them, and Meta retries
+    // webhooks aggressively, so a race produced two contacts for one person.
+    // Today that is a duplicate row nobody notices. The moment anything is
+    // keyed on contact_id it silently splits one customer's history in half,
+    // and "same as last time" reads the wrong half.
+    //
+    // Partial, because most contacts carry neither identity and NULLs must not
+    // collide with each other.
+    //
+    // EMAIL IS DELIBERATELY ABSENT. A wa_id and an igsid are provider-assigned
+    // and arrive only through a webhook, so one value genuinely means one
+    // person. An email address is typed by a human and arrives from two
+    // independent paths — the email channel and the web-chat identify form —
+    // where the SAME person legitimately shows up as two contacts. That is a
+    // contact-merge problem, not a constraint violation, and a unique index
+    // without a merge path would turn it into a failed web-chat message
+    // (upsertVisitorContact writes an email onto an existing contact). See the
+    // PR for the full reasoning.
+    uniqueIndex("contacts_workspace_whatsapp_uq")
+      .on(t.workspaceId, sql`(${t.identities} ->> 'whatsapp')`)
+      .where(sql`${t.identities} ->> 'whatsapp' IS NOT NULL`),
+    uniqueIndex("contacts_workspace_instagram_uq")
+      .on(t.workspaceId, sql`(${t.identities} ->> 'instagram')`)
+      .where(sql`${t.identities} ->> 'instagram' IS NOT NULL`),
   ],
 );
 
@@ -434,6 +469,148 @@ export const activations = pgTable(
 );
 
 // ── Runs ledger, skeletal (Decision 009 source of truth; full catalog later) ─
+
+// ── Orders (structured order capture) ───────────────────────────────────────
+//
+// Orders are transactional records with a lifecycle, NOT knowledge. They are
+// deliberately not knowledge_items: those are retrieved semantically to ground
+// replies, and an order landing in that pool would surface as an answer to an
+// unrelated question.
+
+export const orders = pgTable(
+  "orders",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id),
+    // THE identity link. History is `WHERE contact_id = ?`, which is why
+    // contacts gained provider-identity uniqueness first (migration 0020):
+    // a duplicate contact would split one customer's history in half.
+    contactId: uuid("contact_id")
+      .notNull()
+      .references(() => contacts.id),
+    // Where it was captured. Orders OUTLIVE the conversation, so this is
+    // provenance, never the lookup key.
+    conversationId: uuid("conversation_id").references(() => conversations.id),
+    /** The inbound message this was extracted from — auditable provenance. */
+    sourceMessageId: uuid("source_message_id").references(() => messages.id),
+
+    status: text("status", {
+      enum: ["pending", "confirmed", "cancelled", "fulfilled"],
+    })
+      .notNull()
+      .default("pending"),
+
+    /** As the customer gave it; may differ from contacts.display_name. */
+    customerName: text("customer_name"),
+
+    // BOTH forms of the requested time, on purpose. The timestamp sorts and
+    // filters; the raw text is what gets quoted back. "tomorrow evening"
+    // resolved to 19:00 is useful for the owner and wrong to repeat verbatim
+    // to the customer as though they said 19:00.
+    requestedFor: timestamp("requested_for", { withTimezone: true }),
+    requestedForText: text("requested_for_text"),
+
+    notes: text("notes"),
+
+    // Nullable BY DESIGN, and the auto-confirm gate treats null as
+    // "cannot auto-confirm" rather than as zero. Catalog prices are strings
+    // ("45k", "AED 85,000/yr", "حسب الطلب"), so a total is often unknowable —
+    // and an unknown total that reads as 0 would slip under every ceiling.
+    totalEstimate: numeric("total_estimate", { precision: 12, scale: 2 }),
+    currency: text("currency"),
+
+    /** What the extractor claimed. Feeds the auto-confirm gate. */
+    captureConfidence: real("capture_confidence"),
+    /** True only when the gate fired. False means a human decided. */
+    autoConfirmed: boolean("auto_confirmed").notNull().default(false),
+
+    // Covers confirm AND cancel: both are the owner's decision, and `status`
+    // already says which. Two separate column pairs would leave the cancel
+    // case unattributed, which is the one you most want to look up later.
+    decidedBy: uuid("decided_by").references(() => users.id),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+
+    // ── Did the customer actually hear about the decision? ──────────────────
+    //
+    // The decision and the notification are two separate things that can
+    // disagree: the owner confirms, the row flips to `confirmed`, and the
+    // WhatsApp send then fails. Without recording it, the Orders tab would show
+    // a confirmed order and the owner would reasonably believe the customer was
+    // told. They were not.
+    //
+    // So `decided_at` set with `decision_notified_at` NULL is a REAL state that
+    // the tab renders explicitly, not an edge case to be tidied away.
+    /** The outbound message row carrying the confirmation/cancellation. */
+    decisionMessageId: uuid("decision_message_id").references(() => messages.id),
+    decisionNotifiedAt: timestamp("decision_notified_at", { withTimezone: true }),
+    /** Why the notification failed. Shown to the owner, not just logged. */
+    decisionNotifyError: text("decision_notify_error"),
+
+    /**
+     * Why this order is still waiting — the auto-confirm gate's reason,
+     * recorded at capture.
+     *
+     * "Why is this pending?" must be answerable from the row. The same reason
+     * the gate returns is stored here and shown in the tab, exactly as
+     * AutonomyDecision.reason is surfaced on a waiting draft.
+     */
+    pendingReason: text("pending_reason"),
+
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    // The Orders tab: workspace + status, newest first.
+    index("orders_workspace_status_idx").on(t.workspaceId, t.status, t.createdAt),
+    // Drizzle's `enum` is a TYPESCRIPT constraint only — it emits no database
+    // check, so raw SQL or a future code path can write any string. The Orders
+    // tab filters on status, so an out-of-enum value would not raise anything:
+    // the order would simply never appear. That silent disappearance is the
+    // failure mode this build is meant to avoid, so it is constrained here.
+    // A deliberate deviation from the platform's convention for status columns,
+    // because this particular one gates visibility.
+    check(
+      "orders_status_valid",
+      sql`${t.status} in ('pending', 'confirmed', 'cancelled', 'fulfilled')`,
+    ),
+    // The read path: this customer's history, newest first. Without this,
+    // every reply to a returning customer sequentially scans the table.
+    index("orders_contact_idx").on(t.contactId, t.createdAt),
+  ],
+);
+
+export const orderItems = pgTable(
+  "order_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orderId: uuid("order_id")
+      .notNull()
+      .references(() => orders.id, { onDelete: "cascade" }),
+    // NULLABLE on purpose. A customer will order something the catalog does
+    // not contain, or phrase it unmatchably. Forcing a link would mean either
+    // dropping the line or inventing a match — both worse than an unlinked row
+    // the owner can see and fix. The auto-confirm gate refuses to fire while
+    // any item is unlinked, because an unmatched item is an unpriced item.
+    knowledgeItemId: uuid("knowledge_item_id").references(() => knowledgeItems.id),
+    /** Always populated, even when linked — an unlinked row still reads right. */
+    nameText: text("name_text").notNull(),
+    quantity: integer("quantity").notNull().default(1),
+    /** Copied from the catalog AT CAPTURE, so a later price edit cannot
+     *  silently rewrite what the customer was quoted. */
+    unitPriceText: text("unit_price_text"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("order_items_order_idx").on(t.orderId),
+    // A zero or negative quantity is never a real order line; it is an
+    // extraction bug. Rejecting it at the database means no later reader has
+    // to defend against it.
+    check("order_items_quantity_positive", sql`${t.quantity} > 0`),
+  ],
+);
 
 export const runs = pgTable(
   "runs",

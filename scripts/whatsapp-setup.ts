@@ -97,11 +97,23 @@ function arg(name: string): string | undefined {
     process.exit(1);
   }
 
+  // Match the channel by CONNECTION, not by (workspace_id, type).
+  //
+  // Matching by (workspace_id, type) treated a workspace as having one WhatsApp
+  // channel that gets re-pointed. Swapping the env credentials to a different
+  // WABA therefore created a second connection and moved the channel onto it,
+  // stranding the first connection with nothing joined to it — and
+  // resolveWhatsAppChannel INNER JOINs channels, so that number's messages were
+  // then dropped at the door with a one-line warning. That is exactly what
+  // happened in production (connection f45d4b66, pruned separately).
+  //
+  // One connection ↔ one channel is the honest model: routing is per phone
+  // number, so a workspace serving two numbers genuinely has two channels.
   const existingChannel = (
     await db()
       .select()
       .from(channels)
-      .where(and(eq(channels.workspaceId, workspaceId), eq(channels.type, "whatsapp")))
+      .where(and(eq(channels.connectionId, connection.id), eq(channels.type, "whatsapp")))
       .limit(1)
   )[0];
 
@@ -121,11 +133,39 @@ function arg(name: string): string | undefined {
         .returning()
     )[0]!;
 
-  if (existingChannel && existingChannel.connectionId !== connection.id) {
+  // Re-activate a channel that had been switched off, but never re-point it —
+  // its connection is its identity now.
+  if (existingChannel && existingChannel.status !== "active") {
     await db()
       .update(channels)
-      .set({ connectionId: connection.id, status: "active" })
+      .set({ status: "active" })
       .where(eq(channels.id, existingChannel.id));
+  }
+
+  // The trade-off of the above, surfaced rather than hidden: numbers previously
+  // provisioned for this workspace stay live instead of being displaced. That
+  // is correct when a business really runs two numbers, and wrong when the env
+  // credentials were simply swapped — and only the operator knows which. Say so
+  // plainly instead of guessing.
+  const siblings = await db()
+    .select({ id: channels.id, connectionId: channels.connectionId, status: channels.status })
+    .from(channels)
+    .where(and(eq(channels.workspaceId, workspaceId), eq(channels.type, "whatsapp")));
+  const others = siblings.filter((c) => c.connectionId !== connection.id);
+  if (others.length) {
+    console.log(
+      `\n⚠️  This workspace has ${others.length} other WhatsApp channel(s), still active:`,
+    );
+    for (const o of others) {
+      const conn = (
+        await db().select().from(connections).where(eq(connections.id, o.connectionId!)).limit(1)
+      )[0];
+      console.log(`   channel ${o.id}  number ${conn?.providerAccountId}  (${o.status})`);
+    }
+    console.log(
+      "   Both numbers will now receive. If you meant to REPLACE a number rather\n" +
+        "   than add one, deactivate the old channel — this script will not guess.\n",
+    );
   }
 
   console.log(`✅ WhatsApp wired up for "${ws.name}"`);
