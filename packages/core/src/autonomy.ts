@@ -87,7 +87,20 @@ export function decideAction(input: AutonomyInput): AutonomyDecision {
   if (configured === "escalate") {
     return done("escalate", false, `${label(input.category)} always goes to you (${risk} risk)`);
   }
-  if (input.needsHuman || !input.hasReply) {
+  // An empty reply normally means the model declined to answer, which is a
+  // request for a human. `order_intent` is the one exception: the drafting
+  // prompt instructs it to leave the reply empty on purpose, because the
+  // customer acknowledgement is rendered server-side from the SAVED order
+  // rather than generated. Escalating on that emptiness made every single
+  // order escalate before the capture code could run — order capture could
+  // never fire at all, deterministically, and the run just read "The AI judged
+  // this needs you personally".
+  //
+  // Narrow on purpose: `needsHuman` still escalates order_intent, which is how
+  // "commits but I cannot tell WHAT they want" reaches the owner, and an empty
+  // reply still escalates every other category.
+  const emptyReplyMeansEscalate = !input.hasReply && input.category !== "order_intent";
+  if (input.needsHuman || emptyReplyMeansEscalate) {
     return done("escalate", false, "The AI judged this needs you personally");
   }
 
