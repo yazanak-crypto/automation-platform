@@ -14,6 +14,9 @@ const ICONS: Record<string, React.ReactNode> = {
   setup: (
     <path d="M4 6h12M4 10h12M4 14h7M15.5 13.5l1.5 1.5 2.5-2.5" />
   ),
+  orders: (
+    <path d="M6 4h8l2 3v9H4V7l2-3zM4 7h12M8 10h4" />
+  ),
   contacts: (
     <path d="M10 9.5a2.75 2.75 0 1 0 0-5.5 2.75 2.75 0 0 0 0 5.5zM4.5 16a5.5 5.5 0 0 1 11 0" />
   ),
@@ -54,6 +57,7 @@ const GROUPS: { label: string; links: { href: string; label: string; icon: strin
     links: [
       { href: "/dashboard", label: "Overview", icon: "dashboard" },
       { href: "/conversations", label: "Conversations", icon: "conversations" },
+      { href: "/orders", label: "Orders", icon: "orders" },
       { href: "/contacts", label: "Contacts", icon: "contacts" },
       { href: "/marketplace", label: "Automations", icon: "marketplace" },
       { href: "/brain", label: "Knowledge", icon: "brain" },

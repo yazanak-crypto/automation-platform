@@ -18,7 +18,7 @@ import {
   WORKER_TUNING,
   type WebchatDraftJob,
 } from "@platform/core";
-import { conversations, db, messages, runs, workspaces } from "@platform/db";
+import { conversations, db, messages, orders, runs, workspaces } from "@platform/db";
 import {
   boundaryCheckOutputSchema,
   webchatDraftOutputSchema,
@@ -44,6 +44,8 @@ import {
   findModifiableOrder,
   pickAckLanguage,
   renderAcknowledgement,
+  resolveOrderSettings,
+  shouldAutoConfirm,
   takeLimit,
   withRedisLock,
   type AutonomyDecision,
@@ -438,11 +440,41 @@ async function processDraftLocked(job: WebchatDraftJob) {
           },
           draft.order,
         );
+        // The auto-confirm decision point, evaluated for real even though v1
+        // ships with the switch off. The reason is stored on the order and
+        // shown in the Orders tab, so "why is this still waiting?" is answered
+        // by the row rather than by guessing — and enabling auto-confirm later
+        // is a settings change, not a code path that has never run.
+        const wsRow = await db()
+          .select({ autonomySettings: workspaces.autonomySettings })
+          .from(workspaces)
+          .where(eq(workspaces.id, job.workspaceId))
+          .limit(1);
+        const orderSettings = resolveOrderSettings(wsRow[0]?.autonomySettings);
+        const gate = shouldAutoConfirm(
+          {
+            captureConfidence: draft.confidence,
+            // NULL, never 0 — v1 computes no total, and the gate treats unknown
+            // as a refusal rather than as "under the limit".
+            totalEstimate: null,
+            allItemsLinked: captured.linkedCount === captured.itemCount,
+            boundaryCheckPassed,
+            modifiesDecidedOrder: false,
+          },
+          orderSettings,
+        );
+        await db()
+          .update(orders)
+          .set({ pendingReason: gate.reason })
+          .where(eq(orders.id, captured.orderId));
+
         await addRunEvent(run.id, ++seq, "step", "Order captured", {
           orderId: captured.orderId,
           items: captured.itemCount,
           matchedToCatalog: captured.linkedCount,
           summary: captured.summary,
+          autoConfirm: gate.confirm,
+          autoConfirmReason: gate.reason,
         });
       } catch (err) {
         // The failure this whole ordering exists to make impossible: an order
