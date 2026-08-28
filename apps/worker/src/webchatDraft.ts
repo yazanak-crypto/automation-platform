@@ -404,6 +404,28 @@ async function processDraftLocked(job: WebchatDraftJob) {
 
     // ── Order capture ───────────────────────────────────────────────────────
     //
+    // WHERE THIS SITS MATTERS, and it has bitten twice.
+    //
+    // It is AFTER the escalate branch, which returns at the top of this
+    // function, and BEFORE the auto_send/draft split. That placement is a
+    // decision, not an accident:
+    //
+    //   after escalate  — an escalated message is one the AI declined to
+    //                     handle. Writing an order from it, and telling the
+    //                     customer it was noted, would contradict the
+    //                     escalation. If capture ever needs to survive an
+    //                     escalation, that is a product decision to make
+    //                     deliberately, not by moving this block.
+    //   before the split — capture must happen whether the reply auto-sends or
+    //                     queues for approval. The order is captured either
+    //                     way; only the reply's fate differs.
+    //
+    // The cost of getting it wrong: order_intent was escalating on an empty
+    // reply (the drafting prompt sets reply="" here on purpose), so this block
+    // sat three lines past a return that always fired. Capture never ran once
+    // in production. See the emptyReplyMeansEscalate carve-out in
+    // decideAction — the gate had to change, NOT this placement.
+    //
     // WRITE FIRST, ACKNOWLEDGE SECOND, and the acknowledgement is rendered FROM
     // the persisted rows. That ordering is the safety property, not a
     // convention: the customer can only be told "noted" for an order that

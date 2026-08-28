@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { decideAction, resolvePolicy, type EffectivePolicy } from "../src/autonomy";
-import type { AutonomyPolicy, Category } from "@platform/schemas";
+import { CATEGORIES, type AutonomyAction, type AutonomyPolicy, type Category } from "@platform/schemas";
 
 // AC-2.12/2.13/2.14 engine-level evals + policy resolution (Decision 012).
 
@@ -143,5 +143,68 @@ describe("P0-3: holding line respects Supervised Mode", () => {
     expect(shouldSendHoldingLine("smart", { holdingLineEnabled: false })).toBe(false);
     expect(shouldSendHoldingLine("supervised", null)).toBe(false);
     expect(shouldSendHoldingLine("supervised", { holdingLineEnabled: true })).toBe(false);
+  });
+});
+
+describe("empty reply: escalates everywhere EXCEPT order_intent", () => {
+  // Why this carve-out exists: the drafting prompt tells the model to leave the
+  // reply empty for order_intent, because the customer acknowledgement is
+  // rendered server-side from the SAVED order rather than generated. Treating
+  // that emptiness as "needs a human" made every order escalate before the
+  // capture code could run — deterministically, never once firing in
+  // production, with the run reading only "The AI judged this needs you
+  // personally".
+  const policy = {
+    categoryActions: Object.fromEntries(CATEGORIES.map((c) => [c, "auto"])) as Record<
+      Category,
+      AutonomyAction
+    >,
+    minConfidence: 0.5,
+  };
+
+  const base = {
+    mode: "smart" as const,
+    policy,
+    confidence: 0.95,
+    grounded: true,
+    boundaryCheckPassed: true,
+    needsHuman: false,
+    hasReply: false, // the empty reply under test
+  };
+
+  it("does NOT escalate order_intent for an empty reply", () => {
+    const d = decideAction({ ...base, category: "order_intent" });
+    expect(d.action).not.toBe("escalate");
+    expect(d.reason).not.toMatch(/needs you personally/i);
+  });
+
+  it("STILL escalates every other category for an empty reply", () => {
+    // The carve-out must be narrow. An empty reply anywhere else remains the
+    // model declining to answer, which is a request for a human.
+    for (const category of CATEGORIES) {
+      if (category === "order_intent") continue;
+      const d = decideAction({ ...base, category });
+      expect(d.action, `${category} should escalate on an empty reply`).toBe("escalate");
+    }
+  });
+
+  it("still escalates order_intent when the model asks for a human", () => {
+    // needsHuman is how "commits but I cannot tell WHAT they want" reaches the
+    // owner. The carve-out covers the empty reply only, never this.
+    const d = decideAction({ ...base, category: "order_intent", needsHuman: true, hasReply: true });
+    expect(d.action).toBe("escalate");
+    expect(d.reason).toMatch(/needs you personally/i);
+  });
+
+  it("still escalates order_intent when BOTH are set", () => {
+    const d = decideAction({ ...base, category: "order_intent", needsHuman: true });
+    expect(d.action).toBe("escalate");
+  });
+
+  it("a non-empty reply is unaffected for every category", () => {
+    for (const category of CATEGORIES) {
+      const d = decideAction({ ...base, category, hasReply: true });
+      expect(d.action, `${category} should not escalate on a real reply`).not.toBe("escalate");
+    }
   });
 });
