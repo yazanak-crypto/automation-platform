@@ -1,6 +1,7 @@
 import * as Sentry from "@sentry/node";
 import { aiConfigured, callAi } from "@platform/ai";
 import { getContextPack } from "@platform/brain";
+import { fieldDirection } from "@platform/brain/catalog/rows";
 import {
   deliverOutbound,
   findBannedPhrase,
@@ -17,7 +18,7 @@ import {
   WORKER_TUNING,
   type WebchatDraftJob,
 } from "@platform/core";
-import { conversations, db, messages, runs, workspaces } from "@platform/db";
+import { conversations, db, messages, orders, runs, workspaces } from "@platform/db";
 import {
   boundaryCheckOutputSchema,
   webchatDraftOutputSchema,
@@ -39,6 +40,12 @@ import {
   notifyDraftAwaitingApproval,
   resolvePolicy,
   shouldSendHoldingLine,
+  captureOrder,
+  findModifiableOrder,
+  pickAckLanguage,
+  renderAcknowledgement,
+  resolveOrderSettings,
+  shouldAutoConfirm,
   takeLimit,
   withRedisLock,
   type AutonomyDecision,
@@ -202,13 +209,26 @@ async function processDraftLocked(job: WebchatDraftJob) {
 
     const { pack, brainVersion } = await getContextPack(
       job.workspaceId,
-      ["identity", "voice", "policies", "boundaries", "faq_retrieval"],
-      { queryText: trigger.body },
+      ["identity", "voice", "policies", "boundaries", "faq_retrieval", "order_history"],
+      // contactId is REQUIRED by order_history — getContextPack throws without
+      // it rather than quietly returning nothing, so a missing thread here is a
+      // failed run instead of every customer looking like a first-time buyer.
+      { queryText: trigger.body, contactId: convo.contactId },
     );
     await addRunEvent(run.id, ++seq, "step", "Assembled business context", {
       brainVersion,
       knowledgeUsed: pack.knowledge?.map((k) => k.title) ?? [],
       boundaries: pack.boundaries?.length ?? 0,
+      // Recorded explicitly so a missing history is READABLE in the timeline
+      // rather than inferred from its absence. "none" and "not requested" are
+      // different answers to "why didn't it remember my last order?", and the
+      // owner opening this run can tell them apart.
+      orderHistory:
+        pack.orderHistory === undefined
+          ? "not requested"
+          : pack.orderHistory.length === 0
+            ? "none for this customer"
+            : `${pack.orderHistory.length} past order(s)`,
     });
 
     const contextBlock = JSON.stringify({
@@ -217,6 +237,11 @@ async function processDraftLocked(job: WebchatDraftJob) {
       policies: pack.policies ?? {},
       knowledge: pack.knowledge ?? [],
       boundaries: pack.boundaries ?? [],
+      // Included even when empty. The model is told "this customer has no past
+      // orders" rather than being left to infer it from a missing key — which
+      // is what makes "same as last time" answerable with a refusal instead of
+      // a guess.
+      orderHistory: pack.orderHistory ?? [],
       returningVisitor: prior > 0 ? `${prior} previous conversation(s)` : undefined,
     });
     const gen = async (feedback?: string) =>
@@ -377,6 +402,160 @@ async function processDraftLocked(job: WebchatDraftJob) {
       return { outcome: "escalated" };
     }
 
+    // ── Order capture ───────────────────────────────────────────────────────
+    //
+    // WRITE FIRST, ACKNOWLEDGE SECOND, and the acknowledgement is rendered FROM
+    // the persisted rows. That ordering is the safety property, not a
+    // convention: the customer can only be told "noted" for an order that
+    // demonstrably exists, because there is no summary to put in the message
+    // until captureOrder has committed one.
+    //
+    // A capture is written only when the classifier said order_intent AND the
+    // extractor produced an order. Either alone is not enough.
+    if (category === "order_intent" && draft.order) {
+      let captured: Awaited<ReturnType<typeof captureOrder>> | null = null;
+      try {
+        // An id from the model is never trusted to address a row. Ownership is
+        // re-checked, and a mismatch degrades to "new order" rather than
+        // writing across customers.
+        if (draft.order.modifiesOrderId) {
+          const target = await findModifiableOrder(
+            job.workspaceId,
+            convo.contactId,
+            draft.order.modifiesOrderId,
+          );
+          if (!target) {
+            await addRunEvent(run.id, ++seq, "decision", "Ignored an order id that isn't this customer's", {
+              claimed: draft.order.modifiesOrderId,
+            });
+          }
+        }
+        captured = await captureOrder(
+          {
+            workspaceId: job.workspaceId,
+            contactId: convo.contactId,
+            conversationId: job.conversationId,
+            sourceMessageId: job.messageId,
+            captureConfidence: draft.confidence,
+          },
+          draft.order,
+        );
+        // The auto-confirm decision point, evaluated for real even though v1
+        // ships with the switch off. The reason is stored on the order and
+        // shown in the Orders tab, so "why is this still waiting?" is answered
+        // by the row rather than by guessing — and enabling auto-confirm later
+        // is a settings change, not a code path that has never run.
+        const wsRow = await db()
+          .select({ autonomySettings: workspaces.autonomySettings })
+          .from(workspaces)
+          .where(eq(workspaces.id, job.workspaceId))
+          .limit(1);
+        const orderSettings = resolveOrderSettings(wsRow[0]?.autonomySettings);
+        const gate = shouldAutoConfirm(
+          {
+            captureConfidence: draft.confidence,
+            // NULL, never 0 — v1 computes no total, and the gate treats unknown
+            // as a refusal rather than as "under the limit".
+            totalEstimate: null,
+            allItemsLinked: captured.linkedCount === captured.itemCount,
+            boundaryCheckPassed,
+            modifiesDecidedOrder: false,
+          },
+          orderSettings,
+        );
+        await db()
+          .update(orders)
+          .set({ pendingReason: gate.reason })
+          .where(eq(orders.id, captured.orderId));
+
+        await addRunEvent(run.id, ++seq, "step", "Order captured", {
+          orderId: captured.orderId,
+          items: captured.itemCount,
+          matchedToCatalog: captured.linkedCount,
+          summary: captured.summary,
+          autoConfirm: gate.confirm,
+          autoConfirmReason: gate.reason,
+        });
+      } catch (err) {
+        // The failure this whole ordering exists to make impossible: an order
+        // the customer was told we noted, which was never saved. Loud in three
+        // places — the run timeline the owner can open, Sentry, and stdout —
+        // because the previous two silent failures on this platform both cost a
+        // production debugging session apiece.
+        const message = err instanceof Error ? err.message : String(err);
+        console.error("[orders] capture failed:", message);
+        Sentry.captureException(err, {
+          tags: { path: "order-capture", conversationId: job.conversationId },
+          extra: { workspaceId: job.workspaceId, messageId: job.messageId },
+        });
+        await addRunEvent(run.id, ++seq, "error", "Order capture failed — nothing was saved", {
+          message,
+        }).catch(() => {});
+
+        // NO acknowledgement. The customer gets silence rather than a false
+        // confirmation, and the owner gets the conversation with a reason.
+        await db()
+          .update(conversations)
+          .set({
+            status: "waiting_approval",
+            attentionReason: "An order came in but couldn't be saved — please read this one yourself",
+          })
+          .where(eq(conversations.id, job.conversationId));
+        await finishRun(run.id, "failed", {
+          errorSummary: `Order capture failed: ${message}`,
+          ...telemetry,
+        });
+        return { outcome: "order_capture_failed" };
+      }
+
+      // Fixed frame, business name and item summary substituted from data we
+      // just wrote. Deliberately NOT model-generated: a generated
+      // acknowledgement is one prompt regression away from confirming a price
+      // or a delivery time nobody agreed to.
+      const businessName = pack.identity && typeof pack.identity === "object"
+        ? ((pack.identity as { businessName?: string }).businessName ?? "The team")
+        : "The team";
+      // Frame language follows the CUSTOMER's message, gated by the languages
+      // the business actually replies in. fieldDirection is the same
+      // first-strong-character rule the catalog review table uses, composed
+      // here because core cannot import brain without closing a cycle.
+      const ackLanguage = pickAckLanguage({
+        businessLanguages: businessLanguages(pack),
+        customerMessageIsRtl: fieldDirection(trigger.body) === "rtl",
+      });
+      const ack = renderAcknowledgement({
+        summary: captured.summary,
+        businessName,
+        language: ackLanguage,
+      });
+
+      await db().transaction(async (tx) => {
+        await tx.insert(messages).values({
+          workspaceId: job.workspaceId,
+          conversationId: job.conversationId,
+          direction: "outbound",
+          body: ack,
+          aiGenerated: true,
+          draftStatus: "auto_sent",
+          deliveryState: "visible",
+        });
+        await tx
+          .update(conversations)
+          .set({
+            status: "waiting_approval",
+            attentionReason: `New order from ${captured.summary} — confirm or cancel it`,
+            lastMessageAt: new Date(),
+          })
+          .where(eq(conversations.id, job.conversationId));
+      });
+      await finishRun(run.id, "waiting_approval", {
+        outcomeMetrics: { orderCaptured: true, orderId: captured.orderId, items: captured.itemCount },
+        ...telemetry,
+      });
+      await deliverAutoMessage(job.conversationId, run.id);
+      return { outcome: "order_captured" };
+    }
+
     // Audit P0-2: a newer draft supersedes any older pending one — nothing orphans.
     const superseded = await supersedePendingDrafts(job.conversationId, "superseded");
     if (superseded > 0) {
@@ -459,6 +638,27 @@ async function processDraftLocked(job: WebchatDraftJob) {
     }).catch(() => {});
     throw err;
   }
+}
+
+
+/**
+ * The languages the business replies in, as answered in guided setup.
+ *
+ * Read from the rendered businessFacts rather than re-querying the profile:
+ * the pack is what the model saw, so the acknowledgement is keyed off exactly
+ * the same view of the brain. Returns [] when unanswered, which pickAckLanguage
+ * treats as English-only — the safe direction.
+ */
+function businessLanguages(pack: { businessFacts?: string[] }): string[] {
+  const line = (pack.businessFacts ?? []).find((f) =>
+    f.toLowerCase().startsWith("languages replies should use:"),
+  );
+  if (!line) return [];
+  return line
+    .slice(line.indexOf(":") + 1)
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
 }
 
 async function deliverAutoMessage(conversationId: string, runId: string) {
