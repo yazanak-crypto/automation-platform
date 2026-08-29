@@ -28,6 +28,38 @@ export interface DashboardData {
       reason: string | null;
       visitorMessage: string | null;
     }[];
+    /**
+     * Obligations the business has left unanswered past a threshold. NOT cold
+     * leads — a conversation that simply went quiet is excluded, because most
+     * end because the customer was served.
+     */
+    dormant: (
+      | { kind: "draft"; conversationId: string; since: string; preview: string; category: string | null }
+      | {
+          kind: "order";
+          orderId: string;
+          conversationId: string | null;
+          since: string;
+          customerName: string | null;
+          pendingReason: string | null;
+        }
+      | {
+          kind: "escalation";
+          conversationId: string;
+          since: string;
+          reason: string | null;
+          category: string | null;
+          closedWithoutReply: boolean;
+        }
+    )[];
+    /** Present only when the backlog is real AND graduation says it is earned. */
+    dormantHint: {
+      activationId: string;
+      mode: "supervised" | "smart";
+      category: string | null;
+      categoryCount: number;
+      wouldHaveAutoHandled: number;
+    } | null;
   };
   activity: { id: string; at: string; title: string; tone: string }[];
   recentConversations: {
