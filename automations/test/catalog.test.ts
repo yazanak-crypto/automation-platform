@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { CATALOG, getDefinition, leadConciergeConfigSchema } from "../index";
+import { leadConcierge } from "../definitions/lead-concierge";
+import { activationAutonomySchema } from "@platform/schemas";
 
 describe("catalog integrity", () => {
   it("slugs are unique and definitions complete", () => {
@@ -31,5 +33,30 @@ describe("catalog integrity", () => {
   it("getDefinition resolves known slugs only", () => {
     expect(getDefinition("lead-concierge")?.name).toBe("Lead Concierge");
     expect(getDefinition("nope")).toBeUndefined();
+  });
+});
+
+describe("lead-concierge confidence threshold", () => {
+  // The UI on /automations/[id] offers three presets. The recommended default
+  // must BE one of them, otherwise a workspace that has never touched the
+  // setting shows no highlighted button and the control looks broken — the
+  // active preset is matched against the EFFECTIVE value, which for an
+  // untouched workspace is this default.
+  const UI_PRESETS = [0.85, 0.7, 0.55];
+
+  it("is 0.70", () => {
+    expect(leadConcierge.autonomyPolicy.minConfidence).toBe(0.7);
+  });
+
+  it("matches one of the UI presets, so a default workspace shows a selection", () => {
+    expect(UI_PRESETS).toContain(leadConcierge.autonomyPolicy.minConfidence);
+  });
+
+  it("sits within the range the override schema accepts", () => {
+    // activationAutonomySchema clamps overrides to 0.5–1. A default outside
+    // that range could not be re-selected once a customer changed it.
+    for (const p of UI_PRESETS) {
+      expect(activationAutonomySchema.safeParse({ minConfidence: p }).success).toBe(true);
+    }
   });
 });

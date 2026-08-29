@@ -7,10 +7,15 @@ type Action = "auto" | "approve" | "escalate";
 interface Data {
   activation: { id: string; automationName: string; mode: "supervised" | "smart"; status: string };
   effective: { categoryActions: Record<string, Action>; minConfidence: number };
-  recommended: { categoryActions: Record<string, Action | undefined> };
+  recommended: { categoryActions: Record<string, Action | undefined>; minConfidence: number };
   riskTiers: Record<string, "low" | "medium" | "high">;
   workspaceSettings: { maxAutoRisk?: "none" | "low" | "medium" } | null;
-  overrides: { categoryOverrides?: Record<string, Action>; holdingLineEnabled?: boolean } | null;
+  overrides: {
+    categoryOverrides?: Record<string, Action>;
+    holdingLineEnabled?: boolean;
+    /** Absent means "no override" — the recommended default applies. */
+    minConfidence?: number;
+  } | null;
   graduation: {
     approvals: number;
     uneditedRate: number;
@@ -28,6 +33,16 @@ const TIER_COPY = {
   medium: "Questions that shape a sale — automate when you're comfortable.",
   high: "Judgment calls. These always come to you; the AI never answers them on its own.",
 } as const;
+
+/**
+ * Deliberately three, not a slider. The floor in activationAutonomySchema is
+ * 0.5, so none of these can disable the gate outright.
+ */
+const CONFIDENCE_PRESETS = [
+  { value: 0.85, label: "Cautious" },
+  { value: 0.7, label: "Balanced" },
+  { value: 0.55, label: "Eager" },
+] as const;
 
 export default function AutonomyPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -68,6 +83,29 @@ export default function AutonomyPage({ params }: { params: Promise<{ id: string 
     if (!res?.ok) return flash("That didn't save — try again.", "error");
     await load();
     flash("Risk tolerance updated for your whole workspace.");
+  }
+
+  /**
+   * Confidence presets rather than a number field.
+   *
+   * "0.73" is not a choice an owner can reason about; "how sure should it be
+   * before answering on its own" is. The stored value is still the number the
+   * engine reads, so nothing downstream changes — this is a vocabulary for
+   * picking one.
+   */
+  async function setConfidence(value: number | null) {
+    const next = { ...(data?.overrides ?? {}) } as Record<string, unknown>;
+    // null CLEARS the override, so the automation's recommended default takes
+    // over again. Writing the recommended number instead would look identical
+    // today and then silently stop tracking it if the recommendation moved.
+    if (value === null) delete next.minConfidence;
+    else next.minConfidence = value;
+    await patchActivation(
+      { autonomyOverrides: next },
+      value === null
+        ? "Back to the recommended setting."
+        : "Saved — applies to the next message.",
+    );
   }
 
   async function setCategory(category: string, action: Action) {
@@ -251,6 +289,48 @@ export default function AutonomyPage({ params }: { params: Promise<{ id: string 
             </button>
           ))}
         </div>
+      </section>
+
+      {/* Confidence threshold */}
+      <section className="mt-6 rounded-xl border border-line p-5">
+        <p className="font-medium">How sure before it answers alone</p>
+        <p className="mt-1 text-sm text-ink-2">
+          Below this, a reply waits for you instead of sending. It never overrides the rules
+          above — a category set to always ask you still always asks.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {CONFIDENCE_PRESETS.map((preset) => {
+            // Compared against the EFFECTIVE value, so the highlighted preset is
+            // what the engine will actually use — whether it came from an
+            // override or from the automation's default.
+            const active = Math.abs(data.effective.minConfidence - preset.value) < 0.001;
+            return (
+              <button
+                key={preset.value}
+                onClick={() => void setConfidence(preset.value)}
+                className={`rounded-lg px-3 py-1.5 text-sm ${
+                  active ? "bg-white font-medium text-black" : "bg-hover text-ink-2"
+                }`}
+              >
+                {preset.label}
+              </button>
+            );
+          })}
+        </div>
+        <p className="mt-2 text-xs text-ink-3">
+          Currently {data.effective.minConfidence.toFixed(2)}
+          {data.overrides?.minConfidence === undefined
+            ? " — the recommended setting for this automation."
+            : ` — you changed this from the recommended ${data.recommended.minConfidence.toFixed(2)}.`}
+        </p>
+        {data.overrides?.minConfidence !== undefined && (
+          <button
+            onClick={() => void setConfidence(null)}
+            className="mt-2 text-[12.5px] text-ink-3 underline underline-offset-4 hover:text-ink-2"
+          >
+            Reset to recommended
+          </button>
+        )}
       </section>
 
       {/* Per-category policy */}
