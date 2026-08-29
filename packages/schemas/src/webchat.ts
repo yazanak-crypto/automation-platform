@@ -54,6 +54,14 @@ export const webchatDraftOutputSchema = z.object({
   reasoning: z.string().max(1000),
   usedFacts: z.array(z.string().max(300)).max(20).default([]),
   groundedOnContext: z.boolean().default(false),
+  /**
+   * Does the reply assert anything about the business at all?
+   *
+   * Defaults to TRUE — the safe direction. A model that omits the field, or an
+   * older prompt that never emits it, is treated as making claims, so the
+   * grounding gate still applies.
+   */
+  makesFactualClaim: z.boolean().default(true),
   confidence: z.number().min(0).max(1).default(0),
   needsHuman: z.boolean().default(false),
   /**

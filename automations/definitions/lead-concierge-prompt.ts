@@ -2,10 +2,12 @@
 // preview shows EXACTLY what production would produce (Decision 004 §3.3).
 
 export const LEAD_CONCIERGE_PROMPT_REF = "webchat/draft-reply";
-// v4: order_intent + structured order capture. Bumped, not edited in place —
-// ai_calls records the version against every stored context pack, so a prompt
-// change has to be visible when comparing runs across the boundary.
-export const LEAD_CONCIERGE_PROMPT_VERSION = "v4";
+// Bumped, never edited in place — ai_calls records the version against every
+// stored context pack, so a prompt change has to be visible when comparing runs
+// across the boundary.
+//   v4: order_intent + structured order capture
+//   v5: makesFactualClaim, so grounding gates claims rather than replies
+export const LEAD_CONCIERGE_PROMPT_VERSION = "v5";
 
 export const LEAD_CONCIERGE_SYSTEM = `You draft replies to website-chat messages on behalf of a business owner.
 
@@ -43,11 +45,12 @@ ORDER HISTORY
 - Only reference orders that appear in the list. Never claim an order exists, or state what a past order contained, from anything else.
 - Do not write the acknowledgement yourself. For order_intent your reply is ignored — the acknowledgement is generated from the saved order. Set reply="".
 - For refund_request, complaint, negotiation, sensitive: produce NO substantive reply — set reply="" and needsHuman=true. These always go to the owner.
-- groundedOnContext: true ONLY if every factual claim in your reply comes from the provided business context. Politeness/greetings don't count as claims.
+- makesFactualClaim: true if your reply asserts ANYTHING about the business — hours, prices, availability, policies, what you offer, what will happen next. false ONLY when the reply is pure conversation: a greeting, a thank-you, asking them to say more. "Hi there! How can I help?" is false. "Hi! We're open till 6" is true.
+- groundedOnContext: true ONLY if every factual claim in your reply comes from the provided business context. Politeness/greetings don't count as claims. When makesFactualClaim is false there is nothing to ground, so set groundedOnContext false and do not treat that as a problem.
 - confidence: 0-1, your honest confidence that the reply is correct AND complete for the visitor's question. Be conservative.
 - If the message is spam or abusive, set category accordingly, needsHuman=false and reply="".
 - Respond with ONLY JSON:
-{"category":"...","hot":boolean,"reply":string,"reasoning":string,"usedFacts":string[],"groundedOnContext":boolean,"confidence":number,"needsHuman":boolean,"order":object?}
+{"category":"...","hot":boolean,"reply":string,"reasoning":string,"usedFacts":string[],"groundedOnContext":boolean,"confidence":number,"needsHuman":boolean,"makesFactualClaim":boolean,"order":object?}
 usedFacts lists which context facts you used (short labels like "Refund policy", "FAQ: shipping times").`;
 
 export interface LeadConciergePromptInput {

@@ -231,10 +231,21 @@ async function processDraftLocked(job: WebchatDraftJob) {
             : `${pack.orderHistory.length} past order(s)`,
     });
 
-    const contextBlock = JSON.stringify({
+    // The object the model actually receives. Built once and reused for both
+    // the prompt and the ai_calls ledger, so "what did it see" has exactly one
+    // answer rather than two that can drift.
+    const contextForModel = {
       business: pack.identity ?? {},
       voice: pack.voice ?? {},
       policies: pack.policies ?? {},
+      // The owner's guided-setup answers. These were assembled into the pack
+      // and then NEVER SENT: this block listed business/voice/policies/
+      // knowledge/boundaries and simply omitted businessFacts, so every answer
+      // the owner gave in guided setup was invisible to the model. It asked
+      // "do you work weekends?" and had only the legacy policies.hours ("from
+      // 9 am to 5 pm", no days) to answer from, so it escalated — correctly,
+      // given what it was given.
+      businessFacts: pack.businessFacts ?? [],
       knowledge: pack.knowledge ?? [],
       boundaries: pack.boundaries ?? [],
       // Included even when empty. The model is told "this customer has no past
@@ -243,7 +254,8 @@ async function processDraftLocked(job: WebchatDraftJob) {
       // a guess.
       orderHistory: pack.orderHistory ?? [],
       returningVisitor: prior > 0 ? `${prior} previous conversation(s)` : undefined,
-    });
+    };
+    const contextBlock = JSON.stringify(contextForModel);
     const gen = async (feedback?: string) =>
       callAi({
         workspaceId: job.workspaceId,
@@ -252,8 +264,14 @@ async function processDraftLocked(job: WebchatDraftJob) {
         promptVersion: PROMPT_VERSION,
         tier: "frontier",
         system: SYSTEM,
+        // Stored on the ai_calls row. This was previously absent — contextPack
+        // was passed to buildLeadConciergePrompt (the PROMPT builder) and never
+        // to callAi, so ai_calls.context_pack was NULL for every draft call
+        // ever made. The column exists to answer "what did the model see", and
+        // answering it meant reconstructing the pack by hand.
+        contextPack: contextForModel,
         prompt: buildLeadConciergePrompt({
-          contextPack: JSON.parse(contextBlock),
+          contextPack: contextForModel,
           activationConfig: activation.config,
           history,
           visitorMessage: trigger.body,
@@ -361,6 +379,7 @@ async function processDraftLocked(job: WebchatDraftJob) {
       boundaryCheckPassed,
       needsHuman: draft.needsHuman,
       hasReply: !!draft.reply.trim(),
+      makesFactualClaim: draft.makesFactualClaim,
     });
     await addRunEvent(run.id, ++seq, "decision", autonomyEventTitle(decision), {
       reason: decision.reason,
