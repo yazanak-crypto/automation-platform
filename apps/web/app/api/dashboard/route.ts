@@ -1,8 +1,16 @@
 import { getBrain } from "@platform/brain";
-import { computeGraduation, getCreditStatus, listActivations } from "@platform/core";
+import {
+  computeGraduation,
+  dominantCategory,
+  findDormantItems,
+  getCreditStatus,
+  listActivations,
+  resolveDormancySettings,
+} from "@platform/core";
 import {
   brainChangeLog,
   channels,
+  workspaces,
   contacts,
   conversations,
   db,
@@ -149,11 +157,18 @@ export async function GET() {
   }
   activity.sort((a, b) => (a.at < b.at ? 1 : -1));
 
+  // Graduation, computed once per active activation and reused twice below:
+  // for the existing supervised-mode nudge, and for the dormant-backlog hint.
+  const graduations = await Promise.all(
+    activations
+      .filter((x) => x.status === "active")
+      .map(async (a) => ({ activation: a, g: await computeGraduation(wsId, a.id, a.activatedAt) })),
+  );
+
   // Single graduation nudge (server-computed — no per-activation client loop).
   let nudge: { activationId: string; approvals: number; wouldHaveAutoHandled: number } | null = null;
-  for (const a of activations.filter((x) => x.status === "active" && x.mode === "supervised")) {
-    const g = await computeGraduation(wsId, a.id, a.activatedAt);
-    if (g.eligible) {
+  for (const { activation: a, g } of graduations) {
+    if (a.mode === "supervised" && g.eligible) {
       nudge = { activationId: a.id, approvals: g.approvals, wouldHaveAutoHandled: g.wouldHaveAutoHandled };
       break;
     }
@@ -161,6 +176,41 @@ export async function GET() {
 
   const credits = await getCreditStatus(wsId).catch(() => null);
   void getBrain; // (brain state is read on the server page, not needed here)
+
+  // ── Dormant items ─────────────────────────────────────────────────────────
+  //
+  // Things the BUSINESS owes a response on, past a threshold. SELECT-only: no
+  // model call, no outbound message, so viewing a backlog never costs credits
+  // or contacts a customer.
+  const [wsRow] = await db()
+    .select({ autonomySettings: workspaces.autonomySettings })
+    .from(workspaces)
+    .where(eq(workspaces.id, wsId))
+    .limit(1);
+  const dormant = await findDormantItems(wsId, resolveDormancySettings(wsRow?.autonomySettings));
+
+  // The honest fix for a chronic backlog is often raising autonomy, not working
+  // through it. Only offered when graduation says the workspace has EARNED it —
+  // otherwise this is nagging someone to loosen safety they have not shown they
+  // can handle, which is worse than the backlog.
+  //
+  // Deliberately NOT limited to supervised activations, unlike `nudge`. A
+  // workspace already in Smart Mode can still have a chronic backlog — from
+  // categories set to approve, or from escalations — and for it the useful
+  // advice is "set THIS category to auto", not "turn on Smart Automation".
+  // `mode` is passed through so the banner can say the right one.
+  const eligible = graduations.find(({ g }) => g.eligible);
+  const dominant = dominantCategory(dormant);
+  const dormantHint =
+    dormant.length >= 3 && eligible
+      ? {
+          activationId: eligible.activation.id,
+          mode: eligible.activation.mode,
+          category: dominant?.category ?? null,
+          categoryCount: dominant?.count ?? 0,
+          wouldHaveAutoHandled: eligible.g.wouldHaveAutoHandled,
+        }
+      : null;
 
   return NextResponse.json({
     metrics: {
@@ -173,7 +223,7 @@ export async function GET() {
       avgResponseSeconds,
       successRate,
     },
-    attention: { drafts, needsHuman },
+    attention: { drafts, needsHuman, dormant, dormantHint },
     activity: activity.slice(0, 18),
     recentConversations: recent,
     activations,

@@ -85,7 +85,7 @@ function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`) || (href === "/dashboard" && pathname.startsWith("/automations"));
 }
 
-export default function NavLinks() {
+export default function NavLinks({ dormantCount = 0 }: { dormantCount?: number }) {
   const pathname = usePathname();
   return (
     <nav className="mt-7 flex flex-col gap-5">
@@ -107,6 +107,15 @@ export default function NavLinks() {
                   )}
                   <Icon name={l.icon} />
                   {l.label}
+                  {/* Overdue count, on Conversations because that is where the
+                      owner acts on most of it. Rendered only when non-zero: a
+                      permanent "0" is furniture, and this must read as an
+                      exception rather than a fixture. */}
+                  {l.href === "/conversations" && dormantCount > 0 && (
+                    <span className="tnum ml-auto rounded-full bg-stop-dim px-1.5 py-px text-[10.5px] font-medium text-stop">
+                      {dormantCount}
+                    </span>
+                  )}
                   {l.soon && (
                     <span className="ml-auto rounded-full bg-hover px-1.5 py-px text-[9.5px] uppercase tracking-wide text-ink-3">
                       soon

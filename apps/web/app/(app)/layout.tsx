@@ -1,4 +1,7 @@
 import { getOnboardingStatus } from "@platform/brain";
+import { findDormantItems, resolveDormancySettings } from "@platform/core";
+import { db, workspaces } from "@platform/db";
+import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { AccountMenu } from "@/components/account-menu";
 import { Orbit } from "@/components/orbit";
@@ -57,6 +60,21 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // Never fails the shell: a badge is not worth a 500 on every page.
   const entitlement = ctx ? await planBadge(ctx.workspace.id) : null;
 
+  // Overdue obligations, counted here so the badge appears on EVERY page rather
+  // than only on the dashboard. A backlog the owner has to go looking for is a
+  // backlog they will not find. SELECT-only — no model call, no message sent.
+  let dormantCount = 0;
+  if (ctx) {
+    const [wsRow] = await db()
+      .select({ autonomySettings: workspaces.autonomySettings })
+      .from(workspaces)
+      .where(eq(workspaces.id, ctx.workspace.id))
+      .limit(1);
+    dormantCount = (
+      await findDormantItems(ctx.workspace.id, resolveDormancySettings(wsRow?.autonomySettings))
+    ).length;
+  }
+
   return (
     <div className="flex min-h-screen">
       {/* The AI, alive — orbit of channels + activity behind every app screen.
@@ -72,7 +90,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
       <aside className="fixed inset-y-0 z-30 hidden w-56 flex-col border-r border-line px-5 py-6 md:flex">
         <Wordmark />
-        <NavLinks />
+        <NavLinks dormantCount={dormantCount} />
         <div className="mt-auto border-t border-line pt-4">
           <AccountMenu
             showDetails
