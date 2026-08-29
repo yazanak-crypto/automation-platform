@@ -80,6 +80,17 @@ export interface AutonomyInput {
   boundaryCheckPassed: boolean;
   needsHuman: boolean;
   hasReply: boolean;
+  /**
+   * False for a reply that asserts nothing about the business.
+   *
+   * OPTIONAL, and absence means "assume it claims something". Only an explicit
+   * `false` relaxes the grounding gate. A required field would read as safer and
+   * be the opposite: any caller constructing this input without it — an older
+   * call site, a test fixture, a new automation — would get `undefined`, which
+   * is falsy, which would DISABLE the gate for every reply it evaluated.
+   * Exactly that happened to the AC-2.13 fixture the moment this was added.
+   */
+  makesFactualClaim?: boolean;
 }
 
 export interface AutonomyDecision {
@@ -123,7 +134,19 @@ export function decideAction(input: AutonomyInput): AutonomyDecision {
     if (!input.boundaryCheckPassed) {
       return done("escalate", false, "Draft failed a boundary check");
     }
-    if (!input.grounded) {
+    // Grounding gates CLAIMS, not replies.
+    //
+    // groundedOnContext means "every factual claim came from context". A reply
+    // that makes no claims — "Hi there! How can I help you today?" — is
+    // honestly ungrounded, because there was nothing to ground. Treating that
+    // as unsafe queued every greeting for approval while the actual risk,
+    // asserting something unsupported, is unchanged.
+    //
+    // makesFactualClaim defaults TRUE, so anything that does not explicitly
+    // say "I asserted nothing" is still gated.
+    // `!== false`, not truthiness: undefined must mean "claims something".
+    const makesClaim = input.makesFactualClaim !== false;
+    if (makesClaim && !input.grounded) {
       return draft(input, false, `Answer isn't fully backed by your confirmed Business Brain`);
     }
     if (input.confidence < input.policy.minConfidence) {

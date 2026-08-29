@@ -208,3 +208,87 @@ describe("empty reply: escalates everywhere EXCEPT order_intent", () => {
     }
   });
 });
+
+describe("grounding gates CLAIMS, not replies", () => {
+  // "Hey" -> "Hi there! How can I help you today?" queued for approval with
+  // reason "Answer isn't fully backed by your confirmed Business Brain". The
+  // reply asserted nothing, so there was nothing to ground; the gate could not
+  // tell "no claims made" from "claims made without support" and treated the
+  // safe case as the dangerous one.
+  const policy = {
+    categoryActions: Object.fromEntries(CATEGORIES.map((c) => [c, "auto"])) as Record<
+      Category,
+      AutonomyAction
+    >,
+    minConfidence: 0.7,
+  };
+  const base = {
+    mode: "smart" as const,
+    policy,
+    category: "general_inquiry" as Category,
+    confidence: 0.7,
+    boundaryCheckPassed: true,
+    needsHuman: false,
+    hasReply: true,
+    grounded: false,
+  };
+
+  it("auto-sends a pure greeting: ungrounded, but it claims nothing", () => {
+    const d = decideAction({ ...base, makesFactualClaim: false });
+    expect(d.action).toBe("auto_send");
+  });
+
+  it("still queues an ungrounded reply that DOES make a claim", () => {
+    const d = decideAction({ ...base, makesFactualClaim: true });
+    expect(d.action).toBe("draft_for_approval");
+    expect(d.reason).toMatch(/isn't fully backed/i);
+  });
+
+  it("a grounded claim is unaffected", () => {
+    expect(decideAction({ ...base, grounded: true, makesFactualClaim: true }).action).toBe(
+      "auto_send",
+    );
+  });
+
+  it("claiming nothing does not bypass any OTHER gate", () => {
+    // The carve-out is about grounding alone. Confidence, boundaries and
+    // needsHuman must all still apply to a claim-free reply.
+    expect(
+      decideAction({ ...base, makesFactualClaim: false, confidence: 0.2 }).action,
+    ).toBe("draft_for_approval");
+    expect(
+      decideAction({ ...base, makesFactualClaim: false, boundaryCheckPassed: false }).action,
+    ).toBe("escalate");
+    expect(decideAction({ ...base, makesFactualClaim: false, needsHuman: true }).action).toBe(
+      "escalate",
+    );
+  });
+});
+
+describe("an absent makesFactualClaim fails SAFE", () => {
+  it("keeps the grounding gate active when the field is missing entirely", () => {
+    // The trap this pins: `undefined` is falsy, so a truthiness check would
+    // have DISABLED grounding for every caller that had not been updated —
+    // older call sites, other automations, test fixtures. Only an explicit
+    // `false` may relax the gate.
+    const d = decideAction({
+      mode: "smart",
+      policy: {
+        categoryActions: Object.fromEntries(CATEGORIES.map((c) => [c, "auto"])) as Record<
+          Category,
+          AutonomyAction
+        >,
+        minConfidence: 0.7,
+      },
+      category: "faq",
+      confidence: 0.95,
+      grounded: false,
+      boundaryCheckPassed: true,
+      needsHuman: false,
+      hasReply: true,
+      // makesFactualClaim deliberately omitted
+    });
+    expect(d.action).toBe("draft_for_approval");
+    expect(d.reason).toMatch(/isn't fully backed/i);
+  });
+});

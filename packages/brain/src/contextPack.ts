@@ -67,6 +67,41 @@ export interface ContextPack {
   knowledge?: { title: string; content: string; sourceRef?: string | null }[];
 }
 
+/**
+ * Legacy `policies` keys and the guided-setup fact that supersedes each.
+ *
+ * Matched on the rendered fact PREFIX rather than a question id, because
+ * question ids are per-vertical while factLabel is stable — `hours` is a core
+ * question asked of every business, so "Opening hours:" is the same string
+ * whatever the vertical.
+ *
+ * Only `hours` is listed today, and deliberately so. `policies.pricing` also
+ * conflicts on live data ("from 20 dollars to 80 dollars" against a guided
+ * "What's a typical price: 10–80"), but the guided pricing questions are
+ * VERTICAL-SPECIFIC — there is no stable label to match, and guessing one would
+ * silently drop a policy for verticals that never asked. That needs its own
+ * decision; see the PR.
+ */
+const SUPERSEDED_BY_FACT: Record<string, string> = {
+  hours: "Opening hours:",
+};
+
+function withoutSupersededPolicies(
+  policies: unknown,
+  facts: readonly string[],
+): unknown {
+  if (!policies || typeof policies !== "object") return policies;
+  const out: Record<string, unknown> = { ...(policies as Record<string, unknown>) };
+  let changed = false;
+  for (const [key, prefix] of Object.entries(SUPERSEDED_BY_FACT)) {
+    if (out[key] !== undefined && facts.some((f) => f.startsWith(prefix))) {
+      delete out[key];
+      changed = true;
+    }
+  }
+  return changed ? out : policies;
+}
+
 export async function getContextPack(
   workspaceId: string,
   needs: ContextNeed[],
@@ -108,6 +143,18 @@ export async function getContextPack(
   const answerFacts = profile.answers ? renderAnswerFacts(profile.answers) : null;
   if (answerFacts?.facts.length && needs.includes("policies")) {
     pack.businessFacts = answerFacts.facts;
+    // Drop legacy policy fields the owner has since answered in guided setup.
+    //
+    // The two are independent stores that can disagree, and they did: a profile
+    // carried policies.hours = "from 9 am to 5 pm" while the guided answer said
+    // Monday–Saturday 09:00–18:00, Sunday closed. Sending both gave the model a
+    // contradiction, and it picked the vaguer one and escalated rather than
+    // answer "do you work weekends?".
+    //
+    // The legacy value is NOT deleted — it stays in the profile and in the
+    // Knowledge view. It is simply not offered to the model when a more
+    // specific, owner-confirmed answer exists for the same thing.
+    pack.policies = withoutSupersededPolicies(pack.policies, answerFacts.facts);
   }
 
   if (needs.includes("boundaries")) {

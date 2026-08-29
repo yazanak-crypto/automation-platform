@@ -141,3 +141,41 @@ describe("a missing vertical silently drops vertical-specific facts", () => {
     expect(facts.some((f) => f.includes("Per unit"))).toBe(false);
   });
 });
+
+describe("legacy policy fields superseded by guided answers", () => {
+  // The bug: a profile carried policies.hours = "from 9 am to 5 pm" (legacy,
+  // no days) while the guided answer said Monday–Saturday 09:00–18:00, Sunday
+  // closed. Both reached the model, which picked the vaguer one, could not
+  // answer "do you work weekends?", and escalated. The legacy value is not
+  // deleted — it is simply not offered when a confirmed answer covers it.
+  //
+  // Asserted through renderAnswerFacts because that is what produces the
+  // prefix the pack assembler matches on; if the label ever changes, the
+  // supersession silently stops working and this test is what catches it.
+  it("renders an hours fact with the prefix the assembler matches", () => {
+    const { facts } = renderAnswerFacts({
+      vertical: "services",
+      values: {
+        hours: {
+          mon: { open: "09:00", close: "18:00", closed: false },
+          tue: { open: "09:00", close: "18:00", closed: false },
+          wed: { open: "09:00", close: "18:00", closed: false },
+          thu: { open: "09:00", close: "18:00", closed: false },
+          fri: { open: "09:00", close: "18:00", closed: false },
+          sat: { open: "09:00", close: "18:00", closed: false },
+          sun: { open: "09:00", close: "18:00", closed: true },
+        },
+      },
+    });
+    const hoursFact = facts.find((f) => f.startsWith("Opening hours:"));
+    expect(hoursFact).toBeDefined();
+    // Day-level detail is the whole point — it is what the legacy string lacked.
+    expect(hoursFact).toContain("Saturday: 09:00–18:00");
+    expect(hoursFact).toContain("Sunday: closed");
+  });
+
+  it("produces no hours fact when the owner has not answered, so nothing is superseded", () => {
+    const { facts } = renderAnswerFacts({ vertical: "services", values: {} });
+    expect(facts.some((f) => f.startsWith("Opening hours:"))).toBe(false);
+  });
+});
