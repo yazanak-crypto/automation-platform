@@ -53,6 +53,20 @@ export function resolvePolicy(
 
   return {
     categoryActions,
+    // NOTE: minConfidence DELIBERATELY SKIPS THE WORKSPACE LAYER.
+    //
+    // `maxAutoRisk` and `categoryOverrides` above both consult `workspace`,
+    // so the two-layer shape of this function does not hold uniformly — this
+    // one resolves activation ?? automation default, with nothing in between.
+    // The practical consequence: a workspace running several activations must
+    // set the confidence threshold on EACH one; there is no workspace-wide
+    // value to inherit from.
+    //
+    // Left this way on purpose rather than fixed in passing: adding a
+    // workspace layer changes the effective threshold for anyone who has set
+    // one, which is a behaviour change that deserves its own decision. Written
+    // down because the asymmetry is invisible at the call site and costs an
+    // hour to rediscover.
     minConfidence: activation?.minConfidence ?? automationDefault.minConfidence,
   };
 }

@@ -25,7 +25,12 @@ export const leadConcierge: AutomationDefinition = {
   // Recommended policy (Decision 012). Low-risk grounded questions auto-handle
   // in Smart Mode; leads stay owner-reviewed in v1; high risk always escalates.
   autonomyPolicy: {
-    minConfidence: 0.8,
+    // Lowered 0.8 -> 0.7. At 0.8 genuinely answerable questions were queueing
+    // for approval on confidence alone, which reads to an owner as the AI
+    // refusing to work. This is the RECOMMENDED default; an owner who wants a
+    // different balance sets it per activation on /automations/[id], and that
+    // override wins over this value.
+    minConfidence: 0.7,
     categoryActions: {
       hours: "auto",
       location: "auto",
