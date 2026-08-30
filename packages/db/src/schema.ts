@@ -698,6 +698,11 @@ export const aiCalls = pgTable("ai_calls", {
   brainVersion: integer("brain_version"),
   tokensIn: integer("tokens_in").notNull(),
   tokensOut: integer("tokens_out").notNull(),
+  // Prompt-cache accounting. Recorded so "is caching working" is a query
+  // rather than a belief: a cache_control marker on a prefix under the model
+  // minimum is accepted and silently ignored, which looks exactly like success.
+  cacheWriteTokens: integer("cache_write_tokens").notNull().default(0),
+  cacheReadTokens: integer("cache_read_tokens").notNull().default(0),
   estimatedCostMicrocents: integer("estimated_cost_microcents").notNull(),
   latencyMs: integer("latency_ms").notNull(),
   success: boolean("success").notNull().default(true),

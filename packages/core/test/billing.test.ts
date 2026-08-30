@@ -56,13 +56,13 @@ describe("credit math (unit)", () => {
   });
 
   it("quotes conversation counts from the measured cost per conversation", () => {
-    // The divisor was 8 ($0.08) while a conversation measured $0.0062 — the
-    // quoted counts were ~13x too low. Pinned so the next change to either
-    // number is deliberate.
-    expect(CREDITS_PER_CONVERSATION).toBe(2);
-    expect(conversationsFromCredits(PLANS.starter.monthlyCredits)).toBe(2_000);
-    expect(conversationsFromCredits(PLANS.pro.monthlyCredits)).toBe(4_000);
-    expect(conversationsFromCredits(PLANS.trial.monthlyCredits)).toBe(75);
+    // Re-derived from prompt v5 ai_calls (2026-08-30): a drafting run costs
+    // ~2.0 credits, not the ~0.62 the v3 rows showed. Pinned so the next change
+    // is deliberate — the quoted counts on the pricing grid move with it.
+    expect(CREDITS_PER_CONVERSATION).toBe(5);
+    expect(conversationsFromCredits(PLANS.starter.monthlyCredits)).toBe(800);
+    expect(conversationsFromCredits(PLANS.pro.monthlyCredits)).toBe(1_600);
+    expect(conversationsFromCredits(PLANS.trial.monthlyCredits)).toBe(30);
   });
 
   it("plan ids validate", () => {

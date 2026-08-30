@@ -5,9 +5,9 @@ import {
   getDefinition,
   LEAD_CONCIERGE_PROMPT_REF,
   LEAD_CONCIERGE_PROMPT_VERSION,
-  LEAD_CONCIERGE_SYSTEM,
+  leadConciergeSystem,
 } from "@platform/catalog";
-import { getCreditStatus, takeLimit } from "@platform/core";
+import { getCreditStatus, takeLimit, workspaceHasCatalog } from "@platform/core";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireWorkspace, unauthorized } from "@/lib/workspace";
@@ -64,7 +64,11 @@ export async function POST(req: Request) {
     promptRef: LEAD_CONCIERGE_PROMPT_REF,
     promptVersion: `${LEAD_CONCIERGE_PROMPT_VERSION}-preview`,
     tier: "frontier",
-    system: LEAD_CONCIERGE_SYSTEM,
+    // Same selection rule as the worker (webchatDraft.ts), so the preview keeps
+    // showing EXACTLY what production would produce. Not cached: previews are
+    // rare and scattered, so a 5-minute cache entry would usually expire
+    // unread and cost 1.25x on the write.
+    system: leadConciergeSystem(await workspaceHasCatalog(ctx.workspace.id)),
     prompt: buildLeadConciergePrompt({
       contextPack: pack,
       activationConfig: config.data ?? {},

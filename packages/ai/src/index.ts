@@ -20,6 +20,20 @@ export interface GatewayCall {
    * directly). `prompt` stays required as the text fallback and for logging.
    */
   content?: Array<Anthropic.ContentBlockParam>;
+  /**
+   * Cache the system prompt across calls.
+   *
+   * Only worth it for a system prompt that is byte-identical call to call — a
+   * prompt-version constant, not anything interpolated per request. A cache
+   * WRITE costs 1.25x, so caching a prefix used once is a small loss; the win
+   * comes from reads at 0.1x.
+   *
+   * Silently does nothing if the prompt is under the model's minimum cacheable
+   * length (MIN_CACHEABLE_TOKENS). That is why the returned usage carries the
+   * cache counts and they are stored on ai_calls: "is caching actually working"
+   * must be answerable from data rather than assumed.
+   */
+  cacheSystem?: boolean;
   maxTokens?: number;
   /** Business Brain context injected by the assembler (Decision 008). Logged verbatim. */
   contextPack?: Record<string, unknown>;
@@ -32,6 +46,10 @@ export interface GatewayResult {
   model: string;
   tokensIn: number;
   tokensOut: number;
+  /** Tokens written to the cache on this call (a miss). */
+  cacheWriteTokens: number;
+  /** Tokens served from the cache on this call (a hit). */
+  cacheReadTokens: number;
   estimatedCostMicrocents: number;
   latencyMs: number;
 }
@@ -79,16 +97,30 @@ export async function callAi(call: GatewayCall): Promise<GatewayResult> {
   const { model } = MODELS[call.tier];
   const started = Date.now();
   try {
+    // The system prompt becomes a single cacheable block when asked for.
+    // Array form is required to attach cache_control at all — a plain string
+    // has nowhere to put it.
+    const system =
+      call.cacheSystem && call.system
+        ? [{ type: "text" as const, text: call.system, cache_control: { type: "ephemeral" as const } }]
+        : call.system;
+
     const res = await clientFor(apiKey).messages.create({
       model,
       max_tokens: call.maxTokens ?? 1024,
-      system: call.system,
+      system,
       messages: [{ role: "user", content: call.content ?? call.prompt }],
     });
     const latencyMs = Date.now() - started;
     const tokensIn = res.usage.input_tokens;
     const tokensOut = res.usage.output_tokens;
-    const cost = estimateCostMicrocents(call.tier, tokensIn, tokensOut);
+    // Disjoint from tokensIn — the API excludes cached tokens from it.
+    const cacheWriteTokens = res.usage.cache_creation_input_tokens ?? 0;
+    const cacheReadTokens = res.usage.cache_read_input_tokens ?? 0;
+    const cost = estimateCostMicrocents(call.tier, tokensIn, tokensOut, {
+      writeTokens: cacheWriteTokens,
+      readTokens: cacheReadTokens,
+    });
     const text = res.content
       .filter((b): b is Anthropic.TextBlock => b.type === "text")
       .map((b) => b.text)
@@ -104,12 +136,23 @@ export async function callAi(call: GatewayCall): Promise<GatewayResult> {
       brainVersion: call.brainVersion,
       tokensIn,
       tokensOut,
+      cacheWriteTokens,
+      cacheReadTokens,
       estimatedCostMicrocents: cost,
       latencyMs,
       success: true,
     });
 
-    return { text, model, tokensIn, tokensOut, estimatedCostMicrocents: cost, latencyMs };
+    return {
+      text,
+      model,
+      tokensIn,
+      tokensOut,
+      cacheWriteTokens,
+      cacheReadTokens,
+      estimatedCostMicrocents: cost,
+      latencyMs,
+    };
   } catch (err) {
     await db()
       .insert(aiCalls)

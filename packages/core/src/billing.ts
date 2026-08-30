@@ -36,23 +36,78 @@ export const PLANS = {
 // duplicated as a bare `/ 4` in all four, which let the quoted numbers drift
 // apart from each other and from the plan table.
 //
-// Set from MEASURED cost, not a guess. Production ai_calls (8 real runs,
-// prompt webchat/draft-reply v3, claude-sonnet-5) average 1,087 tokens in and
-// 199 out = 624,638 microcents, i.e. $0.0062 per conversation — about
-// two-thirds of a cent. The divisor was 8 ($0.08), roughly 13x too pessimistic,
-// which advertised a fraction of what the plans can actually deliver.
+// Set from MEASURED cost. The derivation is CODE rather than prose so it
+// cannot go stale silently the way the previous comment did: that one still
+// cited "1,087 tokens in" from prompt v3 long after v5 was averaging 3,213,
+// and nothing failed when it stopped being true.
 //
-// This is deliberately set to 2 ($0.02) rather than the measured 0.62, because
-// those 8 runs are a FLOOR, not a typical case: every one ran against an empty
-// Business Brain and most escalated instead of composing an answer. A populated
-// brain sends a much larger context pack and writes longer replies, and the
-// boundary check is not currently firing (1.00 calls per run) but is designed
-// to. ~3x headroom keeps the quoted counts honest as the product gets better at
-// its job, rather than shrinking them later.
+// The inputs below are the only things to edit on a re-measure; the constant
+// falls out of them.
+
+/**
+ * Production `ai_calls`, measured 2026-08-30. Query:
+ *
+ *   SELECT sum(a.estimated_cost_microcents) FROM runs r
+ *     JOIN ai_calls a ON a.run_id = r.id GROUP BY r.id
+ *
+ * restricted to runs whose draft call was prompt v5 — i.e. the FULL cost of a
+ * run, draft + retries + boundary check, not the draft call alone.
+ */
+const MEASURED = {
+  promptVersion: "v5",
+  runs: 9,
+  /** Mean total cost of one drafting run. */
+  microcentsPerRun: 1_997_667,
+  /** Worst single run seen. Kept so the headroom below is checkable. */
+  maxMicrocentsPerRun: 3_240_900,
+} as const;
+
+/**
+ * Inbound messages per conversation — one drafting run each.
+ *
+ * NOT measured, and honestly so: production currently holds ONE lead-concierge
+ * conversation, carrying all 53 runs, so the observed ratio is an artefact of
+ * testing rather than customer behaviour. Two is the conservative floor for a
+ * real exchange (a question and a follow-up). This is the single largest
+ * source of error in the number below.
+ */
+const ASSUMED_RUNS_PER_CONVERSATION = 2;
+
+/**
+ * Margin over the mean. A JUDGEMENT, not a measurement — labelled as such so
+ * it is not mistaken for one of the queried figures above.
+ *
+ * The observed spread at n=9 is wide: the worst run cost 3,240,900 microcents
+ * against a 1,997,667 mean, 1.62x. A conversation containing one such turn
+ * costs well over the mean-derived figure, so pricing on the mean alone leaves
+ * no room for the ordinary bad case.
+ */
+const HEADROOM = 1.25;
+
+const MEASURED_MICROCENTS_PER_CONVERSATION =
+  MEASURED.microcentsPerRun * ASSUMED_RUNS_PER_CONVERSATION * HEADROOM;
+
+/**
+ * Round the derived figure UP to a whole credit.
+ *
+ * Direction matters: quoting too FEW conversations understates the plan and
+ * costs a sale; quoting too many is sold capacity we lose money serving. Up.
+ */
+export const CREDITS_PER_CONVERSATION = Math.ceil(
+  MEASURED_MICROCENTS_PER_CONVERSATION / MICROCENTS_PER_CREDIT,
+);
+
+// RE-MEASURE BEFORE TRUSTING THIS.
 //
-// Re-measure once ~100 real conversations exist against a populated brain; the
-// direction of error is predictable, since cost rises as quality does.
-export const CREDITS_PER_CONVERSATION = 2;
+// n = 9 v5 runs, and calls-per-run moved 1.78 -> 2.00 across the v4/v5
+// boundary in a way that is indistinguishable from noise at this sample size.
+// Re-run the query above at ~50 v5 runs before treating any of these inputs as
+// settled. Two known pressures point in OPPOSITE directions, so the error is
+// not one-sided:
+//   - up:   a fuller Business Brain sends a larger context pack every call
+//   - down: system-prompt caching (reads bill at 0.1x) and the no-catalog
+//           prompt variant both cut input tokens, and neither is reflected in
+//           the v5 rows above — they predate both.
 
 /** Credits → the conversation count shown to customers. */
 export function conversationsFromCredits(credits: number): number {
