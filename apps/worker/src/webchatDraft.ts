@@ -32,7 +32,7 @@ import {
   leadConcierge,
   LEAD_CONCIERGE_PROMPT_REF,
   LEAD_CONCIERGE_PROMPT_VERSION,
-  LEAD_CONCIERGE_SYSTEM,
+  leadConciergeSystem,
 } from "@platform/catalog";
 import {
   decideAction,
@@ -47,6 +47,7 @@ import {
   resolveOrderSettings,
   shouldAutoConfirm,
   takeLimit,
+  workspaceHasCatalog,
   withRedisLock,
   type AutonomyDecision,
 } from "@platform/core";
@@ -55,7 +56,12 @@ import { and, desc, eq } from "drizzle-orm";
 
 const PROMPT_REF = LEAD_CONCIERGE_PROMPT_REF;
 const PROMPT_VERSION = LEAD_CONCIERGE_PROMPT_VERSION;
-const SYSTEM = LEAD_CONCIERGE_SYSTEM;
+// Two prompts, not one, and both are module constants so each is a STABLE
+// prefix across every request that uses it — see the CACHING CONTRACT in
+// lead-concierge-prompt.ts. Building either per-request would make every call a
+// cache write.
+const SYSTEM_WITH_CATALOG = leadConciergeSystem(true);
+const SYSTEM_NO_CATALOG = leadConciergeSystem(false);
 
 function parseDraft(text: string): WebchatDraftOutput | null {
   const raw = text.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, "").trim();
@@ -256,6 +262,26 @@ async function processDraftLocked(job: WebchatDraftJob) {
       returningVisitor: prior > 0 ? `${prior} previous conversation(s)` : undefined,
     };
     const contextBlock = JSON.stringify(contextForModel);
+
+    // No catalog => no order rules in the prompt. Let a query failure throw:
+    // defaulting to false would silently disable order capture for a workspace
+    // that does have a catalog, which is exactly the class of silent failure
+    // this codebase keeps paying for.
+    const hasCatalog = await workspaceHasCatalog(job.workspaceId);
+    const system = hasCatalog ? SYSTEM_WITH_CATALOG : SYSTEM_NO_CATALOG;
+    // Only the with-catalog prompt clears the frontier tier's 1024-token
+    // minimum cacheable prefix; the shorter one is ~650 tokens, and asking to
+    // cache it would be SILENTLY ignored by the API rather than rejected. Ask
+    // only when it can work, so cache_write_tokens = 0 on a with-catalog row
+    // means something is wrong rather than meaning nothing.
+    const cacheSystem = hasCatalog;
+    await addRunEvent(run.id, ++seq, "step", "Selected draft prompt", {
+      hasCatalog,
+      orderCaptureOffered: hasCatalog,
+      systemChars: system.length,
+      cacheRequested: cacheSystem,
+    });
+
     const gen = async (feedback?: string) =>
       callAi({
         workspaceId: job.workspaceId,
@@ -263,7 +289,8 @@ async function processDraftLocked(job: WebchatDraftJob) {
         promptRef: PROMPT_REF,
         promptVersion: PROMPT_VERSION,
         tier: "frontier",
-        system: SYSTEM,
+        system,
+        cacheSystem,
         // Stored on the ai_calls row. This was previously absent — contextPack
         // was passed to buildLeadConciergePrompt (the PROMPT builder) and never
         // to callAi, so ai_calls.context_pack was NULL for every draft call

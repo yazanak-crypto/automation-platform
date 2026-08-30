@@ -166,3 +166,30 @@ export async function recentOrdersForContact(contactId: string, limit = 3) {
     .orderBy(desc(orders.createdAt))
     .limit(limit);
 }
+
+/**
+ * Does this workspace have anything an order could be made OF?
+ *
+ * Mirrors matchCatalogItem's filter exactly (kind='product', status='confirmed')
+ * so the answer cannot disagree with it: if this returns false, every order line
+ * the model could emit would come back unmatched.
+ *
+ * Used to decide whether the draft prompt offers order capture at all. Failing
+ * this OPEN (true) would only cost tokens; failing it CLOSED (false) on a
+ * workspace that does have a catalog would silently stop capturing orders, so
+ * callers must let a query error propagate rather than defaulting to false.
+ */
+export async function workspaceHasCatalog(workspaceId: string): Promise<boolean> {
+  const rows = await db()
+    .select({ one: sql<number>`1` })
+    .from(knowledgeItems)
+    .where(
+      and(
+        eq(knowledgeItems.workspaceId, workspaceId),
+        eq(knowledgeItems.kind, "product"),
+        eq(knowledgeItems.status, "confirmed"),
+      ),
+    )
+    .limit(1);
+  return rows.length > 0;
+}
