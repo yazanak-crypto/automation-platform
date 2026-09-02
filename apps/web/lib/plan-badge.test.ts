@@ -24,7 +24,7 @@ afterEach(() => {
 
 describe("planBadge", () => {
   it("renders the marketing name, never the plan id", async () => {
-    // "pro" is an internal id. A customer paying $599 should never see it.
+    // "pro" is an internal id. A customer on Premium should never see it.
     getCreditStatus.mockResolvedValue({ plan: "pro", trialEndsAt: null, trialEnded: false });
     await expect(planBadge("ws")).resolves.toEqual({
       plan: "pro",

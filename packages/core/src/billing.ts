@@ -16,18 +16,33 @@ export const MICROCENTS_PER_CREDIT = 1_000_000;
 // Credits are an INTERNAL limit only — never shown to customers. Pricing is
 // quoted as a monthly price plus a visible one-time setup fee, charged once on
 // a workspace's first confirmed payment.
+// Every surface that quotes money reads these numbers, so they are the only
+// place to change a price — EXCEPT the payment provider's own price objects,
+// which are what actually gets charged. Keep them in step or the site quotes
+// one figure and the card is charged another.
+//
+// `monthlyCredits` is NOT a free parameter: it is the advertised conversation
+// count times CREDITS_PER_CONVERSATION, and the pricing page renders it back
+// through conversationsFromCredits(). Changing one without the other makes the
+// site advertise a number the enforcement code does not honour. The intended
+// conversation count is written next to each plan so the arithmetic is
+// checkable, and pricing.test.ts asserts the round trip.
+//
+// Only `entry` carries a setup fee. The three larger plans are month-to-month
+// with no upfront charge, so any copy that says "setup fee covers your first
+// month" must be conditional on setupFeeUsd > 0.
 export const PLANS = {
   // 7-day free trial, ONE TIME. The credit ceiling is a quiet anti-abuse cap,
-  // not the gate — see trialUsedAt in the workspaces table.
+  // not the gate — see trialUsedAt in the workspaces table. Held at $1.50 of
+  // worst-case AI spend across the 2026-09-02 repricing rather than at a fixed
+  // conversation count, so the derived count moved 75 -> 38.
   trial: { name: "Free trial", monthlyCredits: 150, priceMonthlyUsd: 0, setupFeeUsd: 0 },
   // The setup fee IS month one: it is charged today and covers the first 30
-  // days, then the monthly price starts on day 31. Every surface that quotes
-  // money reads these numbers, so they are the only place to change a price —
-  // EXCEPT the payment provider's own price objects, which are what actually
-  // gets charged. Keep them in step or the site quotes one figure and the card
-  // is charged another.
-  starter: { name: "Starter", monthlyCredits: 4_000, priceMonthlyUsd: 399, setupFeeUsd: 499 },
-  pro: { name: "Premium", monthlyCredits: 8_000, priceMonthlyUsd: 599, setupFeeUsd: 799 },
+  // days, then the monthly price starts on day 31.
+  entry: { name: "Entry", monthlyCredits: 600, priceMonthlyUsd: 39, setupFeeUsd: 49 }, // 150 conversations
+  starter: { name: "Starter", monthlyCredits: 2_000, priceMonthlyUsd: 99, setupFeeUsd: 0 }, // 500
+  growth: { name: "Growth", monthlyCredits: 6_000, priceMonthlyUsd: 249, setupFeeUsd: 0 }, // 1,500
+  pro: { name: "Premium", monthlyCredits: 16_000, priceMonthlyUsd: 499, setupFeeUsd: 0 }, // 4,000
 } as const;
 
 // The ONLY customer-facing unit is a conversation; credits never appear in the
@@ -36,23 +51,45 @@ export const PLANS = {
 // duplicated as a bare `/ 4` in all four, which let the quoted numbers drift
 // apart from each other and from the plan table.
 //
-// Set from MEASURED cost, not a guess. Production ai_calls (8 real runs,
-// prompt webchat/draft-reply v3, claude-sonnet-5) average 1,087 tokens in and
-// 199 out = 624,638 microcents, i.e. $0.0062 per conversation — about
-// two-thirds of a cent. The divisor was 8 ($0.08), roughly 13x too pessimistic,
-// which advertised a fraction of what the plans can actually deliver.
+// Set from MEASURED cost, not a guess. Every input below is labelled as either
+// a measurement or a judgement, because the previous version of this comment
+// cited a token count from prompt v3 long after v5 had superseded it and
+// nothing failed when it stopped being true.
 //
-// This is deliberately set to 2 ($0.02) rather than the measured 0.62, because
-// those 8 runs are a FLOOR, not a typical case: every one ran against an empty
-// Business Brain and most escalated instead of composing an answer. A populated
-// brain sends a much larger context pack and writes longer replies, and the
-// boundary check is not currently firing (1.00 calls per run) but is designed
-// to. ~3x headroom keeps the quoted counts honest as the product gets better at
-// its job, rather than shrinking them later.
+// MEASUREMENT — production ai_calls, prompt webchat/draft-reply v5,
+// claude-sonnet-5, n = 9 runs (13 draft calls + 5 boundary checks):
+//   draft call   3,213 tokens in / 275 out
+//                = 3,213 * 200 + 275 * 1,000 =   917,600 microcents
+//   per run      (13 * 917,600 + 5 * 18,300) / 9 = 1,335,589 microcents
 //
-// Re-measure once ~100 real conversations exist against a populated brain; the
-// direction of error is predictable, since cost rises as quality does.
-export const CREDITS_PER_CONVERSATION = 2;
+// Those figures use the CORRECTED Sonnet 5 rates ($2/$10 per MTok). The stored
+// estimated_cost_microcents on those same rows says 1,997,667 per run, because
+// packages/ai/src/pricing.ts billed Sonnet 5 at $3/$15 until 2026-09-02 — see
+// the note there. Anything derived from the stored numbers is 1.5x too high.
+//
+// ASSUMPTION — 2 inbound messages, and so 2 drafting runs, per conversation.
+// Not measured: production holds ONE lead-concierge conversation carrying every
+// run, so the observed ratio is an artefact of testing. Two is the conservative
+// floor for a real exchange (a question and a follow-up), and it is the single
+// largest source of error below.
+//
+// JUDGEMENT — 1.25x headroom over the mean. The spread at n=9 is wide: the
+// worst run cost 1.62x the mean, and a conversation containing one such turn
+// blows through a ceiling derived from the mean alone.
+//
+//   1,335,589 * 2 * 1.25 = 3,338,973 microcents = 3.34 credits -> 4
+//
+// Rounded UP: quoting too few conversations understates the plan and costs a
+// sale; quoting too many is sold capacity we lose money serving.
+//
+// ⚠️ RE-MEASURE AT ~50 RUNS. n = 9 is not a number to build pricing on, and
+// calls-per-run moved 1.78 -> 2.00 across the v4/v5 boundary in a way that is
+// indistinguishable from noise at this sample size. Two known pressures point
+// in OPPOSITE directions, so the error is not one-sided:
+//   - up:   a fuller Business Brain sends a larger context pack every call
+//   - down: system-prompt caching, once it ships, bills the cached prefix at
+//           0.1x on a hit
+export const CREDITS_PER_CONVERSATION = 4;
 
 /** Credits → the conversation count shown to customers. */
 export function conversationsFromCredits(credits: number): number {
@@ -108,7 +145,7 @@ export interface CreditStatus {
  * Order matters more than the numbers: it is "how much was bought", not a
  * feature list.
  */
-const PLAN_RANK: Record<PlanId, number> = { trial: 0, starter: 1, pro: 2 };
+const PLAN_RANK: Record<PlanId, number> = { trial: 0, entry: 1, starter: 2, growth: 3, pro: 4 };
 
 /** Calendar-month period for trial workspaces (no Stripe period to anchor to). */
 function calendarPeriod(now = new Date()): { start: Date; end: Date } {

@@ -34,14 +34,17 @@ export default function RefundsPage() {
 
       <Section title="What you are charged">
         <ul className="ml-5 list-disc space-y-1">
-          <li>
-            <strong>{PLANS.starter.name}</strong> — ${PLANS.starter.setupFeeUsd} one-time setup fee
-            covering your first month, then ${PLANS.starter.priceMonthlyUsd} per month from day 31.
-          </li>
-          <li>
-            <strong>{PLANS.pro.name}</strong> — ${PLANS.pro.setupFeeUsd} one-time setup fee covering
-            your first month, then ${PLANS.pro.priceMonthlyUsd} per month from day 31.
-          </li>
+          {(["entry", "starter", "growth", "pro"] as const).map((id) => {
+            const p = PLANS[id];
+            return (
+              <li key={id}>
+                <strong>{p.name}</strong> —{" "}
+                {p.setupFeeUsd > 0
+                  ? `$${p.setupFeeUsd} one-time setup fee covering your first month, then $${p.priceMonthlyUsd} per month from day 31.`
+                  : `$${p.priceMonthlyUsd} per month, with no setup fee.`}
+              </li>
+            );
+          })}
         </ul>
         <p className="mt-2">
           Prices are in US dollars and exclude VAT or sales tax, which {PAYMENTS.provider} adds where
@@ -50,11 +53,13 @@ export default function RefundsPage() {
       </Section>
 
       <Section title="14-day refund on the setup fee">
-        {/* A blanket "non-refundable setup fee" on a $499 first charge is the
-            single most likely reason a Paddle application is rejected, and it is
-            the term most likely to produce chargebacks later. A bounded window
-            is both fairer and cheaper than disputes. */}
-        If you are not satisfied, you may request a full refund of the setup fee within{" "}
+        {/* A blanket "non-refundable setup fee" on a first charge is the single
+            most likely reason a Paddle application is rejected, and it is the
+            term most likely to produce chargebacks later. A bounded window is
+            both fairer and cheaper than disputes. */}
+        {PLANS.entry.name} is the only plan with a setup fee; on every other plan there is nothing
+        to refund here and the Monthly fees section below applies instead. If you are not satisfied,
+        you may request a full refund of the setup fee within{" "}
         <strong>14 days</strong> of the charge. We refund in full within that window, no reason
         required. After 14 days the setup fee is non-refundable, because it covers a month of service
         that has been delivered — except where consumer law in your country grants you a longer right,

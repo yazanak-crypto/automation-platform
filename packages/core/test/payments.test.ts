@@ -4,11 +4,15 @@ import { isPayablePlan, referenceCodeFor } from "../src/payments";
 
 // Money-shaped values must come from the catalog, never the client.
 describe("plan catalog pricing", () => {
-  it("prices starter and pro with a visible one-time setup fee", () => {
-    expect(PLANS.starter.priceMonthlyUsd).toBe(399);
-    expect(PLANS.starter.setupFeeUsd).toBe(499);
-    expect(PLANS.pro.priceMonthlyUsd).toBe(599);
-    expect(PLANS.pro.setupFeeUsd).toBe(799);
+  it("prices every payable plan, with a setup fee on Entry only", () => {
+    expect(PLANS.entry.priceMonthlyUsd).toBe(39);
+    expect(PLANS.entry.setupFeeUsd).toBe(49);
+    expect(PLANS.starter.priceMonthlyUsd).toBe(99);
+    expect(PLANS.growth.priceMonthlyUsd).toBe(249);
+    expect(PLANS.pro.priceMonthlyUsd).toBe(499);
+    expect(PLANS.starter.setupFeeUsd).toBe(0);
+    expect(PLANS.growth.setupFeeUsd).toBe(0);
+    expect(PLANS.pro.setupFeeUsd).toBe(0);
     expect(PLANS.trial.setupFeeUsd).toBe(0);
   });
 
@@ -17,16 +21,17 @@ describe("plan catalog pricing", () => {
     // is what amountDueFor() actually charged, while every customer-facing
     // surface quoted the setup fee alone — a real disagreement about how much
     // someone owes on day one. The setup fee covers month one; the monthly
-    // price starts on day 31.
-    expect(PLANS.starter.setupFeeUsd).toBe(499);
-    expect(PLANS.starter.priceMonthlyUsd + PLANS.starter.setupFeeUsd).not.toBe(499);
-    expect(PLANS.pro.setupFeeUsd).toBe(799);
+    // price starts on day 31. Entry is now the only plan this applies to.
+    expect(PLANS.entry.setupFeeUsd).toBe(49);
+    expect(PLANS.entry.priceMonthlyUsd + PLANS.entry.setupFeeUsd).not.toBe(49);
   });
 });
 
 describe("isPayablePlan", () => {
   it("accepts only the purchasable plans", () => {
+    expect(isPayablePlan("entry")).toBe(true);
     expect(isPayablePlan("starter")).toBe(true);
+    expect(isPayablePlan("growth")).toBe(true);
     expect(isPayablePlan("pro")).toBe(true);
     expect(isPayablePlan("trial")).toBe(false);
     expect(isPayablePlan("free")).toBe(false);

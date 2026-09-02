@@ -48,21 +48,30 @@ describe("credit math (unit)", () => {
 
   it("plan allowances map to their intended dollar ceilings", () => {
     // These ARE the worst-case Anthropic bill per workspace per period, so they
-    // are written in dollars: Starter $40 against $399 revenue is ~10% COGS,
-    // Premium $80 against $599 is ~13%.
-    expect(PLANS.starter.monthlyCredits * MICROCENTS_PER_CREDIT).toBe(usd(40));
-    expect(PLANS.pro.monthlyCredits * MICROCENTS_PER_CREDIT).toBe(usd(80));
+    // are written in dollars. Against monthly revenue that is a COGS ceiling of
+    // ~15% on Entry ($6 / $39), ~20% on Starter ($20 / $99), ~24% on Growth
+    // ($60 / $249) and ~32% on Premium ($160 / $499) — worst case, i.e. a
+    // workspace that uses every conversation it paid for.
+    expect(PLANS.entry.monthlyCredits * MICROCENTS_PER_CREDIT).toBe(usd(6));
+    expect(PLANS.starter.monthlyCredits * MICROCENTS_PER_CREDIT).toBe(usd(20));
+    expect(PLANS.growth.monthlyCredits * MICROCENTS_PER_CREDIT).toBe(usd(60));
+    expect(PLANS.pro.monthlyCredits * MICROCENTS_PER_CREDIT).toBe(usd(160));
     expect(PLANS.trial.monthlyCredits * MICROCENTS_PER_CREDIT).toBe(usd(1.5));
   });
 
   it("quotes conversation counts from the measured cost per conversation", () => {
-    // The divisor was 8 ($0.08) while a conversation measured $0.0062 — the
-    // quoted counts were ~13x too low. Pinned so the next change to either
-    // number is deliberate.
-    expect(CREDITS_PER_CONVERSATION).toBe(2);
-    expect(conversationsFromCredits(PLANS.starter.monthlyCredits)).toBe(2_000);
+    // 4 = corrected v5 mean ($0.01336/run) x 2 runs x 1.25 headroom, rounded
+    // up. Pinned so the next change to either number is deliberate — and so a
+    // change to CREDITS_PER_CONVERSATION alone, without restating every plan's
+    // monthlyCredits, fails here instead of silently re-advertising every tier.
+    expect(CREDITS_PER_CONVERSATION).toBe(4);
+    expect(conversationsFromCredits(PLANS.entry.monthlyCredits)).toBe(150);
+    expect(conversationsFromCredits(PLANS.starter.monthlyCredits)).toBe(500);
+    expect(conversationsFromCredits(PLANS.growth.monthlyCredits)).toBe(1_500);
     expect(conversationsFromCredits(PLANS.pro.monthlyCredits)).toBe(4_000);
-    expect(conversationsFromCredits(PLANS.trial.monthlyCredits)).toBe(75);
+    // The trial holds its $1.50 spend ceiling across the repricing, so its
+    // derived count moved 75 -> 38 rather than its cost moving.
+    expect(conversationsFromCredits(PLANS.trial.monthlyCredits)).toBe(38);
   });
 
   it("plan ids validate", () => {

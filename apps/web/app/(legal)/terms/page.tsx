@@ -64,16 +64,21 @@ export default function TermsPage() {
           also apply to the payment.
         </p>
         <p className="mt-2">Current plans:</p>
+        {/* Derived from PLANS so a plan added or repriced there cannot leave a
+            stale figure in the terms — which is the one page where quoting a
+            price we do not charge is a legal problem rather than a typo. */}
         <ul className="ml-5 mt-1 list-disc space-y-1">
-          <li>
-            <strong>{PLANS.starter.name}</strong> — ${PLANS.starter.setupFeeUsd} one-time setup fee,
-            which includes your first month, then ${PLANS.starter.priceMonthlyUsd} per month starting
-            on day 31.
-          </li>
-          <li>
-            <strong>{PLANS.pro.name}</strong> — ${PLANS.pro.setupFeeUsd} one-time setup fee, which
-            includes your first month, then ${PLANS.pro.priceMonthlyUsd} per month starting on day 31.
-          </li>
+          {(["entry", "starter", "growth", "pro"] as const).map((id) => {
+            const p = PLANS[id];
+            return (
+              <li key={id}>
+                <strong>{p.name}</strong> —{" "}
+                {p.setupFeeUsd > 0
+                  ? `$${p.setupFeeUsd} one-time setup fee, which includes your first month, then $${p.priceMonthlyUsd} per month starting on day 31.`
+                  : `$${p.priceMonthlyUsd} per month, with no setup fee.`}
+              </li>
+            );
+          })}
         </ul>
         <p className="mt-2">
           Prices are in US dollars and exclude VAT or sales tax, which {PAYMENTS.provider} adds where

@@ -741,7 +741,10 @@ export const payments = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id),
-    plan: text("plan", { enum: ["starter", "pro"] }).notNull(),
+    // Mirrors the payable plans in PLANS (packages/core/src/billing.ts). A
+    // Drizzle text enum is a TypeScript constraint only — the column is plain
+    // `text` in Postgres, so adding a plan here needs no migration.
+    plan: text("plan", { enum: ["entry", "starter", "growth", "pro"] }).notNull(),
     // Snapshotted from PLANS server-side at claim time — never client-supplied.
     amountUsd: integer("amount_usd").notNull(),
     // Stable per-user code the payer puts in the transfer memo (OV-XXXXXX).
