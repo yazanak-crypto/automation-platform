@@ -72,6 +72,13 @@ describe("credit math (unit)", () => {
     // The trial holds its $1.50 spend ceiling across the repricing, so its
     // derived count moved 75 -> 38 rather than its cost moving.
     expect(conversationsFromCredits(PLANS.trial.monthlyCredits)).toBe(38);
+    // Re-derived from prompt v5 ai_calls (2026-08-30): a drafting run costs
+    // ~2.0 credits, not the ~0.62 the v3 rows showed. Pinned so the next change
+    // is deliberate — the quoted counts on the pricing grid move with it.
+    expect(CREDITS_PER_CONVERSATION).toBe(5);
+    expect(conversationsFromCredits(PLANS.starter.monthlyCredits)).toBe(800);
+    expect(conversationsFromCredits(PLANS.pro.monthlyCredits)).toBe(1_600);
+    expect(conversationsFromCredits(PLANS.trial.monthlyCredits)).toBe(30);
   });
 
   it("plan ids validate", () => {

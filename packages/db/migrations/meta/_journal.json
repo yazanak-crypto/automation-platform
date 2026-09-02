@@ -162,6 +162,13 @@
       "when": 1787874712095,
       "tag": "0022_order_decision_notification",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1788008200582,
+      "tag": "0023_ai_call_cache_tokens",
+      "breakpoints": true
     }
   ]
 }

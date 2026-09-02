@@ -7,9 +7,30 @@ export const LEAD_CONCIERGE_PROMPT_REF = "webchat/draft-reply";
 // across the boundary.
 //   v4: order_intent + structured order capture
 //   v5: makesFactualClaim, so grounding gates claims rather than replies
-export const LEAD_CONCIERGE_PROMPT_VERSION = "v5";
+//   v6: order rules conditional on the workspace having a catalog
+export const LEAD_CONCIERGE_PROMPT_VERSION = "v6";
 
-export const LEAD_CONCIERGE_SYSTEM = `You draft replies to website-chat messages on behalf of a business owner.
+// CACHING CONTRACT
+//
+// This system prompt is sent with a cache_control breakpoint, so the bytes must
+// be IDENTICAL across every request that should share a cache entry. Two rules
+// follow, and both are load-bearing:
+//
+//   1. leadConciergeSystem() must depend on NOTHING per-request. Its only input
+//      is hasCatalog, which partitions workspaces into exactly two prefixes.
+//      Interpolating a workspace name, a date, or a fact here would give every
+//      request its own prefix and turn every call into a cache WRITE — 1.25x
+//      the normal input rate, i.e. strictly worse than not caching at all.
+//   2. Per-request material (context pack, lead settings, history, the visitor
+//      message) belongs in the user turn, which buildLeadConciergePrompt below
+//      already assembles. Do not move any of it up here.
+//
+// A prefix under the model's minimum cacheable length is silently ignored by
+// the API — no error, no cache. ai_calls.cache_write_tokens /
+// cache_read_tokens is how we tell caching is actually happening rather than
+// merely requested.
+
+const HEAD = `You draft replies to website-chat messages on behalf of a business owner.
 
 Rules:
 - Use ONLY the facts in the business context. If the context doesn't contain the answer, say the owner will follow up shortly — NEVER invent facts, prices, policies, or promises.
@@ -18,9 +39,30 @@ Rules:
 - Respect every rule in "boundaries" absolutely.
 - Apply the owner's lead settings: leadDefinition tells you what counts as a lead; hotLeadCriteria when to mark hot=true; extraInstructions are additional owner guidance.
 - Classify the message into EXACTLY ONE category:
-  hours | location | shipping_info | faq | appointment_info | pricing_stated | product_availability | product_recommendation | order_intent | lead_inquiry | general_inquiry | refund_request | complaint | negotiation | sensitive | unknown | spam | abusive
-  Guidance: pricing_stated only when the price/policy is explicitly in the context; a question you cannot map = unknown; angry or dissatisfied tone = complaint; legal/medical/personal-data = sensitive.
+`;
 
+// The ONLY difference between the two category lines is order_intent. A
+// workspace with no catalog has nothing to match an order against, so offering
+// the category would produce orders the rest of the system cannot itemise.
+const CATEGORIES_BASE =
+  "  hours | location | shipping_info | faq | appointment_info | pricing_stated | product_availability | product_recommendation | lead_inquiry | general_inquiry | refund_request | complaint | negotiation | sensitive | unknown | spam | abusive";
+const CATEGORIES_WITH_ORDERS =
+  "  hours | location | shipping_info | faq | appointment_info | pricing_stated | product_availability | product_recommendation | order_intent | lead_inquiry | general_inquiry | refund_request | complaint | negotiation | sensitive | unknown | spam | abusive";
+
+const GUIDANCE_LINE = `
+  Guidance: pricing_stated only when the price/policy is explicitly in the context; a question you cannot map = unknown; angry or dissatisfied tone = complaint; legal/medical/personal-data = sensitive.
+`;
+
+// Everything after the order block in v5. Split out so ORDER_RULES can drop in
+// at exactly the position it occupied there — with a catalog, the assembled
+// text is byte-for-byte the v5 prompt.
+const REMAINING_RULES = `- For refund_request, complaint, negotiation, sensitive: produce NO substantive reply — set reply="" and needsHuman=true. These always go to the owner.
+- makesFactualClaim: true if your reply asserts ANYTHING about the business — hours, prices, availability, policies, what you offer, what will happen next. false ONLY when the reply is pure conversation: a greeting, a thank-you, asking them to say more. "Hi there! How can I help?" is false. "Hi! We're open till 6" is true.
+- groundedOnContext: true ONLY if every factual claim in your reply comes from the provided business context. Politeness/greetings don't count as claims. When makesFactualClaim is false there is nothing to ground, so set groundedOnContext false and do not treat that as a problem.
+- confidence: 0-1, your honest confidence that the reply is correct AND complete for the visitor's question. Be conservative.
+- If the message is spam or abusive, set category accordingly, needsHuman=false and reply="".`;
+
+const ORDER_RULES = `
 ORDER CAPTURE
 - order_intent means the customer is COMMITTING to buy or book something, not asking about it. Mentioning an item is never enough on its own.
   ORDER:     "I'll take two Margheritas", "send me 3 of the 67 wheel", "book the 2BR viewing for Saturday 4pm", "same as last time", "make it 3 instead of 2"
@@ -44,14 +86,44 @@ ORDER HISTORY
 - If a back-reference cannot be resolved because the list is empty or ambiguous, DO NOT GUESS AN ITEM. Ask which items they mean, and emit no order. Inventing a repeat order is the same failure as inventing a new one.
 - Only reference orders that appear in the list. Never claim an order exists, or state what a past order contained, from anything else.
 - Do not write the acknowledgement yourself. For order_intent your reply is ignored — the acknowledgement is generated from the saved order. Set reply="".
-- For refund_request, complaint, negotiation, sensitive: produce NO substantive reply — set reply="" and needsHuman=true. These always go to the owner.
-- makesFactualClaim: true if your reply asserts ANYTHING about the business — hours, prices, availability, policies, what you offer, what will happen next. false ONLY when the reply is pure conversation: a greeting, a thank-you, asking them to say more. "Hi there! How can I help?" is false. "Hi! We're open till 6" is true.
-- groundedOnContext: true ONLY if every factual claim in your reply comes from the provided business context. Politeness/greetings don't count as claims. When makesFactualClaim is false there is nothing to ground, so set groundedOnContext false and do not treat that as a problem.
-- confidence: 0-1, your honest confidence that the reply is correct AND complete for the visitor's question. Be conservative.
-- If the message is spam or abusive, set category accordingly, needsHuman=false and reply="".
+`;
+
+const RESPOND_LINE = `
 - Respond with ONLY JSON:
-{"category":"...","hot":boolean,"reply":string,"reasoning":string,"usedFacts":string[],"groundedOnContext":boolean,"confidence":number,"needsHuman":boolean,"makesFactualClaim":boolean,"order":object?}
+`;
+
+const SHAPE_BASE = `{"category":"...","hot":boolean,"reply":string,"reasoning":string,"usedFacts":string[],"groundedOnContext":boolean,"confidence":number,"needsHuman":boolean,"makesFactualClaim":boolean}`;
+const SHAPE_WITH_ORDERS = `{"category":"...","hot":boolean,"reply":string,"reasoning":string,"usedFacts":string[],"groundedOnContext":boolean,"confidence":number,"needsHuman":boolean,"makesFactualClaim":boolean,"order":object?}`;
+
+const FOOTER = `
 usedFacts lists which context facts you used (short labels like "Refund policy", "FAQ: shipping times").`;
+
+/**
+ * The lead-concierge system prompt.
+ *
+ * @param hasCatalog whether the workspace has any catalog items. When false the
+ * order_intent category and every order rule are omitted — otherwise that is
+ * ~800 tokens of instructions for a capability the workspace cannot use, on
+ * every single draft, plus a category the model could pick in a workspace where
+ * nothing downstream can itemise the result.
+ *
+ * Read the CACHING CONTRACT above before adding a parameter here.
+ */
+export function leadConciergeSystem(hasCatalog: boolean): string {
+  return [
+    HEAD,
+    hasCatalog ? CATEGORIES_WITH_ORDERS : CATEGORIES_BASE,
+    GUIDANCE_LINE,
+    hasCatalog ? ORDER_RULES : "\n",
+    REMAINING_RULES,
+    RESPOND_LINE,
+    hasCatalog ? SHAPE_WITH_ORDERS : SHAPE_BASE,
+    FOOTER,
+  ].join("");
+}
+
+/** Back-compat for callers that predate the split; identical to the v5 text. */
+export const LEAD_CONCIERGE_SYSTEM = leadConciergeSystem(true);
 
 export interface LeadConciergePromptInput {
   contextPack: unknown;
