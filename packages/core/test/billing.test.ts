@@ -48,21 +48,49 @@ describe("credit math (unit)", () => {
 
   it("plan allowances map to their intended dollar ceilings", () => {
     // These ARE the worst-case Anthropic bill per workspace per period, so they
-    // are written in dollars: Starter $40 against $399 revenue is ~10% COGS,
-    // Premium $80 against $599 is ~13%.
-    expect(PLANS.starter.monthlyCredits * MICROCENTS_PER_CREDIT).toBe(usd(40));
-    expect(PLANS.pro.monthlyCredits * MICROCENTS_PER_CREDIT).toBe(usd(80));
+    // are written in dollars. Against monthly revenue that is a COGS ceiling of
+    // ~15% on Entry ($6 / $39), ~20% on Starter ($20 / $99), ~24% on Growth
+    // ($60 / $249) and ~32% on Premium ($160 / $499) — worst case, i.e. a
+    // workspace that uses every conversation it paid for.
+    expect(PLANS.entry.monthlyCredits * MICROCENTS_PER_CREDIT).toBe(usd(6));
+    expect(PLANS.starter.monthlyCredits * MICROCENTS_PER_CREDIT).toBe(usd(20));
+    expect(PLANS.growth.monthlyCredits * MICROCENTS_PER_CREDIT).toBe(usd(60));
+    expect(PLANS.pro.monthlyCredits * MICROCENTS_PER_CREDIT).toBe(usd(160));
     expect(PLANS.trial.monthlyCredits * MICROCENTS_PER_CREDIT).toBe(usd(1.5));
   });
 
   it("quotes conversation counts from the measured cost per conversation", () => {
-    // Re-derived from prompt v5 ai_calls (2026-08-30): a drafting run costs
-    // ~2.0 credits, not the ~0.62 the v3 rows showed. Pinned so the next change
-    // is deliberate — the quoted counts on the pricing grid move with it.
-    expect(CREDITS_PER_CONVERSATION).toBe(5);
-    expect(conversationsFromCredits(PLANS.starter.monthlyCredits)).toBe(800);
-    expect(conversationsFromCredits(PLANS.pro.monthlyCredits)).toBe(1_600);
-    expect(conversationsFromCredits(PLANS.trial.monthlyCredits)).toBe(30);
+    // 4 = corrected v5 mean ($0.01336/run) x 2 runs x 1.25 headroom, rounded
+    // up. Pinned so the next change to either number is deliberate — and so a
+    // change to CREDITS_PER_CONVERSATION alone, without restating every plan's
+    // monthlyCredits, fails here instead of silently re-advertising every tier.
+    expect(CREDITS_PER_CONVERSATION).toBe(4);
+    expect(conversationsFromCredits(PLANS.entry.monthlyCredits)).toBe(150);
+    expect(conversationsFromCredits(PLANS.starter.monthlyCredits)).toBe(500);
+    expect(conversationsFromCredits(PLANS.growth.monthlyCredits)).toBe(1_500);
+    expect(conversationsFromCredits(PLANS.pro.monthlyCredits)).toBe(4_000);
+    // The trial holds its $1.50 spend ceiling across the repricing, so its
+    // derived count moved 75 -> 38 rather than its cost moving.
+    expect(conversationsFromCredits(PLANS.trial.monthlyCredits)).toBe(38);
+  });
+
+  it("derives the constant from the measured inputs, not a hardcoded number", () => {
+    // Regression guard for the merge that shipped TWO CREDITS_PER_CONVERSATION
+    // declarations (a hardcoded 4 and the computed form) and, underneath that,
+    // a computed form reading 1,997,667 microcents/run — the figure produced
+    // while Sonnet 5 was billed at $3/$15 instead of $2/$10, which yields 5.
+    //
+    // Written as the arithmetic rather than a literal so that re-measuring the
+    // inputs updates the expectation with them, while a rate-inflated input
+    // still fails: at 1,997,667 this comes out 5 and the assertion above breaks.
+    const MEASURED_MICROCENTS_PER_RUN = 1_335_167;
+    const RUNS_PER_CONVERSATION = 2;
+    const HEADROOM = 1.25;
+    expect(CREDITS_PER_CONVERSATION).toBe(
+      Math.ceil(
+        (MEASURED_MICROCENTS_PER_RUN * RUNS_PER_CONVERSATION * HEADROOM) / MICROCENTS_PER_CREDIT,
+      ),
+    );
   });
 
   it("plan ids validate", () => {

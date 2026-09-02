@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { PlanContactCta } from "@/components/plan-contact-cta";
+import { PLAN_CONTACT_NOTE, type PlanContact } from "@/lib/plan-contact";
 
 interface Plan {
   id: string;
@@ -29,6 +31,7 @@ interface Data {
     trialEnded: boolean;
   };
   plans: Plan[];
+  planContact: PlanContact;
   billingConfigured: boolean;
   /** Any card provider live (Paddle or Stripe). Gates provider-neutral UI. */
   cardBilling: boolean;
@@ -336,28 +339,33 @@ export default function BillingPage() {
                 </p>
                 {isCurrent ? (
                   <p className="mt-4 text-xs text-ink-3">Current plan</p>
-                ) : p.purchasable ? (
-                  // Stripe path — only reachable when BILLING_ENABLED is on.
-                  <button
-                    onClick={() => go("/api/billing/checkout", { plan: p.id }, p.id)}
-                    disabled={busy === p.id}
-                    className="press-glow mt-4 w-full rounded-lg bg-white py-2 text-sm font-medium text-black transition-transform active:scale-[0.97] disabled:opacity-50"
-                  >
-                    {busy === p.id ? "Redirecting…" : "Upgrade"}
-                  </button>
                 ) : p.id !== "trial" ? (
-                  // Default path: manual bank/Whish payment, never Stripe.
-                  <Link
-                    href={`/checkout?plan=${p.id}`}
-                    className="press-glow mt-4 block w-full rounded-lg bg-white py-2 text-center text-sm font-medium text-black transition-transform active:scale-[0.97]"
-                  >
-                    Upgrade
-                  </Link>
+                  // Card checkout is not offered while Paddle merchant
+                  // verification is pending — an "Upgrade" button that opens a
+                  // checkout which cannot complete spends the one moment
+                  // someone decided to buy. Both routes below reach a human.
+                  //
+                  // The Paddle/Stripe branch that used to live here (gated on
+                  // p.purchasable, POSTing to /api/billing/checkout) is removed
+                  // from the UI only; the route, lib/paddle and the reconcile
+                  // job are untouched and ready to be re-linked.
+                  <>
+                    <PlanContactCta planName={p.name} contact={data.planContact} className="mt-4" />
+                    <Link
+                      href={`/checkout?plan=${p.id}`}
+                      className="mt-2 block text-center text-[12px] text-ink-3 underline underline-offset-4 hover:text-ink-2"
+                    >
+                      or see bank transfer details
+                    </Link>
+                  </>
                 ) : null}
               </div>
             );
           })}
         </div>
+        {/* Once, below the grid — same muted body treatment as the legal line
+            at the foot of this page. A note, not an alert. */}
+        <p className="mt-4 text-[13px] text-ink-3">{PLAN_CONTACT_NOTE}</p>
       </section>
 
       <p className="mt-6 text-[12px] leading-relaxed text-ink-3">

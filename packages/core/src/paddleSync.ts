@@ -40,13 +40,36 @@ function paddle(): Paddle {
 }
 
 /**
+ * The env var holding each payable plan's RECURRING Paddle price id.
+ *
+ * Setup prices are deliberately absent: they are one-time charges and never
+ * appear as a subscription item, so reconciliation never needs to resolve one.
+ * That also means the worker needs only these four variables, not all six.
+ */
+const PADDLE_RECURRING_PRICE_ENV: Record<Exclude<PlanId, "trial">, string> = {
+  entry: "PADDLE_PRICE_ENTRY",
+  starter: "PADDLE_PRICE_STARTER",
+  growth: "PADDLE_PRICE_GROWTH",
+  pro: "PADDLE_PRICE_PRO",
+};
+
+/**
  * Which plan a recurring price sells. Reads the same env vars the checkout
  * route writes from, so a price id that checkout can sell is a price id
  * reconciliation can recognise — they cannot drift apart.
+ *
+ * ⚠️ This runs in the WORKER, which has its own environment (Railway), separate
+ * from the web app's (Vercel). An unset variable here is indistinguishable from
+ * an unknown price: the subscription is skipped with "unrecognised price" and
+ * silently drops out of drift repair. That is exactly what happened to
+ * PADDLE_PRICE_STARTER — see docs/paddle-env.md.
  */
 export function planForPaddlePrice(priceId: string): PlanId | null {
-  if (priceId && priceId === process.env.PADDLE_PRICE_STARTER) return "starter";
-  if (priceId && priceId === process.env.PADDLE_PRICE_PRO) return "pro";
+  if (!priceId) return null;
+  for (const [plan, envVar] of Object.entries(PADDLE_RECURRING_PRICE_ENV)) {
+    const configured = process.env[envVar];
+    if (configured && configured === priceId) return plan as PlanId;
+  }
   return null;
 }
 

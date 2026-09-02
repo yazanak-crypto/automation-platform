@@ -12,7 +12,7 @@ export type PaymentStatus = "CLAIMED" | "CONFIRMED" | "REJECTED";
 export type PayablePlan = Exclude<PlanId, "trial">;
 
 export function isPayablePlan(v: string): v is PayablePlan {
-  return v === "starter" || v === "pro";
+  return v === "entry" || v === "starter" || v === "growth" || v === "pro";
 }
 
 /** Days of provisional access granted on a workspace's FIRST ever claim. */
@@ -75,8 +75,8 @@ export async function amountDueFor(
   const setupFeeUsd = includesSetupFee ? PLANS[plan].setupFeeUsd : 0;
   // The setup fee IS month one — charged INSTEAD of the monthly price, not on
   // top of it. This previously summed both, so a first payment came to
-  // setup + monthly ($898 on Starter) while every customer-facing surface
-  // quoted the setup fee alone ($499). Whichever number was right, they
+  // setup + monthly (then $898 on Starter) while every customer-facing surface
+  // quoted the setup fee alone. Whichever number was right, they
   // disagreed, and the one the customer was shown was the smaller.
   const totalUsd = includesSetupFee ? setupFeeUsd : monthlyUsd;
   return { monthlyUsd, setupFeeUsd, totalUsd, includesSetupFee };

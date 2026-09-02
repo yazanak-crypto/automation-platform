@@ -1,11 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { conversationsFromCredits, PLANS } from "@platform/core";
+import { PlanContactCta } from "@/components/plan-contact-cta";
 import { LEGAL, PAYMENTS, TRIAL_DAYS } from "@/lib/legal";
+import { PLAN_CONTACT_NOTE } from "@/lib/plan-contact";
+import { planContact } from "@/lib/plan-contact.server";
 
 export const metadata: Metadata = {
   title: "Pricing",
-  description: `${LEGAL.brand} pricing — ${TRIAL_DAYS}-day free trial, then $${PLANS.starter.setupFeeUsd} setup including your first month and $${PLANS.starter.priceMonthlyUsd}/month.`,
+  description: `${LEGAL.brand} pricing — ${TRIAL_DAYS}-day free trial, then plans from $${PLANS.entry.priceMonthlyUsd}/month.`,
 };
 
 /**
@@ -22,11 +25,14 @@ export const metadata: Metadata = {
  */
 
 const PAID = [
+  { ...PLANS.entry, id: "entry" },
   { ...PLANS.starter, id: "starter" },
+  { ...PLANS.growth, id: "growth" },
   { ...PLANS.pro, id: "pro" },
 ] as const;
 
 export default function PricingPage() {
+  const contact = planContact();
   return (
     <article className="space-y-6 text-sm leading-relaxed text-ink-2">
       <div>
@@ -44,14 +50,29 @@ export default function PricingPage() {
         {PAID.map((p) => (
           <section key={p.id} className="rounded-xl border border-line p-5">
             <h2 className="text-base font-semibold text-ink">{p.name}</h2>
-            <p className="mt-2 text-2xl font-semibold text-ink">
-              ${p.setupFeeUsd}
-              <span className="ml-1 text-[13px] font-normal text-ink-3">one-time setup</span>
-            </p>
-            <p className="text-[13px] text-ink-2">
-              includes your first month, then{" "}
-              <strong className="text-ink">${p.priceMonthlyUsd}/month</strong> from day 31
-            </p>
+            {/* Only Entry carries a setup fee. For the others the monthly price
+                IS the whole offer, and quoting a "$0 one-time setup" line would
+                invent a charge that does not exist. */}
+            {p.setupFeeUsd > 0 ? (
+              <>
+                <p className="mt-2 text-2xl font-semibold text-ink">
+                  ${p.setupFeeUsd}
+                  <span className="ml-1 text-[13px] font-normal text-ink-3">one-time setup</span>
+                </p>
+                <p className="text-[13px] text-ink-2">
+                  includes your first month, then{" "}
+                  <strong className="text-ink">${p.priceMonthlyUsd}/month</strong> from day 31
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="mt-2 text-2xl font-semibold text-ink">
+                  ${p.priceMonthlyUsd}
+                  <span className="ml-1 text-[13px] font-normal text-ink-3">/month</span>
+                </p>
+                <p className="text-[13px] text-ink-2">no setup fee — billed monthly</p>
+              </>
+            )}
             <ul className="mt-3 ml-5 list-disc space-y-1 text-[13px]">
               <li>
                 About {conversationsFromCredits(p.monthlyCredits).toLocaleString()} customer
@@ -60,14 +81,21 @@ export default function PricingPage() {
               <li>All channels: website chat, email, and WhatsApp</li>
               <li>Cancel anytime from the Billing page</li>
             </ul>
+            <PlanContactCta planName={p.name} contact={contact} className="mt-4" />
           </section>
         ))}
       </div>
 
+      {/* Once, below the grid — not per card. Body type and muted ink, the same
+          treatment as the "All prices in USD" line: a note, not a warning. */}
+      <p className="text-[13px] text-ink-3">{PLAN_CONTACT_NOTE}</p>
+
       <Section title="What the setup fee covers">
-        The setup fee is charged once, on the day you subscribe, and it pays for your first month of
-        service. Your recurring monthly charge starts on day 31 — you are not billed twice for month
-        one. Upgrading between plans is available at any time from the Billing page.
+        {PLANS.entry.name} is the only plan with a setup fee. It is charged once, on the day you
+        subscribe, and it pays for your first month of service — your recurring monthly charge
+        starts on day 31, so you are not billed twice for month one. {PLANS.starter.name},{" "}
+        {PLANS.growth.name} and {PLANS.pro.name} have no setup fee and are billed monthly from the
+        day you subscribe. Upgrading between plans is available at any time from the Billing page.
       </Section>
 
       <Section title="Taxes">
@@ -85,7 +113,8 @@ export default function PricingPage() {
 
       <Section title="Cancellations and refunds">
         Cancel at any time from the Billing page; your plan runs to the end of the period you have
-        paid for and does not renew. The setup fee is fully refundable within 14 days. Full details
+        paid for and does not renew. Where a setup fee applies it is fully refundable within 14
+        days. Full details
         are in the{" "}
         <Link className="underline" href="/refunds">
           Refund Policy

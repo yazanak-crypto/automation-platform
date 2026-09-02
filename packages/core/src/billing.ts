@@ -16,18 +16,33 @@ export const MICROCENTS_PER_CREDIT = 1_000_000;
 // Credits are an INTERNAL limit only — never shown to customers. Pricing is
 // quoted as a monthly price plus a visible one-time setup fee, charged once on
 // a workspace's first confirmed payment.
+// Every surface that quotes money reads these numbers, so they are the only
+// place to change a price — EXCEPT the payment provider's own price objects,
+// which are what actually gets charged. Keep them in step or the site quotes
+// one figure and the card is charged another.
+//
+// `monthlyCredits` is NOT a free parameter: it is the advertised conversation
+// count times CREDITS_PER_CONVERSATION, and the pricing page renders it back
+// through conversationsFromCredits(). Changing one without the other makes the
+// site advertise a number the enforcement code does not honour. The intended
+// conversation count is written next to each plan so the arithmetic is
+// checkable, and pricing.test.ts asserts the round trip.
+//
+// Only `entry` carries a setup fee. The three larger plans are month-to-month
+// with no upfront charge, so any copy that says "setup fee covers your first
+// month" must be conditional on setupFeeUsd > 0.
 export const PLANS = {
   // 7-day free trial, ONE TIME. The credit ceiling is a quiet anti-abuse cap,
-  // not the gate — see trialUsedAt in the workspaces table.
+  // not the gate — see trialUsedAt in the workspaces table. Held at $1.50 of
+  // worst-case AI spend across the 2026-09-02 repricing rather than at a fixed
+  // conversation count, so the derived count moved 75 -> 38.
   trial: { name: "Free trial", monthlyCredits: 150, priceMonthlyUsd: 0, setupFeeUsd: 0 },
   // The setup fee IS month one: it is charged today and covers the first 30
-  // days, then the monthly price starts on day 31. Every surface that quotes
-  // money reads these numbers, so they are the only place to change a price —
-  // EXCEPT the payment provider's own price objects, which are what actually
-  // gets charged. Keep them in step or the site quotes one figure and the card
-  // is charged another.
-  starter: { name: "Starter", monthlyCredits: 4_000, priceMonthlyUsd: 399, setupFeeUsd: 499 },
-  pro: { name: "Premium", monthlyCredits: 8_000, priceMonthlyUsd: 599, setupFeeUsd: 799 },
+  // days, then the monthly price starts on day 31.
+  entry: { name: "Entry", monthlyCredits: 600, priceMonthlyUsd: 39, setupFeeUsd: 49 }, // 150 conversations
+  starter: { name: "Starter", monthlyCredits: 2_000, priceMonthlyUsd: 99, setupFeeUsd: 0 }, // 500
+  growth: { name: "Growth", monthlyCredits: 6_000, priceMonthlyUsd: 249, setupFeeUsd: 0 }, // 1,500
+  pro: { name: "Premium", monthlyCredits: 16_000, priceMonthlyUsd: 499, setupFeeUsd: 0 }, // 4,000
 } as const;
 
 // The ONLY customer-facing unit is a conversation; credits never appear in the
@@ -45,21 +60,34 @@ export const PLANS = {
 // falls out of them.
 
 /**
- * Production `ai_calls`, measured 2026-08-30. Query:
+ * Production `ai_calls`, prompt v5, recomputed 2026-09-02 — the FULL cost of a
+ * run (draft + retries + boundary check), not the draft call alone.
  *
- *   SELECT sum(a.estimated_cost_microcents) FROM runs r
- *     JOIN ai_calls a ON a.run_id = r.id GROUP BY r.id
+ * ⚠️ Computed from RAW TOKENS, not from `estimated_cost_microcents`. Those
+ * stored values were written while packages/ai/src/pricing.ts billed Sonnet 5
+ * at $3/$15 per MTok instead of its actual $2/$10, so every frontier-tier row
+ * before 2026-09-02 is inflated by exactly 1.5x. Summing that column gave
+ * 1,997,667 per run and a constant of 5 — a rate bug, not a measurement.
  *
- * restricted to runs whose draft call was prompt v5 — i.e. the FULL cost of a
- * run, draft + retries + boundary check, not the draft call alone.
+ *   SELECT r.id,
+ *          sum(CASE WHEN a.model LIKE 'claude-sonnet%'
+ *                   THEN a.tokens_in*200 + a.tokens_out*1000
+ *                   ELSE a.tokens_in*100 + a.tokens_out*500 END)
+ *     FROM runs r JOIN ai_calls a ON a.run_id = r.id
+ *    WHERE a.success AND r.id IN (SELECT run_id FROM ai_calls
+ *          WHERE prompt_ref='webchat/draft-reply' AND prompt_version='v5')
+ *    GROUP BY r.id
+ *
+ * Re-run it with the CURRENT rates from pricing.ts, never with the stored
+ * column, until every v5 row predates a price change.
  */
 const MEASURED = {
   promptVersion: "v5",
   runs: 9,
-  /** Mean total cost of one drafting run. */
-  microcentsPerRun: 1_997_667,
+  /** Mean total cost of one drafting run. Was 1,997,667 at the wrong rates. */
+  microcentsPerRun: 1_335_167,
   /** Worst single run seen. Kept so the headroom below is checkable. */
-  maxMicrocentsPerRun: 3_240_900,
+  maxMicrocentsPerRun: 2_160_600,
 } as const;
 
 /**
@@ -77,10 +105,11 @@ const ASSUMED_RUNS_PER_CONVERSATION = 2;
  * Margin over the mean. A JUDGEMENT, not a measurement — labelled as such so
  * it is not mistaken for one of the queried figures above.
  *
- * The observed spread at n=9 is wide: the worst run cost 3,240,900 microcents
- * against a 1,997,667 mean, 1.62x. A conversation containing one such turn
+ * The observed spread at n=9 is wide: the worst run cost 2,160,600 microcents
+ * against a 1,335,167 mean, 1.62x. A conversation containing one such turn
  * costs well over the mean-derived figure, so pricing on the mean alone leaves
- * no room for the ordinary bad case.
+ * no room for the ordinary bad case. (The ratio is unchanged by the rate
+ * correction — both figures moved together.)
  */
 const HEADROOM = 1.25;
 
@@ -92,6 +121,13 @@ const MEASURED_MICROCENTS_PER_CONVERSATION =
  *
  * Direction matters: quoting too FEW conversations understates the plan and
  * costs a sale; quoting too many is sold capacity we lose money serving. Up.
+ *
+ *   1,335,167 * 2 * 1.25 = 3,337,918 microcents = 3.34 credits -> 4
+ *
+ * ⚠️ Every plan's `monthlyCredits` above is its advertised conversation count
+ * TIMES this number. Changing it without restating all five plans silently
+ * re-advertises every tier — billing.test.ts asserts the round trip so that
+ * fails loudly instead.
  */
 export const CREDITS_PER_CONVERSATION = Math.ceil(
   MEASURED_MICROCENTS_PER_CONVERSATION / MICROCENTS_PER_CREDIT,
@@ -163,7 +199,7 @@ export interface CreditStatus {
  * Order matters more than the numbers: it is "how much was bought", not a
  * feature list.
  */
-const PLAN_RANK: Record<PlanId, number> = { trial: 0, starter: 1, pro: 2 };
+const PLAN_RANK: Record<PlanId, number> = { trial: 0, entry: 1, starter: 2, growth: 3, pro: 4 };
 
 /** Calendar-month period for trial workspaces (no Stripe period to anchor to). */
 function calendarPeriod(now = new Date()): { start: Date; end: Date } {

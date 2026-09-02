@@ -43,24 +43,44 @@ export function paddle(): Paddle {
   return _paddle;
 }
 
+/**
+ * The recurring Paddle price id for each payable plan, read from env.
+ *
+ * One table, three uses (forward, setup, reverse) so a new plan cannot be added
+ * to two of them and forgotten in the third — which is how a price ends up
+ * sellable at checkout but unrecognised by reconciliation.
+ *
+ * ⚠️ Only `entry` has a setup price. The other plans are month-to-month with no
+ * upfront charge, so their setup entry is null by design, not by omission.
+ */
+const PADDLE_PRICE_ENV: Record<Exclude<PlanId, "trial">, { recurring: string; setup: string | null }> =
+  {
+    entry: { recurring: "PADDLE_PRICE_ENTRY", setup: "PADDLE_PRICE_ENTRY_SETUP" },
+    starter: { recurring: "PADDLE_PRICE_STARTER", setup: null },
+    growth: { recurring: "PADDLE_PRICE_GROWTH", setup: null },
+    pro: { recurring: "PADDLE_PRICE_PRO", setup: null },
+  };
+
 /** Recurring price — the subscription item. */
 export function paddlePriceForPlan(plan: PlanId): string | null {
-  if (plan === "starter") return process.env.PADDLE_PRICE_STARTER ?? null;
-  if (plan === "pro") return process.env.PADDLE_PRICE_PRO ?? null;
-  return null;
+  if (plan === "trial") return null;
+  return process.env[PADDLE_PRICE_ENV[plan].recurring] ?? null;
 }
 
 /** One-time setup price — charged today, covers the first month. */
 export function paddleSetupPriceForPlan(plan: PlanId): string | null {
-  if (plan === "starter") return process.env.PADDLE_PRICE_STARTER_SETUP ?? null;
-  if (plan === "pro") return process.env.PADDLE_PRICE_PRO_SETUP ?? null;
-  return null;
+  if (plan === "trial") return null;
+  const key = PADDLE_PRICE_ENV[plan].setup;
+  return key ? (process.env[key] ?? null) : null;
 }
 
 /** Reverse lookup for webhooks: which plan does this recurring price sell? */
 export function planForPaddlePrice(priceId: string): PlanId | null {
-  if (priceId && priceId === process.env.PADDLE_PRICE_STARTER) return "starter";
-  if (priceId && priceId === process.env.PADDLE_PRICE_PRO) return "pro";
+  if (!priceId) return null;
+  for (const [plan, keys] of Object.entries(PADDLE_PRICE_ENV)) {
+    const configured = process.env[keys.recurring];
+    if (configured && configured === priceId) return plan as PlanId;
+  }
   return null;
 }
 

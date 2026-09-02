@@ -6,9 +6,12 @@ import { OrganizationJsonLd } from "@/components/structured-data";
 import { RingField } from "@/components/ring-field";
 import { TransitionLink } from "@/components/transition-link";
 import { Wordmark } from "@/components/wordmark";
+import { PlanContactCta } from "@/components/plan-contact-cta";
 import { conversationsFromCredits, PLANS } from "@platform/core";
 import { BRAND } from "@/lib/brand";
 import { COPY } from "@/lib/tokens";
+import { PLAN_CONTACT_NOTE } from "@/lib/plan-contact";
+import { planContact } from "@/lib/plan-contact.server";
 
 // Landing (video study applied): sticky quiet nav, badge pill, hero over the
 // brass horizon, product frame emerging from the light, reveal-on-scroll
@@ -22,6 +25,7 @@ const Check = () => (
 );
 
 export default function Home() {
+  const contact = planContact();
   return (
     <main className="flex min-h-screen flex-col overflow-hidden">
       {/* Organization markup — homepage only. This is what Google reads to
@@ -184,8 +188,8 @@ export default function Home() {
                 it covers, not confusing usage units.
               </p>
             </div>
-            <div className="mt-8 grid gap-4 sm:grid-cols-3">
-              {(["trial", "starter", "pro"] as const).map((id) => {
+            <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+              {(["trial", "entry", "starter", "growth", "pro"] as const).map((id) => {
                 const p = PLANS[id];
                 const convos = conversationsFromCredits(p.monthlyCredits);
                 return (
@@ -205,13 +209,19 @@ export default function Home() {
                       // IS month one. "+ $X one-time setup" read as an
                       // additional charge and overstated the first payment.
                       <p className="mt-1 text-[12px] text-ink-3">
-                        ${p.setupFeeUsd} to start, covering your first month
+                        ${p.setupFeeUsd} to start, then ${p.priceMonthlyUsd}/month from day 31
                       </p>
+                    )}
+                    {id !== "trial" && (
+                      <PlanContactCta planName={p.name} contact={contact} className="mt-4" />
                     )}
                   </div>
                 );
               })}
             </div>
+            {/* Once, below the grid. Same muted 12px as the "cancel anytime"
+                line beneath it — a note, not a banner. */}
+            <p className="mt-6 text-center text-[12px] text-ink-3">{PLAN_CONTACT_NOTE}</p>
             <p className="mt-4 text-center text-[12px] text-ink-3">
               Cancel anytime. Your AI pauses if you run out — it never charges you by surprise.
             </p>

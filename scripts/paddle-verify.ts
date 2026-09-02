@@ -149,40 +149,47 @@ async function checkWebhookSecret(isProd: boolean) {
   // rejected at the door — so entitlement silently never lands.
   await checkWebhookSecret(isProd);
 
-  const checks: Check[] = [
-    {
-      label: "Starter setup",
-      envVar: "PADDLE_PRICE_STARTER_SETUP",
-      priceId: process.env.PADDLE_PRICE_STARTER_SETUP,
-      plan: "starter",
-      kind: "setup",
-      expectedUsd: PLANS.starter.setupFeeUsd,
-    },
-    {
-      label: "Starter monthly",
-      envVar: "PADDLE_PRICE_STARTER",
-      priceId: process.env.PADDLE_PRICE_STARTER,
-      plan: "starter",
-      kind: "recurring",
-      expectedUsd: PLANS.starter.priceMonthlyUsd,
-    },
-    {
-      label: "Premium setup",
-      envVar: "PADDLE_PRICE_PRO_SETUP",
-      priceId: process.env.PADDLE_PRICE_PRO_SETUP,
-      plan: "pro",
-      kind: "setup",
-      expectedUsd: PLANS.pro.setupFeeUsd,
-    },
-    {
-      label: "Premium monthly",
-      envVar: "PADDLE_PRICE_PRO",
-      priceId: process.env.PADDLE_PRICE_PRO,
-      plan: "pro",
-      kind: "recurring",
-      expectedUsd: PLANS.pro.priceMonthlyUsd,
-    },
-  ];
+  // Derived from PLANS rather than listed by hand: a plan added there without a
+  // Paddle price is now a verification FAILURE ("not set") instead of a plan
+  // this script silently never checked. A setup check is emitted only for plans
+  // that actually charge one — today that is Entry alone.
+  const PAYABLE = ["entry", "starter", "growth", "pro"] as const;
+  const RECURRING_ENV: Record<(typeof PAYABLE)[number], string> = {
+    entry: "PADDLE_PRICE_ENTRY",
+    starter: "PADDLE_PRICE_STARTER",
+    growth: "PADDLE_PRICE_GROWTH",
+    pro: "PADDLE_PRICE_PRO",
+  };
+  const SETUP_ENV: Partial<Record<(typeof PAYABLE)[number], string>> = {
+    entry: "PADDLE_PRICE_ENTRY_SETUP",
+  };
+
+  const checks: Check[] = PAYABLE.flatMap((plan): Check[] => {
+    const p = PLANS[plan];
+    const recurringEnv = RECURRING_ENV[plan];
+    const rows: Check[] = [
+      {
+        label: `${p.name} monthly`,
+        envVar: recurringEnv,
+        priceId: process.env[recurringEnv],
+        plan,
+        kind: "recurring",
+        expectedUsd: p.priceMonthlyUsd,
+      },
+    ];
+    const setupEnv = SETUP_ENV[plan];
+    if (p.setupFeeUsd > 0 && setupEnv) {
+      rows.unshift({
+        label: `${p.name} setup`,
+        envVar: setupEnv,
+        priceId: process.env[setupEnv],
+        plan,
+        kind: "setup",
+        expectedUsd: p.setupFeeUsd,
+      });
+    }
+    return rows;
+  });
 
   const seen = new Map<string, string>();
 
@@ -240,21 +247,38 @@ async function checkWebhookSecret(isProd: boolean) {
         pass("recurring monthly");
       }
 
-      // The one that costs real money if it is wrong.
-      if (!trial) {
+      // The one that costs real money if it is wrong — and the expectation now
+      // DEPENDS ON THE PLAN, because only Entry bundles a setup fee.
+      //
+      //   setup fee > 0  → the setup price is month one, so the recurring price
+      //                    MUST carry a 30-day trial or the customer is charged
+      //                    twice on day one.
+      //   setup fee == 0 → the monthly price is the whole offer and must bill
+      //                    immediately. A stray trial here gives away a free
+      //                    month, silently, on every signup.
+      const setupFeeUsd = PLANS[c.plan].setupFeeUsd;
+      if (setupFeeUsd > 0) {
+        if (!trial) {
+          fail(
+            `NO TRIAL PERIOD — the customer would be charged $${c.expectedUsd} on top of the ` +
+              `$${setupFeeUsd} setup fee today ($${c.expectedUsd + setupFeeUsd} total) instead ` +
+              `of on day ${TRIAL_DAYS + 1}`,
+          );
+        } else if (trial.interval !== "day" || trial.frequency !== TRIAL_DAYS) {
+          fail(
+            `trial is ${trial.frequency} ${trial.interval}(s), expected ${TRIAL_DAYS} days — ` +
+              `first monthly charge would land on the wrong date`,
+          );
+        } else {
+          pass(`${TRIAL_DAYS}-day trial → first monthly charge on day ${TRIAL_DAYS + 1}`);
+        }
+      } else if (trial) {
         fail(
-          `NO TRIAL PERIOD — the customer would be charged $${c.expectedUsd} on top of the ` +
-            `$${PLANS[c.plan].setupFeeUsd} setup fee today ($${
-              c.expectedUsd + PLANS[c.plan].setupFeeUsd
-            } total) instead of on day ${TRIAL_DAYS + 1}`,
-        );
-      } else if (trial.interval !== "day" || trial.frequency !== TRIAL_DAYS) {
-        fail(
-          `trial is ${trial.frequency} ${trial.interval}(s), expected ${TRIAL_DAYS} days — ` +
-            `first monthly charge would land on the wrong date`,
+          `has a ${trial.frequency} ${trial.interval}(s) trial, but ${PLANS[c.plan].name} has no ` +
+            `setup fee — the first month would be given away free`,
         );
       } else {
-        pass(`${TRIAL_DAYS}-day trial → first monthly charge on day ${TRIAL_DAYS + 1}`);
+        pass("no trial → billed monthly from day one, as advertised");
       }
     }
   }

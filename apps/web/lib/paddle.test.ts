@@ -17,19 +17,33 @@ afterEach(() => vi.unstubAllEnvs());
 function withPaddleEnv() {
   vi.stubEnv("PADDLE_API_KEY", "pdl_test_key");
   vi.stubEnv("PADDLE_WEBHOOK_SECRET", "pdl_ntfset_secret");
+  vi.stubEnv("PADDLE_PRICE_ENTRY", "pri_entry_recurring");
+  // Entry is the ONLY plan with a setup price — the other three are
+  // month-to-month with no upfront charge, so they have no *_SETUP var to stub.
+  vi.stubEnv("PADDLE_PRICE_ENTRY_SETUP", "pri_entry_setup");
   vi.stubEnv("PADDLE_PRICE_STARTER", "pri_starter_recurring");
-  vi.stubEnv("PADDLE_PRICE_STARTER_SETUP", "pri_starter_setup");
+  vi.stubEnv("PADDLE_PRICE_GROWTH", "pri_growth_recurring");
   vi.stubEnv("PADDLE_PRICE_PRO", "pri_pro_recurring");
-  vi.stubEnv("PADDLE_PRICE_PRO_SETUP", "pri_pro_setup");
 }
 
 describe("plan ↔ price mapping", () => {
-  it("maps each plan to its recurring and setup price", () => {
+  it("maps every payable plan to its recurring price", () => {
     withPaddleEnv();
+    expect(paddlePriceForPlan("entry")).toBe("pri_entry_recurring");
     expect(paddlePriceForPlan("starter")).toBe("pri_starter_recurring");
-    expect(paddleSetupPriceForPlan("starter")).toBe("pri_starter_setup");
+    expect(paddlePriceForPlan("growth")).toBe("pri_growth_recurring");
     expect(paddlePriceForPlan("pro")).toBe("pri_pro_recurring");
-    expect(paddleSetupPriceForPlan("pro")).toBe("pri_pro_setup");
+  });
+
+  it("has a setup price for Entry and for nothing else", () => {
+    // Pinned because the pricing copy, amountDueFor() and paddle-verify's
+    // trial-period rule all branch on setupFeeUsd > 0. A second plan growing a
+    // setup price has to be a deliberate change in all four places.
+    withPaddleEnv();
+    expect(paddleSetupPriceForPlan("entry")).toBe("pri_entry_setup");
+    expect(paddleSetupPriceForPlan("starter")).toBeNull();
+    expect(paddleSetupPriceForPlan("growth")).toBeNull();
+    expect(paddleSetupPriceForPlan("pro")).toBeNull();
   });
 
   it("never sells the trial", () => {
@@ -40,7 +54,9 @@ describe("plan ↔ price mapping", () => {
 
   it("reverses a recurring price back to its plan", () => {
     withPaddleEnv();
+    expect(planForPaddlePrice("pri_entry_recurring")).toBe("entry");
     expect(planForPaddlePrice("pri_starter_recurring")).toBe("starter");
+    expect(planForPaddlePrice("pri_growth_recurring")).toBe("growth");
     expect(planForPaddlePrice("pri_pro_recurring")).toBe("pro");
   });
 
@@ -48,8 +64,7 @@ describe("plan ↔ price mapping", () => {
     // The webhook reads the subscription's recurring item. If a setup price
     // resolved too, a one-off charge could be mistaken for a subscription.
     withPaddleEnv();
-    expect(planForPaddlePrice("pri_starter_setup")).toBeNull();
-    expect(planForPaddlePrice("pri_pro_setup")).toBeNull();
+    expect(planForPaddlePrice("pri_entry_setup")).toBeNull();
   });
 
   it("returns null for an unknown or empty price rather than guessing", () => {
