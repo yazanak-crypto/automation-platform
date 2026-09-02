@@ -72,13 +72,25 @@ describe("credit math (unit)", () => {
     // The trial holds its $1.50 spend ceiling across the repricing, so its
     // derived count moved 75 -> 38 rather than its cost moving.
     expect(conversationsFromCredits(PLANS.trial.monthlyCredits)).toBe(38);
-    // Re-derived from prompt v5 ai_calls (2026-08-30): a drafting run costs
-    // ~2.0 credits, not the ~0.62 the v3 rows showed. Pinned so the next change
-    // is deliberate — the quoted counts on the pricing grid move with it.
-    expect(CREDITS_PER_CONVERSATION).toBe(5);
-    expect(conversationsFromCredits(PLANS.starter.monthlyCredits)).toBe(800);
-    expect(conversationsFromCredits(PLANS.pro.monthlyCredits)).toBe(1_600);
-    expect(conversationsFromCredits(PLANS.trial.monthlyCredits)).toBe(30);
+  });
+
+  it("derives the constant from the measured inputs, not a hardcoded number", () => {
+    // Regression guard for the merge that shipped TWO CREDITS_PER_CONVERSATION
+    // declarations (a hardcoded 4 and the computed form) and, underneath that,
+    // a computed form reading 1,997,667 microcents/run — the figure produced
+    // while Sonnet 5 was billed at $3/$15 instead of $2/$10, which yields 5.
+    //
+    // Written as the arithmetic rather than a literal so that re-measuring the
+    // inputs updates the expectation with them, while a rate-inflated input
+    // still fails: at 1,997,667 this comes out 5 and the assertion above breaks.
+    const MEASURED_MICROCENTS_PER_RUN = 1_335_167;
+    const RUNS_PER_CONVERSATION = 2;
+    const HEADROOM = 1.25;
+    expect(CREDITS_PER_CONVERSATION).toBe(
+      Math.ceil(
+        (MEASURED_MICROCENTS_PER_RUN * RUNS_PER_CONVERSATION * HEADROOM) / MICROCENTS_PER_CREDIT,
+      ),
+    );
   });
 
   it("plan ids validate", () => {

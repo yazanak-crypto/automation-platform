@@ -90,6 +90,10 @@ export function estimateCostMicrocents(
  * failure mode worth knowing about, because it looks exactly like success.
  */
 export const MIN_CACHEABLE_TOKENS: Record<ModelTier, number> = {
-  fast: 2048, // Haiku
-  frontier: 1024, // Sonnet
+  // Haiku 4.5 is 4096, not the 2048 this said — the minimum is NOT monotonic
+  // across model generations, so it cannot be inferred from the tier's age.
+  // At 2048 a 3K-token prefix looked cacheable on the fast tier and would have
+  // been silently ignored: exactly the failure this table exists to prevent.
+  fast: 4096, // Haiku 4.5
+  frontier: 1024, // Sonnet 5
 };

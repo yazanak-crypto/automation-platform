@@ -51,45 +51,6 @@ export const PLANS = {
 // duplicated as a bare `/ 4` in all four, which let the quoted numbers drift
 // apart from each other and from the plan table.
 //
-// Set from MEASURED cost, not a guess. Every input below is labelled as either
-// a measurement or a judgement, because the previous version of this comment
-// cited a token count from prompt v3 long after v5 had superseded it and
-// nothing failed when it stopped being true.
-//
-// MEASUREMENT — production ai_calls, prompt webchat/draft-reply v5,
-// claude-sonnet-5, n = 9 runs (13 draft calls + 5 boundary checks):
-//   draft call   3,213 tokens in / 275 out
-//                = 3,213 * 200 + 275 * 1,000 =   917,600 microcents
-//   per run      (13 * 917,600 + 5 * 18,300) / 9 = 1,335,589 microcents
-//
-// Those figures use the CORRECTED Sonnet 5 rates ($2/$10 per MTok). The stored
-// estimated_cost_microcents on those same rows says 1,997,667 per run, because
-// packages/ai/src/pricing.ts billed Sonnet 5 at $3/$15 until 2026-09-02 — see
-// the note there. Anything derived from the stored numbers is 1.5x too high.
-//
-// ASSUMPTION — 2 inbound messages, and so 2 drafting runs, per conversation.
-// Not measured: production holds ONE lead-concierge conversation carrying every
-// run, so the observed ratio is an artefact of testing. Two is the conservative
-// floor for a real exchange (a question and a follow-up), and it is the single
-// largest source of error below.
-//
-// JUDGEMENT — 1.25x headroom over the mean. The spread at n=9 is wide: the
-// worst run cost 1.62x the mean, and a conversation containing one such turn
-// blows through a ceiling derived from the mean alone.
-//
-//   1,335,589 * 2 * 1.25 = 3,338,973 microcents = 3.34 credits -> 4
-//
-// Rounded UP: quoting too few conversations understates the plan and costs a
-// sale; quoting too many is sold capacity we lose money serving.
-//
-// ⚠️ RE-MEASURE AT ~50 RUNS. n = 9 is not a number to build pricing on, and
-// calls-per-run moved 1.78 -> 2.00 across the v4/v5 boundary in a way that is
-// indistinguishable from noise at this sample size. Two known pressures point
-// in OPPOSITE directions, so the error is not one-sided:
-//   - up:   a fuller Business Brain sends a larger context pack every call
-//   - down: system-prompt caching, once it ships, bills the cached prefix at
-//           0.1x on a hit
-export const CREDITS_PER_CONVERSATION = 4;
 // Set from MEASURED cost. The derivation is CODE rather than prose so it
 // cannot go stale silently the way the previous comment did: that one still
 // cited "1,087 tokens in" from prompt v3 long after v5 was averaging 3,213,
@@ -99,21 +60,34 @@ export const CREDITS_PER_CONVERSATION = 4;
 // falls out of them.
 
 /**
- * Production `ai_calls`, measured 2026-08-30. Query:
+ * Production `ai_calls`, prompt v5, recomputed 2026-09-02 — the FULL cost of a
+ * run (draft + retries + boundary check), not the draft call alone.
  *
- *   SELECT sum(a.estimated_cost_microcents) FROM runs r
- *     JOIN ai_calls a ON a.run_id = r.id GROUP BY r.id
+ * ⚠️ Computed from RAW TOKENS, not from `estimated_cost_microcents`. Those
+ * stored values were written while packages/ai/src/pricing.ts billed Sonnet 5
+ * at $3/$15 per MTok instead of its actual $2/$10, so every frontier-tier row
+ * before 2026-09-02 is inflated by exactly 1.5x. Summing that column gave
+ * 1,997,667 per run and a constant of 5 — a rate bug, not a measurement.
  *
- * restricted to runs whose draft call was prompt v5 — i.e. the FULL cost of a
- * run, draft + retries + boundary check, not the draft call alone.
+ *   SELECT r.id,
+ *          sum(CASE WHEN a.model LIKE 'claude-sonnet%'
+ *                   THEN a.tokens_in*200 + a.tokens_out*1000
+ *                   ELSE a.tokens_in*100 + a.tokens_out*500 END)
+ *     FROM runs r JOIN ai_calls a ON a.run_id = r.id
+ *    WHERE a.success AND r.id IN (SELECT run_id FROM ai_calls
+ *          WHERE prompt_ref='webchat/draft-reply' AND prompt_version='v5')
+ *    GROUP BY r.id
+ *
+ * Re-run it with the CURRENT rates from pricing.ts, never with the stored
+ * column, until every v5 row predates a price change.
  */
 const MEASURED = {
   promptVersion: "v5",
   runs: 9,
-  /** Mean total cost of one drafting run. */
-  microcentsPerRun: 1_997_667,
+  /** Mean total cost of one drafting run. Was 1,997,667 at the wrong rates. */
+  microcentsPerRun: 1_335_167,
   /** Worst single run seen. Kept so the headroom below is checkable. */
-  maxMicrocentsPerRun: 3_240_900,
+  maxMicrocentsPerRun: 2_160_600,
 } as const;
 
 /**
@@ -131,10 +105,11 @@ const ASSUMED_RUNS_PER_CONVERSATION = 2;
  * Margin over the mean. A JUDGEMENT, not a measurement — labelled as such so
  * it is not mistaken for one of the queried figures above.
  *
- * The observed spread at n=9 is wide: the worst run cost 3,240,900 microcents
- * against a 1,997,667 mean, 1.62x. A conversation containing one such turn
+ * The observed spread at n=9 is wide: the worst run cost 2,160,600 microcents
+ * against a 1,335,167 mean, 1.62x. A conversation containing one such turn
  * costs well over the mean-derived figure, so pricing on the mean alone leaves
- * no room for the ordinary bad case.
+ * no room for the ordinary bad case. (The ratio is unchanged by the rate
+ * correction — both figures moved together.)
  */
 const HEADROOM = 1.25;
 
@@ -146,6 +121,13 @@ const MEASURED_MICROCENTS_PER_CONVERSATION =
  *
  * Direction matters: quoting too FEW conversations understates the plan and
  * costs a sale; quoting too many is sold capacity we lose money serving. Up.
+ *
+ *   1,335,167 * 2 * 1.25 = 3,337,918 microcents = 3.34 credits -> 4
+ *
+ * ⚠️ Every plan's `monthlyCredits` above is its advertised conversation count
+ * TIMES this number. Changing it without restating all five plans silently
+ * re-advertises every tier — billing.test.ts asserts the round trip so that
+ * fails loudly instead.
  */
 export const CREDITS_PER_CONVERSATION = Math.ceil(
   MEASURED_MICROCENTS_PER_CONVERSATION / MICROCENTS_PER_CREDIT,
