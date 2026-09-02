@@ -65,13 +65,25 @@ export default async function CheckoutPage({
               conversations / month
             </p>
           </div>
+          {/* The headline number is what is DUE TODAY, not the monthly price.
+              This showed "$39 / per month / + $49 one-time setup", and the
+              leading "+" reads as additive — $88 — while the form below it
+              asks for $49. The setup fee REPLACES month one; it is never
+              charged alongside it (amountDueFor: totalUsd = setupFeeUsd). */}
           <div className="text-right">
-            <p className="tnum text-2xl font-semibold">${details.priceMonthlyUsd}</p>
-            <p className="text-[12px] text-ink-3">per month</p>
-            {due.includesSetupFee && (
-              <p className="mt-1 text-[12.5px] text-ink-2">
-                + ${due.setupFeeUsd} one-time setup
-              </p>
+            <p className="tnum text-2xl font-semibold">${due.totalUsd}</p>
+            {due.includesSetupFee ? (
+              <>
+                <p className="text-[12px] text-ink-3">due today</p>
+                <p className="mt-1 text-[12.5px] text-ink-2">
+                  covers setup and your first month
+                </p>
+                <p className="text-[12.5px] text-ink-2">
+                  then ${due.monthlyUsd}/month from day 31
+                </p>
+              </>
+            ) : (
+              <p className="text-[12px] text-ink-3">per month</p>
             )}
           </div>
         </div>

@@ -1,6 +1,7 @@
 import { conversationsFromCredits, getCreditStatus, PLANS } from "@platform/core";
 import { NextResponse } from "next/server";
 import { paddlePriceForPlan, paddleSetupPriceForPlan, paymentProvider } from "@/lib/paddle";
+import { planContact } from "@/lib/plan-contact.server";
 import { billingConfigured, priceIdForPlan } from "@/lib/stripe";
 import { requireWorkspace, unauthorized } from "@/lib/workspace";
 
@@ -35,6 +36,11 @@ export async function GET() {
             !!paddleSetupPriceForPlan(id as "starter" | "pro")
           : billingConfigured() && !!priceIdForPlan(id as "starter" | "pro")),
     })),
+    // The plan cards contact a human instead of opening a checkout while
+    // Paddle merchant verification is pending. Sent from the server because
+    // WHATSAPP_NUMBER is not a NEXT_PUBLIC var — the client cannot read it, and
+    // hardcoding a second copy in the client is how the two drift apart.
+    planContact: planContact(),
     billingConfigured: billingConfigured(),
     // Whether ANY card provider is live. `billingConfigured` above is the
     // Stripe-only flag and reads false on a working Paddle setup, so it cannot

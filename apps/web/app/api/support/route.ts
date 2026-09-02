@@ -1,5 +1,5 @@
 import { aiConfigured, callAi } from "@platform/ai";
-import { getCreditStatus, PLANS, takeLimit } from "@platform/core";
+import { conversationsFromCredits, getCreditStatus, PLANS, takeLimit } from "@platform/core";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { BRAND } from "@/lib/brand";
@@ -33,14 +33,14 @@ Channels: Website chat, Email (Gmail), and WhatsApp work today. Add website chat
 
 Autonomy: low-risk, well-grounded questions can be answered automatically in Smart mode; refunds, complaints, negotiations, and anything unclear always come to the owner. Boundaries (e.g. "never offer discounts") are always respected.
 
-Billing: a one-time 7-day free trial (no card), which never renews. Then Starter — a one-time $${PLANS.starter.setupFeeUsd} setup fee that covers the first month, then $${PLANS.starter.priceMonthlyUsd}/month from day 31; Premium — $${PLANS.pro.setupFeeUsd} setup covering month one, then $${PLANS.pro.priceMonthlyUsd}/month. The setup fee is charged once and includes the first month. Each plan covers a set number of customer conversations per month. Pay by card from the Billing page — Paddle is the merchant of record, so the receipt and card statement show Paddle, and Paddle handles VAT/sales tax. Bank transfer and Whish remain available as an alternative. Refunds: the setup fee is fully refundable within 14 days; see the Refund Policy at /refunds.
+Billing: a one-time 7-day free trial (no card), which never renews. Then ${PLANS.entry.name} — a one-time $${PLANS.entry.setupFeeUsd} setup fee that covers the first month, then $${PLANS.entry.priceMonthlyUsd}/month from day 31 (about ${conversationsFromCredits(PLANS.entry.monthlyCredits)} conversations); ${PLANS.starter.name} — $${PLANS.starter.priceMonthlyUsd}/month, no setup fee (about ${conversationsFromCredits(PLANS.starter.monthlyCredits)}); ${PLANS.growth.name} — $${PLANS.growth.priceMonthlyUsd}/month (about ${conversationsFromCredits(PLANS.growth.monthlyCredits)}); ${PLANS.pro.name} — $${PLANS.pro.priceMonthlyUsd}/month (about ${conversationsFromCredits(PLANS.pro.monthlyCredits)}). Only ${PLANS.entry.name} has a setup fee, and it includes the first month. Card payments are coming soon — we are not taking card payments yet. For now we set the account up personally and invoice directly, by bank transfer or Whish: open the Billing page and use the WhatsApp or email button on the plan you want, or see the bank details at /checkout. Never tell a customer they can pay by card today. Refunds: where a setup fee applies it is fully refundable within 14 days; see the Refund Policy at /refunds.
 
 Account: the avatar menu (bottom-left) has Account settings, Billing, Manage profile, and Sign out.`;
 
 function fallback(question: string): string {
   const q = question.toLowerCase();
   if (/bill|price|pay|charge|refund|credit|cancel|subscri|upgrade/.test(q))
-    return `Billing lives on the Billing page. You get a one-time 7-day free trial (no card). Starter is a $${PLANS.starter.setupFeeUsd} one-time setup fee covering your first month, then $${PLANS.starter.priceMonthlyUsd}/month; Premium is $${PLANS.pro.setupFeeUsd} then $${PLANS.pro.priceMonthlyUsd}/month. You can upgrade from there anytime.`;
+    return `Billing lives on the Billing page. You get a one-time 7-day free trial (no card). ${PLANS.entry.name} is a $${PLANS.entry.setupFeeUsd} one-time setup fee covering your first month, then $${PLANS.entry.priceMonthlyUsd}/month; ${PLANS.starter.name} is $${PLANS.starter.priceMonthlyUsd}/month, ${PLANS.growth.name} $${PLANS.growth.priceMonthlyUsd}/month and ${PLANS.pro.name} $${PLANS.pro.priceMonthlyUsd}/month, all with no setup fee. Card payments are not live yet — pick a plan on the Billing page and message us on WhatsApp or by email, and we will set you up and invoice you by bank transfer or Whish.`;
   if (/activate|automation|marketplace|lead|concierge/.test(q))
     return `To activate an automation: open Automations, pick one, connect a channel, configure it, preview it on a sample message, then go live. It starts in Supervised mode so you approve every reply until you trust it.`;
   if (/channel|website|chat|widget|email|gmail|whatsapp|instagram|integrat/.test(q))
