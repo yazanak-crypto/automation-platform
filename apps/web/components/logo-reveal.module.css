@@ -1,0 +1,190 @@
+/*
+ * Logo reveal — three beats over ~3s.
+ *
+ * Transforms and opacity ONLY. Every stroke moves by translation along its own
+ * axis, which is why none of these rules set transform-origin: a translation is
+ * origin-independent. The one rule that scales (.exit) scales the whole <svg>,
+ * where the default origin is its own centre and that is what we want. If a
+ * stroke ever needs rotation or scale, it must get transform-origin at the apex
+ * (24.7 24) plus transform-box: fill-box, or it will pivot about the SVG origin
+ * and swing wildly.
+ */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  background: #0b0b0d;
+  /* The app boots underneath; this is decoration and must never eat input
+     once it starts leaving. */
+  cursor: pointer;
+}
+
+.overlay.exit {
+  animation: veil 560ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  pointer-events: none;
+}
+
+@keyframes veil {
+  to {
+    opacity: 0;
+  }
+}
+
+.mark {
+  width: min(34vw, 232px);
+  height: auto;
+  color: #d4b872;
+  will-change: transform, opacity;
+}
+
+.overlay.exit .mark {
+  animation: lift 560ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes lift {
+  to {
+    transform: scale(1.06);
+    opacity: 0;
+  }
+}
+
+/* ── Beat 1 — the horizontal, released under tension ─────────────────────── */
+
+.horizontal {
+  animation: shoot-h 620ms cubic-bezier(0.16, 0.9, 0.3, 1) both;
+}
+
+/* Overshoot past the junction, then two decaying returns. Distances are
+   viewBox units; the stroke ends at x=43 so 64 clears the canvas entirely. */
+@keyframes shoot-h {
+  0% {
+    transform: translateX(64px);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  52% {
+    transform: translateX(-3.4px);
+  }
+  72% {
+    transform: translateX(1.15px);
+  }
+  87% {
+    transform: translateX(-0.36px);
+  }
+  100% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* ── Beat 2 — four diagonals drawn into the junction ─────────────────────── */
+
+/*
+ * Each stroke starts displaced along its OWN axis, so it appears to travel down
+ * the line it will occupy rather than sliding in from the side. Offsets are the
+ * apex->tip unit vector times a travel distance:
+ *   outer  (-19.7, -15.7)/25.2 x 50  ->  (-39.1, -31.2)
+ *   inner  (-19.7,  -7.8)/21.2 x 36  ->  (-33.5, -13.3)
+ *
+ * The inner pair travels LESS far than the outer pair, and both distances came
+ * down after watching this run. At 58 units the short inner strokes spent most
+ * of their flight as small detached dashes far out in the void — they read as
+ * debris drifting in, not as strokes being drawn into a junction.
+ */
+.outerUpper,
+.outerLower,
+.innerUpper,
+.innerLower {
+  opacity: 0;
+}
+
+.outerUpper {
+  animation: draw-outer-upper 560ms cubic-bezier(0.14, 0.82, 0.28, 1.015) 640ms both;
+}
+.outerLower {
+  animation: draw-outer-lower 560ms cubic-bezier(0.14, 0.82, 0.28, 1.015) 800ms both;
+}
+.innerUpper {
+  animation: draw-inner-upper 540ms cubic-bezier(0.14, 0.82, 0.28, 1.015) 1280ms both;
+}
+.innerLower {
+  animation: draw-inner-lower 540ms cubic-bezier(0.14, 0.82, 0.28, 1.015) 1460ms both;
+}
+
+@keyframes draw-outer-upper {
+  0% {
+    transform: translate(-39.1px, -31.2px);
+    opacity: 0;
+  }
+  14% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(0, 0);
+    opacity: 1;
+  }
+}
+@keyframes draw-outer-lower {
+  0% {
+    transform: translate(-39.1px, 31.2px);
+    opacity: 0;
+  }
+  14% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(0, 0);
+    opacity: 1;
+  }
+}
+@keyframes draw-inner-upper {
+  0% {
+    transform: translate(-33.5px, -13.3px);
+    opacity: 0;
+  }
+  14% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(0, 0);
+    opacity: 1;
+  }
+}
+@keyframes draw-inner-lower {
+  0% {
+    transform: translate(-33.5px, 13.3px);
+    opacity: 0;
+  }
+  14% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(0, 0);
+    opacity: 1;
+  }
+}
+
+/* ── Reduced motion — the settled mark, no movement ──────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .horizontal,
+  .outerUpper,
+  .outerLower,
+  .innerUpper,
+  .innerLower {
+    animation: none;
+    transform: none;
+    opacity: 1;
+  }
+  .overlay.exit {
+    animation: veil 200ms linear forwards;
+  }
+  .overlay.exit .mark {
+    animation: none;
+  }
+}

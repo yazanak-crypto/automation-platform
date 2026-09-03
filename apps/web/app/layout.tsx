@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { BRAND, BRAND_TAGLINE } from "@/lib/brand";
 import { PALETTE } from "@/lib/palette";
+import { LogoReveal } from "@/components/logo-reveal";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
@@ -76,7 +77,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       }}
     >
       <html lang="en" className={inter.variable}>
-        <body>{children}</body>
+        <body>
+          {/* Decoration, mounted first so it paints over the app while it
+              boots. It renders nothing at all after its one play.
+
+              Deliberately takes NO server-derived props: calling auth() here
+              opts the whole tree out of static rendering, and it did — every
+              prerendered page (/pricing, /terms, /refunds, /privacy, /demo)
+              turned dynamic. The reveal reads Clerk on the client instead,
+              which costs nothing because it decides in an effect anyway. */}
+          <LogoReveal />
+          {children}
+        </body>
       </html>
     </ClerkProvider>
   );

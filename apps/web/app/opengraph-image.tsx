@@ -24,20 +24,25 @@ export default function OpengraphImage() {
         }}
       >
         <div style={{ display: "flex", alignItems: "center" }}>
+          {/* Geometry mirrors components/logo-mark.tsx — inlined because Satori
+              renders this at build time and cannot import a React component
+              that ships as a client module. Keep the two in step. */}
           <svg
-            width={132}
-            height={110}
-            viewBox="0 0 48 40"
+            width={124}
+            height={124}
+            viewBox="0 0 48 48"
             fill="none"
             stroke="#d4b872"
-            strokeWidth={4}
+            strokeWidth={3.55}
             strokeLinecap="round"
             strokeLinejoin="round"
             style={{ marginRight: 32 }}
           >
-            <path d="M5 20 H44" />
-            <path d="M27 20 L8 7" />
-            <path d="M27 20 L8 33" />
+            <path d="M24.7 24 H43" />
+            <path d="M24.7 24 L5 8.3" />
+            <path d="M24.7 24 L5 16.2" />
+            <path d="M24.7 24 L5 31.8" />
+            <path d="M24.7 24 L5 39.7" />
           </svg>
           <span style={{ fontSize: 88, fontWeight: 700, letterSpacing: "-0.03em" }}>{BRAND}</span>
         </div>
