@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { arrivedFromOutside, shouldPlayReveal } from "./logo-reveal";
+import { arrivedFromOutside, hasSeenCookie, shouldPlayReveal } from "./logo-reveal";
 
 // Frequency rules for the opening reveal. "Plays once per session" is the kind
 // of claim that is easy to believe and easy to get wrong, so the matrix is
@@ -13,6 +13,31 @@ const base = {
   referrer: "",
   origin: ORIGIN,
 };
+
+describe("hasSeenCookie", () => {
+  it("finds the flag on its own and among others", () => {
+    expect(hasSeenCookie("ovr=1")).toBe(true);
+    expect(hasSeenCookie("__session=abc; ovr=1; other=2")).toBe(true);
+    expect(hasSeenCookie("other=2; ovr=1")).toBe(true);
+  });
+
+  it("is false when absent or empty", () => {
+    expect(hasSeenCookie("")).toBe(false);
+    expect(hasSeenCookie("__session=abc; other=2")).toBe(false);
+  });
+
+  it("does not match a lookalike name or value", () => {
+    // A substring check would accept all three of these.
+    expect(hasSeenCookie("discovr=1")).toBe(false);
+    expect(hasSeenCookie("ovr=10")).toBe(false);
+    expect(hasSeenCookie("xovr=1")).toBe(false);
+  });
+
+  it("is false for the flag set to anything but 1", () => {
+    expect(hasSeenCookie("ovr=0")).toBe(false);
+    expect(hasSeenCookie("ovr=")).toBe(false);
+  });
+});
 
 describe("arrivedFromOutside", () => {
   it("counts an empty referrer as outside — that is a direct hit", () => {
