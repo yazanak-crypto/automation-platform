@@ -44,10 +44,19 @@
   animation: lift 560ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
+/*
+ * Scale only — the fade belongs to the veil.
+ *
+ * This used to fade the mark too, and the two opacities MULTIPLY: at 140ms the
+ * mark was already at 0.76 x 0.76 = 0.58, and by 280ms at 0.05. The mark
+ * vanished in about 300ms of a 560ms exit, which cut the landing short — the
+ * payoff of a two-second assembly went by before it registered. Letting the
+ * veil carry the fade alone means the assembled mark stays legible for most of
+ * the exit, which is what buys the hold back at the shorter total run.
+ */
 @keyframes lift {
   to {
     transform: scale(1.06);
-    opacity: 0;
   }
 }
 

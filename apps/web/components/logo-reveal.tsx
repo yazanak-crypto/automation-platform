@@ -56,7 +56,27 @@ const APP_ROUTES = [
  * Short name and value because this rides on every request to the origin.
  */
 const SEEN_COOKIE = "ovr";
-const TOTAL_MS = 3000;
+
+/**
+ * Total run, and the exit that ends it. The exit STARTS at TOTAL_MS - EXIT_MS,
+ * so these two numbers between them set the hold — the still beat after the
+ * last stroke lands and before the mark lifts away.
+ *
+ * The strokes finish at 2000ms (CSS: inner-lower, 1460ms delay + 540ms). At
+ * 3000 the hold was 440ms and read slack. 2600 puts the exit at 2040ms, so the
+ * still hold is only 40ms — the beat is carried by the exit instead, where the
+ * whole assembled mark stays readable while the veil fades (53% at exit+190ms,
+ * measured).
+ *
+ * That only works because the mark no longer fades on its own; see the `lift`
+ * keyframes. While both faded, their opacities multiplied and the mark was
+ * effectively gone ~300ms into a 560ms exit, which at this shorter total run
+ * would have clipped the landing outright.
+ *
+ * Changing these does NOT touch any stroke timing — that all lives in
+ * logo-reveal.module.css.
+ */
+const TOTAL_MS = 2600;
 const EXIT_MS = 560;
 
 /**
